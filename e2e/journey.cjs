@@ -97,7 +97,7 @@ const W = Number(process.argv[3] || 393);
     await shot('cart');
     await tap('إتمام الطلب', { wait: 900 });
     await shot('checkout-top');
-    await tap('سجّل الدخول لإتمام الطلب', { wait: 900 });
+    await tap('تسجيل الدخول', { exact: true, wait: 900 });
     await shot('sign-in');
     await page.getByPlaceholder('5X XXX XXXX').fill('512345678');
     await tap('إرسال رمز التحقق', { wait: 1200 });

@@ -9,6 +9,10 @@ logistics partners. Qitah never buys, owns or warehouses parts.
 This repository contains the **native customer app** (React Native + Expo), Arabic-first with full RTL
 support and English localisation.
 
+> **Milestone 1.5 — UX & native polish** (branch `claude/m1.5-ux-polish`): see
+> [`docs/ux-audit-m1.5.md`](docs/ux-audit-m1.5.md). The visual identity is **provisional** pending the brand
+> redesign — see [`docs/brand-integration.md`](docs/brand-integration.md).
+>
 > **Milestone 1 status — demo build.** Every product, seller, price, rating and review is clearly-labelled
 > sample data. Payments, shipping and order progress are **simulated**. See [Known limitations](#known-limitations).
 
@@ -101,7 +105,8 @@ language takes effect immediately. Native system chrome (swipe-back edge, system
 
 ```bash
 npm run typecheck       # tsc --noEmit (strict)
-npm test                # Jest domain tests: fitment, pricing, search, order lifecycle
+npm run lint            # ESLint (eslint-config-expo, React Compiler rules)
+npm test                # Jest: fitment, pricing, offer comparison, search, checkout, order lifecycle
 ```
 
 End-to-end (web build + Playwright, used to verify Milestone 1 without a Mac):
