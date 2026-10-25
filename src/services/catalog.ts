@@ -1,8 +1,8 @@
 import { categories, products } from '@/data/catalog';
 import { offersForProduct } from '@/data/offers';
 import { fitRank, getFitStatus, type FitStatus } from '@/domain/compatibility';
-import type { CategoryId, Condition, Offer, PartOrigin, Product, Vehicle } from '@/domain/types';
-import { looksLikePartNumber, normalizePartNumber, normalizeText } from '@/lib/text';
+import type { Category, CategoryId, Condition, Offer, PartOrigin, Product, Vehicle } from '@/domain/types';
+import { looksLikePartNumber, normalizePartNumber, normalizeText, withinOneEdit } from '@/lib/text';
 
 /**
  * Catalog query layer. Today it reads bundled SAMPLE data synchronously; the function
@@ -129,6 +129,41 @@ export function searchProducts({ query, filters, sort, vehicle }: SearchInput): 
     }
   });
   return results;
+}
+
+export type SearchOutcome = {
+  results: ProductListing[];
+  /** `similar` when nothing matched exactly and a forgiving match (typo / partial words) was used. */
+  mode: 'exact' | 'similar';
+  partNumberQuery: boolean;
+};
+
+/**
+ * Exact search first; if it finds nothing, retry forgivingly: any meaningful word may match,
+ * and words of 4+ letters tolerate one typo. Results are labelled `similar` in the UI.
+ */
+export function searchWithFallback(input: SearchInput): SearchOutcome {
+  const partNumberQuery = looksLikePartNumber(input.query.trim());
+  const exact = searchProducts(input);
+  const tokens = normalizeText(input.query).split(/\s+/).filter((t) => t.length >= 3);
+  if (exact.length > 0 || tokens.length === 0 || partNumberQuery) return { results: exact, mode: 'exact', partNumberQuery };
+
+  const all = searchProducts({ ...input, query: '' });
+  const similar = all.filter((listing) => {
+    const words = haystack(listing.product).split(/\s+/);
+    return tokens.some((t) => words.some((w) => w.includes(t) || (t.length >= 4 && w.length >= 4 && withinOneEdit(t, w))));
+  });
+  return { results: similar, mode: similar.length ? 'similar' : 'exact', partNumberQuery };
+}
+
+/** Categories whose name matches the query, offered as one-tap scoped searches. */
+export function categorySuggestions(query: string): Category[] {
+  const tokens = normalizeText(query).split(/\s+/).filter((t) => t.length >= 2);
+  if (!tokens.length) return [];
+  return categories.filter((c) => {
+    const names = [normalizeText(c.name.ar), normalizeText(c.name.en)];
+    return tokens.some((t) => names.some((n) => n.includes(t) || n.split(/\s+/).some((w) => w.startsWith(t))));
+  });
 }
 
 /** Recommendations: catalog-backed matches for the selected vehicle, then popular items. */

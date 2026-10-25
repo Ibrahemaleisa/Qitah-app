@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Platform, View } from 'react-native';
 
 import { cities } from '@/data/sellers';
@@ -7,7 +7,9 @@ import { groupCartBySeller, shippingFeeFor, vatIncluded } from '@/domain/pricing
 import type { DeliveryDestination, DeliveryOptionId, PaymentMethodId } from '@/domain/types';
 import { useI18n } from '@/i18n';
 import { haptic } from '@/lib/haptics';
+import { makePaymentReference } from '@/lib/id';
 import { vehicleLabel } from '@/lib/vehicle';
+import { checkoutBlockers, type CheckoutBlocker } from '@/services/checkout';
 import { createOrder } from '@/services/orders';
 import { paymentMethods, paymentProviders } from '@/services/payments/mock';
 import { useAppStore, useSelectedVehicle } from '@/store/app-store';
@@ -48,7 +50,7 @@ export default function Checkout() {
   const [method, setMethod] = useState<PaymentMethodId>(Platform.OS === 'ios' ? 'applePay' : 'mada');
   const [processing, setProcessing] = useState(false);
 
-  const groups = useMemo(() => groupCartBySeller(cart, destination, address?.city), [cart, destination, address?.city]);
+  const groups = groupCartBySeller(cart, destination, address?.city);
 
   const shipmentFees = groups.map((g) => {
     const chosen = g.deliveryOptions.find((o) => o.id === shippingChoice[g.seller.id]) ?? g.deliveryOptions[0];
@@ -57,9 +59,19 @@ export default function Checkout() {
   const items = groups.reduce((sum, g) => sum + g.subtotal, 0);
   const shipping = shipmentFees.reduce((a, b) => a + b, 0);
   const total = items + shipping;
-  const blocked = groups.some((g) => g.deliveryOptions.length === 0);
   const eligibility = paymentProviders[method].checkEligibility(total);
-  const canPlace = !!user && !!address && !blocked && eligibility.eligible && cart.length > 0 && !processing;
+  const blockers = checkoutBlockers({ cartCount: cart.length, signedIn: !!user, hasAddress: !!address, groups, paymentEligible: eligibility.eligible });
+  const canPlace = blockers.length === 0 && !processing;
+
+  const fixBlocker = (b: CheckoutBlocker) => {
+    if (b === 'signIn') router.push('/sign-in');
+    else if (b === 'address') router.push({ pathname: '/address/edit', params: { kind: destination } });
+    else if (b === 'workshopUnsupported') setDestination('home');
+    else if (b === 'paymentIneligible') {
+      const next = paymentMethods.find((m) => paymentProviders[m.id].checkEligibility(total).eligible);
+      if (next) setMethod(next.id);
+    }
+  };
 
   if (cart.length === 0 && !processing) {
     return (
@@ -72,7 +84,7 @@ export default function Checkout() {
   const submit = async () => {
     if (!address || !canPlace) return;
     setProcessing(true);
-    const reference = String(Date.now()).slice(-7);
+    const reference = makePaymentReference();
     const result = await paymentProviders[method].authorize({ orderReference: reference, amount: total, currency: 'SAR' });
     if (result.status !== 'authorized') {
       setProcessing(false);
@@ -96,14 +108,29 @@ export default function Checkout() {
       header={<ScreenHeader back title={s.checkout.title} subtitle={s.common.items(cart.reduce((a, l) => a + l.qty, 0))} />}
       footer={
         <StickyFooter>
-          {!user ? <Button label={s.checkout.signInRequired} variant="dark" icon="user" onPress={() => router.push('/sign-in')} /> : null}
+          {blockers.length && !processing ? (
+            <View accessibilityRole="summary" style={{ gap: space.xs }}>
+              <Text variant="captionStrong" color="textSecondary">
+                {s.checkout.blockersTitle}
+              </Text>
+              {blockers.map((b) => (
+                <View key={b} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                  <Icon name="alert-circle" size={14} color="warning" />
+                  <Text variant="caption" style={{ flex: 1 }}>
+                    {s.checkout.blockers[b]}
+                  </Text>
+                  {b !== 'emptyCart' ? <Button label={s.checkout.fixes[b]} variant="secondary" size="sm" onPress={() => fixBlocker(b)} /> : null}
+                </View>
+              ))}
+            </View>
+          ) : null}
           <Button label={processing ? s.checkout.processing : s.checkout.payWith(methodName)} trailing={processing ? undefined : money(total)} loading={processing} disabled={!canPlace} onPress={submit} />
         </StickyFooter>
       }
     >
       <Notice tone="sample" icon="shield" text={s.checkout.simulatedPaymentNote} />
 
-      <Section title={s.checkout.deliverTo}>
+      <Section step={1} title={s.checkout.deliverTo}>
         <Segmented
           value={destination}
           onChange={setDestination}
@@ -127,7 +154,7 @@ export default function Checkout() {
         </View>
       </Section>
 
-      <Section title={s.checkout.shipping}>
+      <Section step={2} title={s.checkout.shipping}>
         <View style={{ gap: space.lg }}>
           {groups.map((g, gi) => {
             const chosenId = shippingChoice[g.seller.id] ?? g.deliveryOptions[0]?.id;
@@ -168,7 +195,7 @@ export default function Checkout() {
         </View>
       </Section>
 
-      <Section title={s.checkout.payment}>
+      <Section step={3} title={s.checkout.payment}>
         <View style={{ gap: space.sm }}>
           {paymentMethods.map((m) => {
             const elig = paymentProviders[m.id].checkEligibility(total);
@@ -193,7 +220,7 @@ export default function Checkout() {
         </View>
       </Section>
 
-      <Section title={s.checkout.summary}>
+      <Section step={4} title={s.checkout.summary}>
         <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.lg, gap: space.sm }}>
           <SummaryRow label={s.checkout.items} value={money(items)} />
           <SummaryRow label={s.checkout.shippingFees} value={shipping === 0 ? s.product.freeShipping : money(shipping)} />

@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Share, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,9 +10,10 @@ import { reviewsForProduct } from '@/data/reviews';
 import { getMake, getModel } from '@/data/vehicles';
 import { OriginBadge, SampleBadge } from '@/features/badges';
 import { FitPanel } from '@/features/FitPanel';
+import { ProductSummary } from '@/features/ProductSummary';
 import { OfferCard, offerHighlights } from '@/features/OfferCard';
 import { RatingSummaryCard, ReviewItem } from '@/features/Reviews';
-import { estimatedTotal } from '@/domain/pricing';
+import { estimatedTotal, getSeller } from '@/domain/pricing';
 import { useI18n } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { buildListing } from '@/services/catalog';
@@ -38,6 +39,7 @@ export default function ProductScreen() {
   const toggleFavorite = useAppStore((st) => st.toggleFavorite);
   const trackView = useAppStore((st) => st.trackView);
   const addToCart = useAppStore((st) => st.addToCart);
+  const [specsExpanded, setSpecsExpanded] = useState(false);
 
   useEffect(() => {
     if (product) trackView(product.id);
@@ -60,9 +62,14 @@ export default function ProductScreen() {
   const best = listing.bestOffer;
   const bestInStock = best && best.stock > 0;
 
+  const bestSeller = best ? getSeller(best.sellerId) : undefined;
+  const allSpecs = [{ label: { ar: 'رقم القطعة', en: 'Part number' }, value: product.partNumber }, { label: { ar: 'الماركة', en: 'Brand' }, value: product.brand }, ...product.specs];
+  const visibleSpecs = specsExpanded ? allSpecs : allSpecs.slice(0, 4);
+
   const onToggleFavorite = () => {
     toggleFavorite(product.id);
-    haptic.tap();
+    haptic.impact();
+    toast(isFavorite ? s.product.removedFavorite : s.product.savedFavorite, 'heart');
   };
 
   return (
@@ -78,12 +85,18 @@ export default function ProductScreen() {
               <Text variant="title2" weight="bold">
                 {best ? money(best.price) : '—'}
               </Text>
+              {best && bestSeller ? (
+                <Text variant="micro" color="textSecondary" numberOfLines={1}>
+                  {s.product.youAreAdding(tx(bestSeller.name), s.condition[best.condition])}
+                </Text>
+              ) : null}
             </View>
             <Button
               label={bestInStock ? s.product.addToCart : s.product.outOfStock}
               size="md"
               icon={bestInStock ? 'shopping-bag' : undefined}
               disabled={!bestInStock}
+              accessibilityHint={best && bestSeller ? s.product.youAreAdding(tx(bestSeller.name), s.condition[best.condition]) : undefined}
               onPress={() => {
                 if (!best) return;
                 addToCart(best.id);
@@ -96,15 +109,15 @@ export default function ProductScreen() {
       }
     >
       <Animated.View entering={FadeIn.duration(260)}>
-        <View style={{ height: 310 + insets.top, paddingTop: insets.top, backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }}>
-          <PartArt kind={product.art} size={250} background="transparent" />
+        <View style={{ height: 270 + insets.top, paddingTop: insets.top, backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }}>
+          <PartArt kind={product.art} size={220} background="transparent" />
         </View>
       </Animated.View>
       <View style={{ position: 'absolute', top: insets.top + space.xs, start: gutter, end: gutter, flexDirection: 'row', justifyContent: 'space-between' }}>
         <IconButton icon="chevron-left" label={s.common.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
         <View style={{ flexDirection: 'row', gap: space.sm }}>
           <IconButton icon="share" label={s.product.share} onPress={() => Share.share({ message: `${tx(product.name)} — ${product.partNumber} · ${s.brand.name}` }).catch(() => {})} />
-          <IconButton icon="heart" label={s.product.favorite} onPress={onToggleFavorite} tone={isFavorite ? 'accent' : 'surface'} />
+          <IconButton icon="heart" label={isFavorite ? s.product.removedFavorite : s.product.favorite} onPress={onToggleFavorite} tone={isFavorite ? 'accent' : 'surface'} />
         </View>
       </View>
 
@@ -131,6 +144,10 @@ export default function ProductScreen() {
         </View>
 
         <View style={{ marginTop: space.lg }}>
+          <ProductSummary offers={listing.offers} />
+        </View>
+
+        <View style={{ marginTop: space.md }}>
           <FitPanel product={product} vehicle={vehicle} status={listing.fit} />
         </View>
 
@@ -149,7 +166,7 @@ export default function ProductScreen() {
 
         <Section title={s.product.specs}>
           <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line }}>
-            {[{ label: { ar: 'رقم القطعة', en: 'Part number' }, value: product.partNumber }, { label: { ar: 'الماركة', en: 'Brand' }, value: product.brand }, ...product.specs].map((spec, i, arr) => (
+            {visibleSpecs.map((spec, i, arr) => (
               <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.md, paddingVertical: space.md, paddingHorizontal: space.lg, borderBottomWidth: i === arr.length - 1 ? 0 : 1, borderBottomColor: colors.line }}>
                 <Text variant="callout" color="textSecondary">
                   {tx(spec.label)}
@@ -160,6 +177,9 @@ export default function ProductScreen() {
               </View>
             ))}
           </View>
+          {allSpecs.length > 4 ? (
+            <Button label={specsExpanded ? s.product.showLessSpecs : s.product.showAllSpecs(allSpecs.length)} variant="ghost" size="sm" icon={specsExpanded ? 'chevron-up' : 'chevron-down'} style={{ alignSelf: 'flex-start', marginTop: space.xs }} onPress={() => setSpecsExpanded((v) => !v)} />
+          ) : null}
         </Section>
 
         <Section title={s.product.description}>

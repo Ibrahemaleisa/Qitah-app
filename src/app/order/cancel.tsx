@@ -4,6 +4,7 @@ import { ScrollView, View } from 'react-native';
 
 import { useI18n } from '@/i18n';
 import { haptic } from '@/lib/haptics';
+import { useNow } from '@/lib/use-now';
 import { canCancel } from '@/services/orders';
 import { paymentProviders } from '@/services/payments/mock';
 import { useAppStore } from '@/store/app-store';
@@ -21,7 +22,8 @@ export default function CancelOrderSheet() {
   const cancelOrder = useAppStore((st) => st.cancelOrder);
   const [reason, setReason] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const allowed = order ? canCancel(order, Date.now()) : false;
+  const now = useNow(5_000);
+  const allowed = order ? canCancel(order, now) : false;
 
   const confirm = async () => {
     if (!order || !reason) return;

@@ -1,3 +1,8 @@
 export function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
+
+/** Short numeric reference for a (simulated) payment attempt. */
+export function makePaymentReference(): string {
+  return String(Date.now()).slice(-7);
+}

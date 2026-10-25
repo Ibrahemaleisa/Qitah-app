@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Logo } from '@/brand/Logo';
 import { PartArt } from '@/brand/PartArt';
 import { categories } from '@/data/catalog';
+import { SampleBadge } from '@/features/badges';
 import { orderStatusVisuals } from '@/features/orderVisuals';
 import { ProductCard } from '@/features/ProductCard';
 import { VehicleCard } from '@/features/VehicleCard';
@@ -59,17 +60,20 @@ export default function Home() {
     <Screen padded={false} contentStyle={{ paddingTop: insets.top + space.sm }}>
       <View style={{ paddingHorizontal: gutter }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Logo size={34} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+            <Logo size={34} />
+            <SampleBadge />
+          </View>
           <View style={{ flexDirection: 'row', gap: space.sm }}>
             <IconButton icon="heart" label={s.account.favorites} onPress={() => router.push('/favorites')} />
             <IconButton icon="truck" label={s.garage.title} onPress={() => router.push('/garage')} />
           </View>
         </View>
 
-        <Text variant="title1" style={{ marginTop: space.lg }}>
+        <Text variant="title2" accessibilityRole="header" style={{ marginTop: space.lg }}>
           {s.home.greeting(user?.name.split(' ')[0])}
         </Text>
-        <Text variant="callout" color="textSecondary">
+        <Text variant="caption" color="textSecondary">
           {s.brand.promise}
         </Text>
 
@@ -84,11 +88,6 @@ export default function Home() {
           <Text variant="body" color="textTertiary" style={{ flex: 1 }} numberOfLines={1}>
             {s.home.searchPlaceholder}
           </Text>
-          <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.xs, backgroundColor: colors.surfaceSunken }}>
-            <Text variant="micro" color="textSecondary" ltr>
-              04465-…
-            </Text>
-          </View>
         </Pressable>
 
         <View style={{ marginTop: space.md }}>
@@ -99,7 +98,8 @@ export default function Home() {
           <Pressable
             onPress={() => router.push(`/order/${activeOrder.id}`)}
             pressScale={0.985}
-            accessibilityLabel={s.home.activeOrder}
+            accessibilityLabel={`${s.home.activeOrder} ${activeOrder.number}, ${s.orders.status[orderStatus(activeOrder, now)]}`}
+            accessibilityHint={s.home.trackOrder}
             style={{ marginTop: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}
           >
             <PartArt kind={activeOrder.lines[0]?.art ?? 'rotor'} size={44} rounded={radius.sm} />
@@ -118,10 +118,6 @@ export default function Home() {
           </Pressable>
         ) : null}
 
-        <View style={{ marginTop: space.lg }}>
-          <Notice tone="sample" text={s.home.sampleBanner} />
-        </View>
-
         <Section title={s.home.categories}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
             {categories.map((c, i) => (
@@ -130,9 +126,9 @@ export default function Home() {
                   onPress={() => openCategory(c.id)}
                   haptics="tap"
                   accessibilityLabel={tx(c.name)}
-                  style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.sm, alignItems: 'center', gap: space.xs }}
+                  style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, paddingVertical: space.sm, paddingHorizontal: space.xs, alignItems: 'center', gap: 2 }}
                 >
-                  <PartArt kind={c.art} size={64} background={colors.surfaceMuted} rounded={radius.md} />
+                  <PartArt kind={c.art} size={52} background={colors.surfaceMuted} rounded={radius.md} />
                   <Text variant="caption" weight="semibold" align="center" numberOfLines={1}>
                     {tx(c.name)}
                   </Text>
@@ -146,6 +142,9 @@ export default function Home() {
       {vehicle && recommended.length ? <Carousel title={s.home.forYourVehicle} subtitle={s.home.forYourVehicleHint} data={recommended} /> : null}
       <Carousel title={s.home.featured} data={featured} />
       {recent.length ? <Carousel title={s.home.recentlyViewed} data={recent} /> : null}
+      <View style={{ paddingHorizontal: gutter, marginTop: space.xxl }}>
+        <Notice tone="sample" text={s.home.sampleBanner} />
+      </View>
     </Screen>
   );
 }

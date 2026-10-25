@@ -6,7 +6,9 @@ import { PartArt } from '@/brand/PartArt';
 import { orderStatusVisuals } from '@/features/orderVisuals';
 import { useI18n } from '@/i18n';
 import { useNow } from '@/lib/use-now';
-import { orderStatus } from '@/services/orders';
+import { currentStage, orderStatus, shipmentStages } from '@/services/orders';
+import { getSeller } from '@/domain/pricing';
+import { ShipmentProgress } from '@/features/ShipmentTimeline';
 import { useAppStore } from '@/store/app-store';
 import { colors, radius, space } from '@/theme/tokens';
 import { Badge } from '@/ui/Badge';
@@ -36,7 +38,7 @@ export default function Orders() {
                 <Pressable
                   onPress={() => router.push(`/order/${order.id}`)}
                   pressScale={0.985}
-                  accessibilityLabel={order.number}
+                  accessibilityLabel={`${order.number}, ${s.orders.status[status]}, ${money(order.totals.total)}`}
                   style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.lg, gap: space.md }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -63,6 +65,21 @@ export default function Orders() {
                   <Text variant="callout" numberOfLines={1} color="textSecondary">
                     {order.lines.map((l) => tx(l.productName)).join(' · ')}
                   </Text>
+                  <View style={{ gap: space.sm }}>
+                    {order.shipments.map((sh) => {
+                      const stage = currentStage(order, sh, now);
+                      const seller = getSeller(sh.sellerId);
+                      return (
+                        <ShipmentProgress
+                          key={sh.id}
+                          sellerName={seller ? tx(seller.name) : ''}
+                          stageIndex={shipmentStages.indexOf(stage)}
+                          stageLabel={order.cancellation ? s.orders.status.cancelled : s.orders.stages[stage]}
+                          cancelled={!!order.cancellation}
+                        />
+                      );
+                    })}
+                  </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                     <View style={{ flexDirection: 'row', gap: 6 }}>
                       <Badge label={s.success.shipments(order.shipments.length)} icon="truck" />

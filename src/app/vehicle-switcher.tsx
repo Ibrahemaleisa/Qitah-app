@@ -4,13 +4,15 @@ import { ScrollView, View } from 'react-native';
 import { VehicleRow } from '@/features/VehicleRow';
 import { useI18n } from '@/i18n';
 import { haptic } from '@/lib/haptics';
+import { vehicleLabel } from '@/lib/vehicle';
 import { useAppStore } from '@/store/app-store';
 import { colors, gutter, space } from '@/theme/tokens';
 import { Button } from '@/ui/Button';
 import { Text } from '@/ui/Text';
+import { toast } from '@/ui/Toast';
 
 export default function VehicleSwitcher() {
-  const { s, isRTL } = useI18n();
+  const { s, isRTL, lang } = useI18n();
   const vehicles = useAppStore((st) => st.vehicles);
   const selectedId = useAppStore((st) => st.selectedVehicleId);
   const selectVehicle = useAppStore((st) => st.selectVehicle);
@@ -37,6 +39,7 @@ export default function VehicleSwitcher() {
             onSelect={() => {
               selectVehicle(v.id);
               haptic.success();
+              toast(vehicleLabel(v, lang), 'truck');
               router.back();
             }}
           />

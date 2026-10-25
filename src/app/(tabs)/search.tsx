@@ -8,8 +8,9 @@ import { PartArt } from '@/brand/PartArt';
 import { categories, getCategory } from '@/data/catalog';
 import { ProductRow } from '@/features/ProductCard';
 import { useI18n } from '@/i18n';
+import { webNoOutline } from '@/lib/platform-styles';
 import { vehicleLabel } from '@/lib/vehicle';
-import { popularSearches, searchProducts } from '@/services/catalog';
+import { categorySuggestions, popularSearches, searchWithFallback } from '@/services/catalog';
 import { useAppStore, useSelectedVehicle } from '@/store/app-store';
 import { activeFilterCount, useSearchStore } from '@/store/search-store';
 import { colors, fonts, gutter, radius, space } from '@/theme/tokens';
@@ -18,6 +19,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { HScroll } from '@/ui/HList';
 import { Icon } from '@/ui/Icon';
 import { ListGroup } from '@/ui/ListRow';
+import { Notice } from '@/ui/Notice';
 import { Pressable } from '@/ui/Pressable';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
@@ -40,7 +42,9 @@ export default function Search() {
     }
   }, [focusRequest]);
 
-  const results = useMemo(() => searchProducts({ query: deferredQuery, filters, sort, vehicle }), [deferredQuery, filters, sort, vehicle]);
+  const outcome = useMemo(() => searchWithFallback({ query: deferredQuery, filters, sort, vehicle }), [deferredQuery, filters, sort, vehicle]);
+  const results = outcome.results;
+  const suggestedCategories = useMemo(() => (filters.categoryId ? [] : categorySuggestions(deferredQuery)), [deferredQuery, filters.categoryId]);
   const browsing = !query.trim() && !filters.categoryId;
   const filterCount = activeFilterCount(filters);
   const category = filters.categoryId ? getCategory(filters.categoryId) : undefined;
@@ -66,7 +70,7 @@ export default function Search() {
           autoCorrect={false}
           autoCapitalize="none"
           accessibilityLabel={s.search.placeholder}
-          style={{ flex: 1, minWidth: 0, outlineWidth: 0, fontFamily: fonts.regular, fontSize: 16, color: colors.text, textAlign: isRTL ? 'right' : 'left', writingDirection: isRTL ? 'rtl' : 'ltr', paddingVertical: 0 }}
+          style={{ flex: 1, minWidth: 0, outlineWidth: 0, ...webNoOutline, fontFamily: fonts.regular, fontSize: 16, color: colors.text, textAlign: isRTL ? 'right' : 'left', writingDirection: isRTL ? 'rtl' : 'ltr', paddingVertical: 0 }}
         />
         {query ? (
           <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityLabel={s.search.clear}>
@@ -148,7 +152,34 @@ export default function Search() {
         contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: space.huge, gap: space.md }}
         ListHeaderComponent={
           <View style={{ gap: 2, marginTop: space.xs }}>
-            <Text variant="bodyStrong">{s.search.results(results.length)}</Text>
+            {suggestedCategories.length ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.sm }}>
+                {suggestedCategories.map((c) => (
+                  <Chip
+                    key={c.id}
+                    label={s.search.inCategory(tx(c.name))}
+                    icon="grid"
+                    onPress={() => {
+                      setQuery('');
+                      patchFilters({ categoryId: c.id });
+                    }}
+                  />
+                ))}
+              </View>
+            ) : null}
+            {outcome.partNumberQuery && results.length ? (
+              <View style={{ marginBottom: space.sm }}>
+                <Notice tone="info" icon="hash" text={s.search.partNumberMode} />
+              </View>
+            ) : null}
+            {outcome.mode === 'similar' ? (
+              <View style={{ marginBottom: space.sm }}>
+                <Notice tone="warning" icon="search" text={s.search.similarResults(deferredQuery.trim())} />
+              </View>
+            ) : null}
+            <Text variant="bodyStrong" accessibilityLiveRegion="polite">
+              {s.search.results(results.length)}
+            </Text>
             {vehicle ? (
               <Text variant="caption" color="textSecondary">
                 {s.search.filterFor(vehicleLabel(vehicle, lang))}
@@ -162,12 +193,31 @@ export default function Search() {
           </Animated.View>
         )}
         ListEmptyComponent={
-          <EmptyState
-            icon="search"
-            title={s.search.noResults}
-            body={s.search.noResultsHint}
-            action={filterCount > 0 || filters.fitsVehicleOnly ? { label: s.search.clearFilters, onPress: () => { resetFilters(); patchFilters({ fitsVehicleOnly: false }); } } : undefined}
-          />
+          <View>
+            <EmptyState
+              icon="search"
+              title={s.search.noResults}
+              body={filters.fitsVehicleOnly ? undefined : s.search.noResultsHint}
+              action={
+                filters.fitsVehicleOnly
+                  ? { label: s.search.showAllParts, onPress: () => patchFilters({ fitsVehicleOnly: false }) }
+                  : filterCount > 0
+                    ? { label: s.search.clearFilters, onPress: resetFilters }
+                    : undefined
+              }
+            />
+            <Text variant="caption" color="textSecondary" align="center" style={{ marginBottom: space.lg }}>
+              {s.search.partNumberTip}
+            </Text>
+            <Text variant="headline" style={{ marginBottom: space.sm }}>
+              {s.search.tryPopular}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+              {popularSearches.map((p) => (
+                <Chip key={p.en} label={p[lang]} icon="trending-up" onPress={() => runSearch(p[lang])} />
+              ))}
+            </View>
+          </View>
         }
       />
     </Screen>

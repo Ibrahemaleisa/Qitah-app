@@ -42,3 +42,25 @@ export function ShipmentTimeline({ events, cancelled }: { events: StageEvent[]; 
     </View>
   );
 }
+
+/** Compact per-seller progress used on order cards. */
+export function ShipmentProgress({ sellerName, stageIndex, stageLabel, cancelled }: { sellerName: string; stageIndex: number; stageLabel: string; cancelled?: boolean }) {
+  const total = 5;
+  return (
+    <View accessible accessibilityLabel={`${sellerName}: ${stageLabel}`} style={{ gap: 4 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.sm }}>
+        <Text variant="caption" weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
+          {sellerName}
+        </Text>
+        <Text variant="caption" color={cancelled ? 'danger' : stageIndex >= total ? 'success' : 'textSecondary'}>
+          {stageLabel}
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 3 }}>
+        {Array.from({ length: total }, (_, i) => (
+          <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: cancelled ? colors.line : i < stageIndex ? (stageIndex >= total ? colors.success : colors.accent) : colors.line }} />
+        ))}
+      </View>
+    </View>
+  );
+}
