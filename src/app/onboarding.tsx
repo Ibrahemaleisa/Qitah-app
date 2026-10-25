@@ -1,13 +1,14 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { LogoMark } from '@/brand/Logo';
+import { Logo } from '@/brand/Logo';
 import { PartArt } from '@/brand/PartArt';
 import { useI18n } from '@/i18n';
 import { useAppStore } from '@/store/app-store';
+import { enterFade, enterUp } from '@/theme/motion';
 import { colors, gutter, radius, space } from '@/theme/tokens';
 import { Button } from '@/ui/Button';
 import { Icon, type IconName } from '@/ui/Icon';
@@ -31,12 +32,7 @@ export default function Onboarding() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.inverse, direction: isRTL ? 'rtl' : 'ltr' }}>
       <View style={{ paddingTop: insets.top + space.sm, paddingHorizontal: gutter, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-          <LogoMark size={34} tone="light" />
-          <Text variant="title2" weight="bold" color="textInverse">
-            {s.brand.name}
-          </Text>
-        </View>
+        <Logo height={22} tone="dark" />
         <View style={{ flexDirection: 'row', gap: space.sm }}>
           <Pressable onPress={() => setLang(lang === 'ar' ? 'en' : 'ar')} haptics="tap" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.md, height: 34, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.inverseBorder }} accessibilityLabel={s.onboarding.language}>
             <Icon name="globe" size={14} color={colors.textInverseSecondary} />
@@ -55,13 +51,13 @@ export default function Onboarding() {
       </View>
 
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: gutter }}>
-        <Animated.View key={`art-${index}`} entering={FadeIn.duration(380)} exiting={FadeOut.duration(150)} style={{ width: '100%', alignItems: 'center' }}>
+        <Animated.View key={`art-${index}`} entering={enterFade} exiting={FadeOut.duration(150)} style={{ width: '100%', alignItems: 'center' }}>
           {index === 0 ? <VehicleVignette /> : index === 1 ? <CompareVignette /> : <DeliveryVignette />}
         </Animated.View>
       </View>
 
       <View style={{ backgroundColor: colors.background, borderTopLeftRadius: radius.xxl, borderTopRightRadius: radius.xxl, paddingHorizontal: gutter, paddingTop: space.xxl, paddingBottom: Math.max(insets.bottom, space.lg) + space.sm }}>
-        <Animated.View key={`txt-${index}-${lang}`} entering={FadeInDown.duration(320)} style={{ minHeight: 132, gap: space.sm }}>
+        <Animated.View key={`txt-${index}-${lang}`} entering={enterUp()} style={{ minHeight: 132, gap: space.sm }}>
           <Text variant="title1">{slides[index].title}</Text>
           <Text variant="body" color="textSecondary">
             {slides[index].body}
@@ -70,7 +66,7 @@ export default function Onboarding() {
         <View style={{ flexDirection: 'row', gap: 6, marginVertical: space.lg }}>
           {slides.map((_, i) => (
             <Pressable key={i} onPress={() => setIndex(i)} hitSlop={8} accessibilityLabel={`${i + 1}`}>
-              <View style={{ width: i === index ? 26 : 8, height: 8, borderRadius: 4, backgroundColor: i === index ? colors.accent : colors.lineStrong }} />
+              <View style={{ width: i === index ? 26 : 8, height: 8, borderRadius: 4, backgroundColor: i === index ? colors.primary : colors.lineStrong }} />
             </Pressable>
           ))}
         </View>
@@ -93,7 +89,7 @@ function VehicleVignette() {
     <View style={{ width: '100%', maxWidth: 340, gap: space.md }}>
       <VignetteCard style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
         <View style={{ width: 48, height: 48, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="truck" size={22} color="textOnAccent" />
+          <Icon name="car" size={22} color="textOnAccent" />
         </View>
         <View style={{ flex: 1 }}>
           <Text variant="headline" color="textInverse">
@@ -174,7 +170,7 @@ function DeliveryVignette() {
       <VignetteCard style={{ gap: space.sm }}>
         {[1, 1, 1, 0].map((done, i) => (
           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-            <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: done ? colors.accent : colors.inverseBorder }} />
+            <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: done ? colors.textInverseSecondary : colors.inverseBorder }} />
             <View style={{ height: 7, width: `${70 - i * 12}%`, borderRadius: 4, backgroundColor: colors.inverseBorder }} />
           </View>
         ))}

@@ -1,12 +1,15 @@
 /**
- * Renders the Qitah mark to the PNG assets Expo needs (app icon, splash, Android adaptive
- * icon, favicon). Uses the pre-installed Playwright Chromium:  node scripts/generate-brand-assets.mjs
- * Geometry mirrors src/brand/Logo.tsx — keep them in sync.
+ * Renders the official Qitah symbol (src/brand/symbol.ts, extracted from Brand Guidelines v3.0)
+ * to the PNG assets Expo needs. Uses the pre-installed Playwright Chromium:
+ *   node scripts/generate-brand-assets.mjs
+ *
+ * App icon spec (guidelines p.16): Qitah Blue background, white car, orange piece, symbol at 72% of
+ * the icon width, delivered as a 1024px square without corners (the OS applies the mask).
  */
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 
 // CommonJS require so a globally installed Playwright resolves too.
 const { chromium } = createRequire(import.meta.url)('playwright');
@@ -15,45 +18,33 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const out = resolve(root, 'assets/images');
 mkdirSync(out, { recursive: true });
 
-const INK = '#121316';
-const PAPER = '#FBF9F6';
-const ORANGE = '#FF5A1F';
+const source = readFileSync(resolve(root, 'src/brand/symbol.ts'), 'utf8');
+const pick = (name) => source.match(new RegExp(`${name} =\\s*'([^']+)'`))[1];
+const CAR = pick('CAR_PATH');
+const PIECE = pick('PIECE_PATH');
+const VB = { w: 395.61, h: 194.88 };
 
-function arc(cx, cy, r, a0, a1) {
-  const p = (d) => [cx + r * Math.cos((d * Math.PI) / 180), cy + r * Math.sin((d * Math.PI) / 180)];
-  const [x1, y1] = p(a0);
-  const [x2, y2] = p(a1);
-  return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
-}
+const BLUE = '#022B74';
+const ORANGE = '#FE680E';
+const WHITE = '#FFFFFF';
 
-function mark({ disc, cut }) {
-  const holes = [0, 72, 144, 216, 288]
-    .map((deg) => {
-      const r = ((deg - 90) * Math.PI) / 180;
-      return `<circle cx="${50 + Math.cos(r) * 22}" cy="${52 + Math.sin(r) * 22}" r="3.4" fill="${cut}"/>`;
-    })
-    .join('');
-  return `<circle cx="50" cy="52" r="34" fill="${disc}"/><circle cx="50" cy="52" r="11" fill="${cut}"/><circle cx="50" cy="52" r="5" fill="${disc}"/>${holes}<path d="${arc(50, 52, 37, -78, 18)}" stroke="${ORANGE}" stroke-width="15" stroke-linecap="round" fill="none"/>`;
-}
-
-/**
- * scale: share of the canvas the 100-unit mark occupies. The mark is shifted so the
- * combined rotor + caliper silhouette (not just the rotor) is optically centred.
- */
-function svg({ size, bg, scale, tone }) {
-  const colors = tone === 'light' ? { disc: PAPER, cut: INK } : { disc: INK, cut: PAPER };
-  const s = (size * scale) / 100;
-  const offset = (size - 100 * s) / 2;
+/** widthRatio: share of the canvas width taken by the symbol; the symbol is centred. */
+function svg({ size, bg, widthRatio, car, piece }) {
+  const w = size * widthRatio;
+  const s = w / VB.w;
+  const x = (size - w) / 2;
+  const y = (size - VB.h * s) / 2;
   const rect = bg ? `<rect width="${size}" height="${size}" fill="${bg}"/>` : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${rect}<g transform="translate(${offset - 5 * s} ${offset + 3 * s}) scale(${s})">${mark(colors)}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${rect}<g transform="translate(${x} ${y}) scale(${s})"><path d="${CAR}" fill="${car}"/><path d="${PIECE}" fill="${piece}"/></g></svg>`;
 }
 
 const assets = [
-  { file: 'icon.png', size: 1024, bg: INK, scale: 0.74, tone: 'light' },
-  { file: 'splash-icon.png', size: 512, bg: null, scale: 0.92, tone: 'light' },
-  { file: 'android-icon-foreground.png', size: 1024, bg: null, scale: 0.5, tone: 'light' },
-  { file: 'android-icon-monochrome.png', size: 1024, bg: null, scale: 0.5, tone: 'light' },
-  { file: 'favicon.png', size: 96, bg: INK, scale: 0.8, tone: 'light' },
+  { file: 'icon.png', size: 1024, bg: BLUE, widthRatio: 0.72, car: WHITE, piece: ORANGE },
+  { file: 'splash-icon.png', size: 600, bg: null, widthRatio: 0.96, car: BLUE, piece: ORANGE },
+  // Adaptive icons: keep the symbol inside the 66% safe zone.
+  { file: 'android-icon-foreground.png', size: 1024, bg: null, widthRatio: 0.56, car: WHITE, piece: ORANGE },
+  { file: 'android-icon-monochrome.png', size: 1024, bg: null, widthRatio: 0.56, car: WHITE, piece: WHITE },
+  { file: 'favicon.png', size: 96, bg: BLUE, widthRatio: 0.78, car: WHITE, piece: ORANGE },
 ];
 
 const browser = await chromium.launch();

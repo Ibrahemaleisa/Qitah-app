@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { View } from 'react-native';
 
-import { LogoMark } from '@/brand/Logo';
+import { LogoSymbol } from '@/brand/Logo';
 import { useI18n } from '@/i18n';
 import { confirmAction } from '@/lib/confirm';
 import { useAppStore } from '@/store/app-store';
@@ -28,7 +28,7 @@ export default function Account() {
     <Screen header={<ScreenHeader title={s.account.title} large />}>
       {user ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.xl, backgroundColor: colors.inverse }}>
-          <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.inverseMuted, alignItems: 'center', justifyContent: 'center' }}>
             <Text variant="title2" color="textOnAccent">
               {user.name.slice(0, 1)}
             </Text>
@@ -45,7 +45,7 @@ export default function Account() {
       ) : (
         <View style={{ padding: space.lg, borderRadius: radius.xl, backgroundColor: colors.inverse, gap: space.md }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-            <LogoMark size={44} tone="light" />
+            <LogoSymbol width={64} tone="dark" />
             <View style={{ flex: 1 }}>
               <Text variant="headline" color="textInverse">
                 {s.account.guestTitle}
@@ -62,7 +62,7 @@ export default function Account() {
       <View style={{ marginTop: space.xl, gap: space.lg }}>
         <ListGroup>
           {user ? <ListRow icon="user" title={s.account.profile} onPress={() => router.push('/profile')} /> : null}
-          <ListRow icon="truck" title={s.account.vehicles} value={vehicles ? String(vehicles) : undefined} onPress={() => router.push('/garage')} />
+          <ListRow icon="car" title={s.account.vehicles} value={vehicles ? String(vehicles) : undefined} onPress={() => router.push('/garage')} />
           <ListRow icon="map-pin" title={s.account.addresses} value={addresses ? String(addresses) : undefined} onPress={() => router.push('/addresses')} />
           <ListRow icon="heart" title={s.account.favorites} value={favorites ? String(favorites) : undefined} onPress={() => router.push('/favorites')} />
           <ListRow icon="package" title={s.account.orders} value={orders ? String(orders) : undefined} onPress={() => router.navigate('/orders')} last />
@@ -88,7 +88,7 @@ export default function Account() {
         </ListGroup>
       </View>
       <View style={{ alignItems: 'center', marginTop: space.xxl, gap: space.xs }}>
-        <LogoMark size={28} />
+        <LogoSymbol width={48} />
         <Text variant="caption" color="textTertiary" align="center">
           {s.account.version(version)}
         </Text>

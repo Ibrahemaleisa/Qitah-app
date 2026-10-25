@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
-import { LogoMark } from '@/brand/Logo';
+import { LogoSymbol } from '@/brand/Logo';
 import { useI18n } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { useAppStore } from '@/store/app-store';
+import { enterUp } from '@/theme/motion';
 import { space } from '@/theme/tokens';
 import { Button } from '@/ui/Button';
 import { Input } from '@/ui/Input';
@@ -63,14 +64,14 @@ export default function SignIn() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Screen header={<ScreenHeader back dismiss="close" inSheet />}>
         <View style={{ gap: space.md, marginTop: space.lg, marginBottom: space.xxl }}>
-          <LogoMark size={56} />
+          <LogoSymbol width={96} />
           <Text variant="title1">{s.auth.title}</Text>
           <Text variant="body" color="textSecondary">
             {s.auth.subtitle}
           </Text>
         </View>
 
-        <Animated.View key={step} entering={FadeInDown.duration(260)} style={{ gap: space.lg }}>
+        <Animated.View key={step} entering={enterUp()} style={{ gap: space.lg }}>
           {step === 'phone' ? (
             <>
               <Input label={s.auth.phone} prefix="+966" placeholder={s.auth.phonePlaceholder} keyboardType="phone-pad" value={phone} onChangeText={setPhone} error={error} maxLength={11} ltr autoFocus textContentType="telephoneNumber" />

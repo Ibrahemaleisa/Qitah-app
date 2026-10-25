@@ -1,72 +1,92 @@
 import { View } from 'react-native';
-import Svg, { Circle, G, Path } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 
-import { colors, palette } from '@/theme/tokens';
+import { useI18n } from '@/i18n';
+import { latinFonts, palette, fonts } from '@/theme/tokens';
 import { Text } from '@/ui/Text';
 
-type MarkProps = {
-  size?: number;
-  /** `light` for dark backgrounds. */
-  tone?: 'dark' | 'light';
-  /** Render only one layer — used by the splash animation to spin the rotor under the caliper. */
-  layer?: 'all' | 'rotor' | 'caliper';
-};
-
-const HOLE_ANGLES = [0, 72, 144, 216, 288];
+import { CAR_PATH, PIECE_PATH, SYMBOL_VIEWBOX } from './symbol';
 
 /**
- * The Qitah mark: a brake rotor reduced to a disc, a hub and five cross-drilled holes,
- * clamped by a single orange caliper arc. Built on a 100-unit grid so it stays crisp
- * from 16px favicons to 1024px App Store artwork.
+ * Symbol colourways (guidelines p.8 / p.29):
+ * primary (blue car + orange piece, light backgrounds), dark (white car + orange piece, blue or dark
+ * backgrounds), mono-black / mono-white (single colour). `pending` and `faint` are the car-only states
+ * used by the compatibility indicator (p.31).
  */
-export function LogoMark({ size = 48, tone = 'dark', layer = 'all' }: MarkProps) {
-  const disc = tone === 'dark' ? palette.ink900 : palette.paper50;
-  const cut = tone === 'dark' ? palette.paper50 : palette.ink900;
+export type SymbolTone = 'primary' | 'dark' | 'mono-black' | 'mono-white' | 'pending' | 'faint';
+
+const toneColors: Record<SymbolTone, { car: string; piece: string | null }> = {
+  primary: { car: palette.qitahBlue, piece: palette.qitahOrange },
+  dark: { car: palette.white, piece: palette.qitahOrange },
+  'mono-black': { car: '#000000', piece: '#000000' },
+  'mono-white': { car: palette.white, piece: palette.white },
+  pending: { car: palette.slate, piece: null },
+  faint: { car: palette.lineStrong, piece: null },
+};
+
+type SymbolProps = {
+  /** Rendered width in points. Minimum 24 (guidelines p.7). */
+  width: number;
+  tone?: SymbolTone;
+  /** Render a single shape (splash animation). */
+  layer?: 'all' | 'car' | 'piece';
+};
+
+export function LogoSymbol({ width, tone = 'primary', layer = 'all' }: SymbolProps) {
+  const c = toneColors[tone];
+  const height = (width * SYMBOL_VIEWBOX.height) / SYMBOL_VIEWBOX.width;
   return (
-    <Svg width={size} height={size} viewBox="0 2 100 100">
-      {layer !== 'caliper' ? (
-        <G>
-          <Circle cx={50} cy={52} r={34} fill={disc} />
-          <Circle cx={50} cy={52} r={11} fill={cut} />
-          <Circle cx={50} cy={52} r={5} fill={disc} />
-          {HOLE_ANGLES.map((deg) => {
-            const rad = ((deg - 90) * Math.PI) / 180;
-            return <Circle key={deg} cx={50 + Math.cos(rad) * 22} cy={52 + Math.sin(rad) * 22} r={3.4} fill={cut} />;
-          })}
-        </G>
-      ) : null}
-      {/* Caliper: a thick arc gripping the upper-right edge of the disc. */}
-      {layer !== 'rotor' ? <Path d={arc(50, 52, 37, -78, 18)} stroke={palette.orange500} strokeWidth={15} strokeLinecap="round" fill="none" /> : null}
+    <Svg width={width} height={height} viewBox={`0 0 ${SYMBOL_VIEWBOX.width} ${SYMBOL_VIEWBOX.height}`} accessible={false}>
+      {layer !== 'piece' ? <Path d={CAR_PATH} fill={c.car} /> : null}
+      {layer !== 'car' && c.piece ? <Path d={PIECE_PATH} fill={c.piece} /> : null}
     </Svg>
   );
 }
 
-function arc(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
-  const toXY = (deg: number) => {
-    const rad = (deg * Math.PI) / 180;
-    return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
-  };
-  const [x1, y1] = toXY(startDeg);
-  const [x2, y2] = toXY(endDeg);
-  const large = endDeg - startDeg > 180 ? 1 : 0;
-  return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+/** Only the orange piece — the brand's "selected / fits" marker (p.14). Direction never mirrors. */
+export function PieceMark({ width }: { width: number }) {
+  // The piece occupies x 93.7–395.6, y 73.6–194.9 of the symbol viewBox.
+  const vb = { x: 93.7, y: 73.6, w: 301.91, h: 121.27 };
+  return (
+    <Svg width={width} height={(width * vb.h) / vb.w} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} accessible={false}>
+      <Path d={PIECE_PATH} fill={palette.qitahOrange} />
+    </Svg>
+  );
 }
 
-export function Logo({ size = 40, tone = 'dark', showLatin = false }: MarkProps & { showLatin?: boolean }) {
-  const textColor = tone === 'dark' ? colors.text : colors.textInverse;
+type LogoProps = {
+  /** Symbol height in points; the wordmark is sized from it. */
+  height?: number;
+  tone?: 'primary' | 'dark';
+  /** Defaults to the app language: Arabic lockup (symbol right) or Latin lockup (symbol left). */
+  lockup?: 'ar' | 'en';
+};
+
+/**
+ * Horizontal lockups (p.5–6). The symbol precedes the word on the right in Arabic, on the left in
+ * English; the lockup itself never mirrors. Wordmarks are set in IBM Plex Sans Arabic / IBM Plex Sans
+ * Bold as specified. Minimum logo width 96pt (p.7).
+ */
+export function Logo({ height = 26, tone = 'primary', lockup }: LogoProps) {
+  const { lang } = useI18n();
+  const which = lockup ?? lang;
+  const width = (height * SYMBOL_VIEWBOX.width) / SYMBOL_VIEWBOX.height;
+  const color = tone === 'primary' ? palette.qitahBlue : palette.white;
+  const word =
+    which === 'ar' ? (
+      <Text style={{ fontFamily: fonts.bold, fontSize: height * 1.3, lineHeight: height * 1.7, color }} accessible={false}>
+        قطعة
+      </Text>
+    ) : (
+      <Text style={{ fontFamily: latinFonts.bold, fontSize: height * 1.08, lineHeight: height * 1.4, color }} accessible={false}>
+        Qitah
+      </Text>
+    );
+  const symbol = <LogoSymbol width={width} tone={tone === 'primary' ? 'primary' : 'dark'} />;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: size * 0.22 }}>
-      <LogoMark size={size} tone={tone} />
-      <View>
-        <Text weight="bold" style={{ fontSize: size * 0.72, lineHeight: size * 1.02, color: textColor }}>
-          قطعة
-        </Text>
-        {showLatin ? (
-          <Text weight="semibold" style={{ fontSize: size * 0.26, lineHeight: size * 0.34, letterSpacing: size * 0.06, color: textColor, opacity: 0.7 }}>
-            QITAH
-          </Text>
-        ) : null}
-      </View>
+    <View accessible accessibilityRole="image" accessibilityLabel="قطعة · Qitah" style={{ direction: 'ltr', flexDirection: 'row', alignItems: 'center', gap: height * 0.42 }}>
+      {which === 'ar' ? word : symbol}
+      {which === 'ar' ? symbol : word}
     </View>
   );
 }

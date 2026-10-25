@@ -1,61 +1,74 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { Easing, FadeOut, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { FadeOut, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 
-import { colors, palette } from '@/theme/tokens';
+import { brandEasing } from '@/theme/motion';
+import { colors, fonts, latinFonts, palette } from '@/theme/tokens';
 import { Text } from '@/ui/Text';
 
-import { LogoMark } from './Logo';
+import { LogoSymbol } from './Logo';
+import { SYMBOL_VIEWBOX } from './symbol';
 
-const SIZE = 112;
+const SYMBOL_W = 132;
+const SYMBOL_H = (SYMBOL_W * SYMBOL_VIEWBOX.height) / SYMBOL_VIEWBOX.width;
 
 /**
- * Animated continuation of the native splash: the rotor spins down to rest under the
- * caliper, then the wordmark settles in. Runs once per cold start (~1.3s).
+ * Logo reveal (guidelines p.25), splash only: the car enters and settles (0–250ms), the piece
+ * approaches (450ms) and fits into place (650ms), then the name appears (900ms).
+ * With Reduce Motion the logo simply fades in.
  */
 export function BrandSplash({ onDone }: { onDone: () => void }) {
-  const spin = useSharedValue(0);
-  const caliper = useSharedValue(0);
+  const car = useSharedValue(0);
+  const piece = useSharedValue(0);
   const word = useSharedValue(0);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    const ease = { easing: brandEasing };
     if (reduceMotion) {
-      // Reduce Motion: show the finished mark briefly instead of the spin sequence.
-      spin.value = 1;
-      caliper.value = 1;
-      word.value = 1;
-      const t = setTimeout(onDone, 450);
+      car.value = withTiming(1, { duration: 200 });
+      piece.value = withTiming(2, { duration: 200 });
+      word.value = withTiming(1, { duration: 200 });
+      const t = setTimeout(onDone, 600);
       return () => clearTimeout(t);
     }
-    spin.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
-    caliper.value = withDelay(650, withSpring(1, { damping: 12, stiffness: 240 }));
-    word.value = withDelay(750, withTiming(1, { duration: 360 }));
-    const t = setTimeout(onDone, 1350);
+    car.value = withTiming(1, { duration: 250, ...ease });
+    // 0 → 1: approach (light, offset) by 450ms; 1 → 2: fits by 650ms.
+    piece.value = withDelay(250, withSequence(withTiming(1, { duration: 200, ...ease }), withTiming(2, { duration: 200, ...ease })));
+    word.value = withDelay(650, withTiming(1, { duration: 250, ...ease }));
+    const t = setTimeout(onDone, 1250);
     return () => clearTimeout(t);
-  }, [spin, caliper, word, onDone, reduceMotion]);
+  }, [car, piece, word, onDone, reduceMotion]);
 
-  const rotor = useAnimatedStyle(() => ({ transform: [{ rotate: `${(1 - spin.value) * -540}deg` }] }));
-  const clamp = useAnimatedStyle(() => ({ opacity: caliper.value, transform: [{ scale: 0.86 + caliper.value * 0.14 }] }));
-  const wordmark = useAnimatedStyle(() => ({ opacity: word.value, transform: [{ translateY: (1 - word.value) * 10 }] }));
+  const carStyle = useAnimatedStyle(() => ({ opacity: 0.35 + car.value * 0.65, transform: [{ translateX: (1 - car.value) * -18 }] }));
+  const pieceStyle = useAnimatedStyle(() => {
+    const p = piece.value;
+    const approach = Math.min(p, 1);
+    const fit = Math.max(p - 1, 0);
+    return {
+      opacity: approach * (0.45 + fit * 0.55),
+      transform: [{ translateX: (1 - fit) * 12 }, { translateY: (1 - fit) * 10 }],
+    };
+  });
+  const wordStyle = useAnimatedStyle(() => ({ opacity: word.value, transform: [{ translateY: (1 - word.value) * 6 }] }));
 
   return (
-    <Animated.View exiting={FadeOut.duration(260)} accessible accessibilityLabel="قطعة · Qitah" style={[StyleSheet.absoluteFill, { backgroundColor: palette.ink900, alignItems: 'center', justifyContent: 'center', zIndex: 100 }]}>
-      <View style={{ width: SIZE, height: SIZE }}>
-        <Animated.View style={[StyleSheet.absoluteFill, rotor]}>
-          <LogoMark size={SIZE} tone="light" layer="rotor" />
+    <Animated.View exiting={FadeOut.duration(200)} accessible accessibilityLabel="قطعة · Qitah" style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', zIndex: 100 }]}>
+      <View style={{ direction: 'ltr', flexDirection: 'row', alignItems: 'center', gap: 22 }}>
+        <Animated.View style={wordStyle}>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 58, lineHeight: 80, color: palette.qitahBlue }}>قطعة</Text>
         </Animated.View>
-        <Animated.View style={[StyleSheet.absoluteFill, clamp]}>
-          <LogoMark size={SIZE} tone="light" layer="caliper" />
-        </Animated.View>
+        <View style={{ width: SYMBOL_W, height: SYMBOL_H }}>
+          <Animated.View style={[StyleSheet.absoluteFill, carStyle]}>
+            <LogoSymbol width={SYMBOL_W} layer="car" />
+          </Animated.View>
+          <Animated.View style={[StyleSheet.absoluteFill, pieceStyle]}>
+            <LogoSymbol width={SYMBOL_W} layer="piece" />
+          </Animated.View>
+        </View>
       </View>
-      <Animated.View style={[{ marginTop: 22, alignItems: 'center' }, wordmark]}>
-        <Text weight="bold" align="center" style={{ fontSize: 40, lineHeight: 56, color: colors.textInverse }}>
-          قطعة
-        </Text>
-        <Text weight="semibold" align="center" style={{ fontSize: 12, lineHeight: 16, letterSpacing: 5, color: palette.ink400 }}>
-          QITAH
-        </Text>
+      <Animated.View style={[{ marginTop: 6 }, wordStyle]}>
+        <Text style={{ fontFamily: latinFonts.semibold, fontSize: 16, lineHeight: 22, letterSpacing: 1, color: palette.qitahBlue }}>Qitah</Text>
       </Animated.View>
     </Animated.View>
   );

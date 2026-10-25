@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "qitah",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#F5F2ED",
+    "backgroundColor": "#F5F7FA",
     "ios": {
       "bundleIdentifier": "com.qitah.app",
       "supportsTablet": false,
@@ -20,7 +20,7 @@
     "android": {
       "package": "com.qitah.app",
       "adaptiveIcon": {
-        "backgroundColor": "#121316",
+        "backgroundColor": "#022B74",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
@@ -36,9 +36,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#121316",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 112
+          "imageWidth": 132
         }
       ],
       [
@@ -46,8 +46,14 @@
         {
           "supportsRTL": true,
           "supportedLocales": {
-            "ios": ["ar", "en"],
-            "android": ["ar", "en"]
+            "ios": [
+              "ar",
+              "en"
+            ],
+            "android": [
+              "ar",
+              "en"
+            ]
           }
         }
       ]

@@ -4,11 +4,13 @@ import Svg, { Circle, Ellipse, G, Line, Path, Polyline, Rect } from 'react-nativ
 import type { PartArtKind } from '@/domain/types';
 import { palette, radius } from '@/theme/tokens';
 
-const INK = palette.ink800;
-const MID = palette.ink500;
-const SOFT = palette.paper300;
-const LIGHT = palette.paper50;
-const ACC = palette.orange500;
+// Neutral graphite illustration palette; detail accents in Blue 600 so orange stays reserved for
+// the brand piece (guidelines p.11: orange ≈3%, one orange element per screen).
+const INK = '#2B3140';
+const MID = palette.slate;
+const SOFT = '#C9CFDA';
+const LIGHT = palette.mist;
+const ACC = palette.blue600;
 
 /**
  * Geometric part illustrations used in place of product photography in this demo build.
@@ -189,7 +191,7 @@ function Art({ kind }: { kind: PartArtKind }) {
 
 type Props = { kind: PartArtKind; size: number; rounded?: number; style?: ViewStyle; background?: string };
 
-export function PartArt({ kind, size, rounded = radius.md, style, background = palette.paper200 }: Props) {
+export function PartArt({ kind, size, rounded = radius.md, style, background = palette.productBackdrop }: Props) {
   return (
     <View
       accessible={false}
