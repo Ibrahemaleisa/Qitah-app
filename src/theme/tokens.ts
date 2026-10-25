@@ -1,9 +1,13 @@
 /**
  * Qitah design tokens.
- * Charcoal + warm white foundation with a single energetic orange accent.
- * Every colour, radius, spacing step and type style in the app comes from here.
+ *
+ * PROVISIONAL IDENTITY — the brand is being redesigned. Only `palette` and `fonts` hold
+ * brand-specific values; everything else in the app consumes the semantic roles below
+ * (`colors`, `typeScale`, …). Rebranding means editing those two objects (plus the assets in
+ * `src/brand`), not touching screens. See docs/brand-integration.md.
  */
 
+/** Raw provisional brand palette. Do not import outside `src/theme` and `src/brand`. */
 export const palette = {
   ink900: '#121316',
   ink800: '#1C1E22',
@@ -39,11 +43,14 @@ export const colors = {
   surfaceSunken: palette.paper200,
   inverse: palette.ink900,
   inverseMuted: palette.ink800,
+  inverseBorder: palette.ink700,
 
   text: palette.ink900,
   textSecondary: palette.ink500,
   textTertiary: palette.ink400,
   textInverse: palette.paper50,
+  textInverseSecondary: palette.ink300,
+  textInverseTertiary: palette.ink400,
   textOnAccent: palette.white,
 
   line: palette.paper200,
@@ -142,6 +149,15 @@ export const typeScale = {
 } as const satisfies Record<string, { fontSize: number; lineHeight: number; weight: FontWeightName }>;
 
 export type TypeVariant = keyof typeof typeScale;
+
+/** Minimum interactive size (Apple HIG). */
+export const touchTarget = 44;
+
+/**
+ * Dynamic Type limits: body text may grow substantially, large titles less so, so layouts
+ * remain usable at the largest accessibility sizes.
+ */
+export const maxFontScale = { body: 1.8, title: 1.4 } as const;
 
 export const motion = {
   fast: 140,

@@ -22,11 +22,11 @@ export function Pressable({ style, pressScale = 0.97, haptics = false, onPressIn
       {...rest}
       disabled={disabled}
       onPressIn={(e) => {
-        scale.value = withTiming(pressScale, { duration: 90 });
+        scale.set(withTiming(pressScale, { duration: 90 }));
         onPressIn?.(e);
       }}
       onPressOut={(e) => {
-        scale.value = withSpring(1, { damping: 14, stiffness: 260 });
+        scale.set(withSpring(1, { damping: 14, stiffness: 260 }));
         onPressOut?.(e);
       }}
       onPress={(e) => {

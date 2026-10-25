@@ -11,15 +11,32 @@ import { Text } from '@/ui/Text';
 
 import { FitBadge, OriginBadge } from './badges';
 
+/** One sentence a screen reader can announce for a listing: what, origin, fit, price, offers. */
+function useListingLabel(listing: ProductListing): string {
+  const { tx, money, s } = useI18n();
+  const { product, bestOffer, offerCount, fit } = listing;
+  return [
+    tx(product.name),
+    product.brand,
+    s.origin[product.origin],
+    fit !== 'noVehicle' ? s.fit[fit] : null,
+    bestOffer ? `${s.common.from} ${money(bestOffer.price)}` : null,
+    offerCount > 0 ? s.common.offers(offerCount) : s.product.outOfStock,
+  ]
+    .filter(Boolean)
+    .join(', ');
+}
+
 /** Vertical card for horizontal carousels on Home. */
 export function ProductCard({ listing, width = 168 }: { listing: ProductListing; width?: number }) {
   const { tx, money, s } = useI18n();
   const { product, bestOffer, offerCount, fit } = listing;
+  const a11yLabel = useListingLabel(listing);
   return (
     <Pressable
       onPress={() => router.push(`/product/${product.id}`)}
       pressScale={0.97}
-      accessibilityLabel={tx(product.name)}
+      accessibilityLabel={a11yLabel}
       style={{ width, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}
     >
       <PartArt kind={product.art} size={width} rounded={0} />
@@ -54,11 +71,12 @@ export function ProductCard({ listing, width = 168 }: { listing: ProductListing;
 export function ProductRow({ listing }: { listing: ProductListing }) {
   const { tx, money, s } = useI18n();
   const { product, bestOffer, offerCount, fit, conditions, matchedPartNumber } = listing;
+  const a11yLabel = useListingLabel(listing);
   return (
     <Pressable
       onPress={() => router.push(`/product/${product.id}`)}
       pressScale={0.985}
-      accessibilityLabel={tx(product.name)}
+      accessibilityLabel={a11yLabel}
       style={{ flexDirection: 'row', gap: space.md, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.md }}
     >
       <PartArt kind={product.art} size={96} />

@@ -17,6 +17,8 @@ export function Chip({ label, selected, onPress, icon, count }: Props) {
     <Pressable
       onPress={onPress}
       haptics="tap"
+      hitSlop={{ top: 4, bottom: 4 }}
+      accessibilityLabel={count ? `${label} (${count})` : label}
       accessibilityState={{ selected }}
       style={{
         flexDirection: 'row',

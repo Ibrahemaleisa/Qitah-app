@@ -191,7 +191,11 @@ type Props = { kind: PartArtKind; size: number; rounded?: number; style?: ViewSt
 
 export function PartArt({ kind, size, rounded = radius.md, style, background = palette.paper200 }: Props) {
   return (
-    <View style={[{ width: size, height: size, borderRadius: rounded, backgroundColor: background, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, style]}>
+    <View
+      accessible={false}
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+      style={[{ width: size, height: size, borderRadius: rounded, backgroundColor: background, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, style]}>
       <Svg width={size * 0.82} height={size * 0.82} viewBox="0 0 120 120">
         <Art kind={kind} />
       </Svg>

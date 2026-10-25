@@ -18,8 +18,8 @@ export function Stepper({ value, onChange, max, min = 0 }: Props) {
       haptics="tap"
       pressScale={0.88}
       accessibilityLabel={label}
-      hitSlop={4}
-      style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill }}
+      hitSlop={6}
+      style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill }}
     >
       <Icon name={icon} size={15} color={icon === 'trash-2' ? 'danger' : 'text'} />
     </Pressable>

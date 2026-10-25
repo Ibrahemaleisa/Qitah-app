@@ -69,6 +69,8 @@ export function ScreenHeader({ title, subtitle, back, dismiss = 'back', right, l
   const { s } = useI18n();
   const insets = useSafeAreaInsets();
   const showBack = back ?? false;
+  // Large tab titles without actions don't need the (empty) navigation row above them.
+  const showRow = showBack || !!right || !large;
   return (
     <View
       style={{
@@ -78,6 +80,7 @@ export function ScreenHeader({ title, subtitle, back, dismiss = 'back', right, l
         backgroundColor: transparent ? 'transparent' : colors.background,
       }}
     >
+      {showRow ? (
       <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: space.md }}>
         {showBack ? (
           <IconButton
@@ -100,8 +103,9 @@ export function ScreenHeader({ title, subtitle, back, dismiss = 'back', right, l
         </View>
         {right ? <View style={{ flexDirection: 'row', gap: space.sm }}>{right}</View> : null}
       </View>
+      ) : null}
       {large && title ? (
-        <View style={{ marginTop: space.xs }}>
+        <View style={{ marginTop: showRow ? space.xs : space.md }}>
           <Text variant="display">{title}</Text>
           {subtitle ? (
             <Text variant="callout" color="textSecondary">

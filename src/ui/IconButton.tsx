@@ -17,7 +17,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-export function IconButton({ icon, onPress, label, tone = 'surface', size = 42, iconColor, badge, style }: Props) {
+export function IconButton({ icon, onPress, label, tone = 'surface', size = 44, iconColor, badge, style }: Props) {
   const bg = tone === 'surface' ? colors.surface : tone === 'dark' ? colors.inverse : tone === 'accent' ? colors.accent : 'transparent';
   const fg = iconColor ?? (tone === 'dark' || tone === 'accent' ? 'textInverse' : 'text');
   return (

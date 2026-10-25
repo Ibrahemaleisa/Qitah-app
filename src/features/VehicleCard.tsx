@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import type { Vehicle } from '@/domain/types';
 import { useI18n } from '@/i18n';
 import { vehicleLabel, vehicleSpec } from '@/lib/vehicle';
-import { colors, palette, radius, space } from '@/theme/tokens';
+import { colors, radius, space } from '@/theme/tokens';
 import { Icon } from '@/ui/Icon';
 import { Pressable } from '@/ui/Pressable';
 import { Text } from '@/ui/Text';
@@ -42,22 +42,22 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle | undefined }) {
       accessibilityLabel={`${s.home.yourVehicle}: ${vehicleLabel(vehicle, lang)}`}
       style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.xl, backgroundColor: colors.inverse, overflow: 'hidden' }}
     >
-      <View style={{ position: 'absolute', end: -30, top: -30, width: 120, height: 120, borderRadius: 60, borderWidth: 18, borderColor: palette.ink800 }} />
+      <View style={{ position: 'absolute', end: -30, top: -30, width: 120, height: 120, borderRadius: 60, borderWidth: 18, borderColor: colors.inverseMuted }} />
       <View style={{ width: 48, height: 48, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
         <Icon name="truck" size={22} color="textOnAccent" />
       </View>
       <View style={{ flex: 1 }}>
-        <Text variant="micro" style={{ color: palette.ink400 }}>
+        <Text variant="micro" style={{ color: colors.textInverseTertiary }}>
           {s.home.yourVehicle}
         </Text>
         <Text variant="headline" color="textInverse" numberOfLines={1}>
           {vehicleLabel(vehicle, lang)}
         </Text>
-        <Text variant="caption" style={{ color: palette.ink300 }} numberOfLines={1}>
+        <Text variant="caption" style={{ color: colors.textInverseSecondary }} numberOfLines={1}>
           {vehicleSpec(vehicle)}
         </Text>
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: space.md, height: 32, borderRadius: radius.pill, backgroundColor: palette.ink800 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: space.md, height: 32, borderRadius: radius.pill, backgroundColor: colors.inverseMuted }}>
         <Text variant="captionStrong" color="textInverse">
           {s.home.change}
         </Text>

@@ -6,18 +6,18 @@ import {
   IBMPlexSansArabic_700Bold,
   useFonts,
 } from '@expo-google-fonts/ibm-plex-sans-arabic';
-import { LocaleProvider, Stack } from 'expo-router';
+import { LocaleProvider, Stack, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
-import { I18nManager, Platform, View } from 'react-native';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { I18nManager, Platform, Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BrandSplash } from '@/brand/BrandSplash';
-import { useI18n } from '@/i18n';
+import { createI18n, useI18n } from '@/i18n';
 import { useAppStore } from '@/store/app-store';
-import { colors } from '@/theme/tokens';
+import { colors, fonts, radius, space } from '@/theme/tokens';
 import { ToastHost } from '@/ui/Toast';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -29,14 +29,11 @@ if (Platform.OS !== 'web') {
 }
 
 function useStoreHydrated() {
-  const [hydrated, setHydrated] = useState(() => useAppStore.persist.hasHydrated());
-  useEffect(() => {
-    if (hydrated) return;
-    const unsub = useAppStore.persist.onFinishHydration(() => setHydrated(true));
-    if (useAppStore.persist.hasHydrated()) setHydrated(true);
-    return unsub;
-  }, [hydrated]);
-  return hydrated;
+  return useSyncExternalStore(
+    (onChange) => useAppStore.persist.onFinishHydration(onChange),
+    () => useAppStore.persist.hasHydrated(),
+    () => false,
+  );
 }
 
 const sheet = (detents: number[] | 'fitToContents' = [0.62, 0.95]) =>
@@ -111,5 +108,22 @@ export default function RootLayout() {
         </LocaleProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+/** Last-resort screen for unexpected render errors: explains, and offers a retry instead of a blank app. */
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  const { s, isRTL } = createI18n(useAppStore.getState().lang);
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xxl, gap: space.lg, backgroundColor: colors.background, direction: isRTL ? 'rtl' : 'ltr' }}>
+      <Text style={{ fontFamily: fonts.bold, fontSize: 22, lineHeight: 32, color: colors.text, textAlign: 'center' }}>{s.errors.generic}</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={retry}
+        style={{ backgroundColor: colors.inverse, paddingHorizontal: space.xxl, height: 48, borderRadius: radius.lg, justifyContent: 'center' }}
+      >
+        <Text style={{ fontFamily: fonts.semibold, fontSize: 15, color: colors.textInverse }}>{s.common.retry}</Text>
+      </Pressable>
+    </View>
   );
 }

@@ -8,7 +8,7 @@ import { LogoMark } from '@/brand/Logo';
 import { PartArt } from '@/brand/PartArt';
 import { useI18n } from '@/i18n';
 import { useAppStore } from '@/store/app-store';
-import { colors, gutter, palette, radius, space } from '@/theme/tokens';
+import { colors, gutter, radius, space } from '@/theme/tokens';
 import { Button } from '@/ui/Button';
 import { Icon, type IconName } from '@/ui/Icon';
 import { Pressable } from '@/ui/Pressable';
@@ -29,7 +29,7 @@ export default function Onboarding() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: palette.ink900, direction: isRTL ? 'rtl' : 'ltr' }}>
+    <View style={{ flex: 1, backgroundColor: colors.inverse, direction: isRTL ? 'rtl' : 'ltr' }}>
       <View style={{ paddingTop: insets.top + space.sm, paddingHorizontal: gutter, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
           <LogoMark size={34} tone="light" />
@@ -38,15 +38,15 @@ export default function Onboarding() {
           </Text>
         </View>
         <View style={{ flexDirection: 'row', gap: space.sm }}>
-          <Pressable onPress={() => setLang(lang === 'ar' ? 'en' : 'ar')} haptics="tap" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.md, height: 34, borderRadius: radius.pill, borderWidth: 1, borderColor: palette.ink700 }} accessibilityLabel={s.onboarding.language}>
-            <Icon name="globe" size={14} color={palette.paper300} />
-            <Text variant="caption" weight="medium" style={{ color: palette.paper300 }}>
+          <Pressable onPress={() => setLang(lang === 'ar' ? 'en' : 'ar')} haptics="tap" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.md, height: 34, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.inverseBorder }} accessibilityLabel={s.onboarding.language}>
+            <Icon name="globe" size={14} color={colors.textInverseSecondary} />
+            <Text variant="caption" weight="medium" style={{ color: colors.textInverseSecondary }}>
               {s.onboarding.language}
             </Text>
           </Pressable>
           {!last ? (
             <Pressable onPress={finish} haptics="tap" style={{ paddingHorizontal: space.md, height: 34, justifyContent: 'center' }} accessibilityLabel={s.onboarding.skip}>
-              <Text variant="callout" weight="medium" style={{ color: palette.paper300 }}>
+              <Text variant="callout" weight="medium" style={{ color: colors.textInverseSecondary }}>
                 {s.onboarding.skip}
               </Text>
             </Pressable>
@@ -84,7 +84,7 @@ export default function Onboarding() {
 }
 
 function VignetteCard({ children, style }: { children: React.ReactNode; style?: object }) {
-  return <View style={[{ backgroundColor: palette.ink800, borderRadius: radius.xl, borderWidth: 1, borderColor: palette.ink700, padding: space.lg }, style]}>{children}</View>;
+  return <View style={[{ backgroundColor: colors.inverseMuted, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.inverseBorder, padding: space.lg }, style]}>{children}</View>;
 }
 
 function VehicleVignette() {
@@ -92,26 +92,26 @@ function VehicleVignette() {
   return (
     <View style={{ width: '100%', maxWidth: 340, gap: space.md }}>
       <VignetteCard style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-        <View style={{ width: 48, height: 48, borderRadius: radius.md, backgroundColor: palette.orange500, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 48, height: 48, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="truck" size={22} color="textOnAccent" />
         </View>
         <View style={{ flex: 1 }}>
           <Text variant="headline" color="textInverse">
             {lang === 'ar' ? 'تويوتا كامري 2022' : 'Toyota Camry 2022'}
           </Text>
-          <Text variant="caption" style={{ color: palette.ink400 }} ltr>
+          <Text variant="caption" style={{ color: colors.textInverseTertiary }} ltr>
             GLE · 2.5L I4
           </Text>
         </View>
       </VignetteCard>
       {(['pads', 'oilFilter'] as const).map((art, i) => (
         <VignetteCard key={art} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, marginStart: (i + 1) * 18 }}>
-          <PartArt kind={art} size={44} background={palette.ink700} rounded={radius.sm} />
+          <PartArt kind={art} size={44} background={colors.inverseBorder} rounded={radius.sm} />
           <View style={{ flex: 1, gap: 6 }}>
-            <View style={{ height: 8, width: '70%', borderRadius: 4, backgroundColor: palette.ink700 }} />
+            <View style={{ height: 8, width: '70%', borderRadius: 4, backgroundColor: colors.inverseBorder }} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Icon name="check-circle" size={12} color={palette.green600} />
-              <View style={{ height: 6, width: 60, borderRadius: 3, backgroundColor: palette.green600, opacity: 0.6 }} />
+              <Icon name="check-circle" size={12} color={colors.success} />
+              <View style={{ height: 6, width: 60, borderRadius: 3, backgroundColor: colors.success, opacity: 0.6 }} />
             </View>
           </View>
         </VignetteCard>
@@ -129,20 +129,20 @@ function CompareVignette() {
   return (
     <View style={{ width: '100%', maxWidth: 340, gap: space.sm }}>
       <View style={{ alignItems: 'center', marginBottom: space.md }}>
-        <PartArt kind="rotor" size={120} background={palette.ink800} rounded={radius.xl} />
+        <PartArt kind="rotor" size={120} background={colors.inverseMuted} rounded={radius.xl} />
       </View>
       {rows.map((r, i) => (
-        <VignetteCard key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md, borderColor: r.best ? palette.orange500 : palette.ink700 }}>
-          <View style={{ width: 30, height: 30, borderRadius: radius.sm, backgroundColor: palette.ink700 }} />
+        <VignetteCard key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md, borderColor: r.best ? colors.accent : colors.inverseBorder }}>
+          <View style={{ width: 30, height: 30, borderRadius: radius.sm, backgroundColor: colors.inverseBorder }} />
           <View style={{ flex: 1, gap: 6 }}>
-            <View style={{ height: 8, width: r.w as `${number}%`, borderRadius: 4, backgroundColor: palette.ink700 }} />
+            <View style={{ height: 8, width: r.w as `${number}%`, borderRadius: 4, backgroundColor: colors.inverseBorder }} />
             <View style={{ flexDirection: 'row', gap: 3 }}>
               {[0, 1, 2, 3, 4].map((st) => (
-                <Icon key={st} name="star" size={9} color={st < 4 - i * 0.5 ? palette.orange500 : palette.ink700} />
+                <Icon key={st} name="star" size={9} color={st < 4 - i * 0.5 ? colors.accent : colors.inverseBorder} />
               ))}
             </View>
           </View>
-          <Text variant="bodyStrong" style={{ color: r.best ? palette.orange500 : palette.paper300 }} ltr>
+          <Text variant="bodyStrong" style={{ color: r.best ? colors.accent : colors.textInverseSecondary }} ltr>
             {r.price}
           </Text>
         </VignetteCard>
@@ -153,11 +153,11 @@ function CompareVignette() {
 
 function DeliveryVignette() {
   const node = (icon: IconName, accent?: boolean) => (
-    <View style={{ width: 72, height: 72, borderRadius: radius.xl, backgroundColor: accent ? palette.orange500 : palette.ink800, borderWidth: 1, borderColor: accent ? palette.orange500 : palette.ink700, alignItems: 'center', justifyContent: 'center' }}>
-      <Icon name={icon} size={28} color={accent ? 'textOnAccent' : palette.paper300} />
+    <View style={{ width: 72, height: 72, borderRadius: radius.xl, backgroundColor: accent ? colors.accent : colors.inverseMuted, borderWidth: 1, borderColor: accent ? colors.accent : colors.inverseBorder, alignItems: 'center', justifyContent: 'center' }}>
+      <Icon name={icon} size={28} color={accent ? 'textOnAccent' : colors.textInverseSecondary} />
     </View>
   );
-  const dash = <View style={{ flex: 1, height: 2, borderTopWidth: 2, borderStyle: 'dashed', borderColor: palette.ink700, marginHorizontal: space.sm }} />;
+  const dash = <View style={{ flex: 1, height: 2, borderTopWidth: 2, borderStyle: 'dashed', borderColor: colors.inverseBorder, marginHorizontal: space.sm }} />;
   return (
     <View style={{ width: '100%', maxWidth: 340, gap: space.xxl }}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -168,14 +168,14 @@ function DeliveryVignette() {
         {node('home')}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
-        <View style={{ width: 120, height: 2, borderTopWidth: 2, borderStyle: 'dashed', borderColor: palette.ink700, marginHorizontal: space.sm }} />
+        <View style={{ width: 120, height: 2, borderTopWidth: 2, borderStyle: 'dashed', borderColor: colors.inverseBorder, marginHorizontal: space.sm }} />
         {node('tool')}
       </View>
       <VignetteCard style={{ gap: space.sm }}>
         {[1, 1, 1, 0].map((done, i) => (
           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-            <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: done ? palette.orange500 : palette.ink700 }} />
-            <View style={{ height: 7, width: `${70 - i * 12}%`, borderRadius: 4, backgroundColor: palette.ink700 }} />
+            <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: done ? colors.accent : colors.inverseBorder }} />
+            <View style={{ height: 7, width: `${70 - i * 12}%`, borderRadius: 4, backgroundColor: colors.inverseBorder }} />
           </View>
         ))}
       </VignetteCard>

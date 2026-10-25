@@ -2,6 +2,7 @@ import { forwardRef, useState } from 'react';
 import { TextInput, View, type TextInputInstance, type TextInputProps } from 'react-native';
 
 import { useI18n } from '@/i18n';
+import { webNoOutline } from '@/lib/platform-styles';
 import { colors, fonts, radius, space } from '@/theme/tokens';
 
 import { Icon, type IconName } from './Icon';
@@ -65,6 +66,7 @@ export const Input = forwardRef<TextInputInstance, Props>(function Input({ label
               flex: 1,
               minWidth: 0,
               outlineWidth: 0,
+              ...webNoOutline,
               fontFamily: fonts.regular,
               fontSize: 16,
               color: colors.text,

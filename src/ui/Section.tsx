@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { space } from '@/theme/tokens';
+import { colors, space } from '@/theme/tokens';
 
 import { Pressable } from './Pressable';
 import { Text } from './Text';
@@ -14,14 +14,27 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   /** Horizontal padding for the header when the content is edge-to-edge. */
   inset?: number;
+  /** Optional step number for multi-step flows such as checkout. */
+  step?: number;
 };
 
-export function Section({ title, subtitle, action, children, style, inset = 0 }: Props) {
+export function Section({ title, subtitle, action, children, style, inset = 0, step }: Props) {
   return (
     <View style={[{ marginTop: space.xxl }, style]}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: inset, marginBottom: space.md, gap: space.md }}>
         <View style={{ flex: 1 }}>
-          <Text variant="title2">{title}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+            {step !== undefined ? (
+              <View accessible={false} style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: colors.inverse, alignItems: 'center', justifyContent: 'center' }}>
+                <Text variant="captionStrong" color="textInverse" align="center" maxFontSizeMultiplier={1.3}>
+                  {step}
+                </Text>
+              </View>
+            ) : null}
+            <Text variant="title2" accessibilityRole="header" style={{ flexShrink: 1 }} accessibilityLabel={step !== undefined ? `${step}. ${title}` : undefined}>
+              {title}
+            </Text>
+          </View>
           {subtitle ? (
             <Text variant="caption" color="textSecondary">
               {subtitle}

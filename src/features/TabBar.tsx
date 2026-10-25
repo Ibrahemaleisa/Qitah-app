@@ -1,6 +1,7 @@
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
+import { useEffect, useRef } from 'react';
 import { View } from 'react-native';
-import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
 import { useI18n } from '@/i18n';
 import { useCartCount } from '@/store/app-store';
@@ -68,22 +69,43 @@ function TabItem({ label, icon, focused, badge, onPress }: { label: string; icon
       pressScale={0.92}
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
-      accessibilityLabel={label}
+      accessibilityLabel={badge > 0 ? `${label}, ${badge}` : label}
       style={{ flex: 1, alignItems: 'center', gap: 2 }}
     >
       <Animated.View style={[{ width: 52, height: 30, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' }, pill]}>
         <Icon name={icon} size={20} color={focused ? 'accentPressed' : 'textTertiary'} />
         {badge > 0 ? (
-          <View style={{ position: 'absolute', top: -2, end: 6, minWidth: 17, height: 17, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.inverse, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.surface }}>
-            <Text variant="micro" color="textInverse" style={{ fontSize: 10, lineHeight: 13 }} ltr>
-              {badge > 9 ? '9+' : badge}
-            </Text>
-          </View>
+          <BadgeBump value={badge} />
         ) : null}
       </Animated.View>
       <Text variant="micro" color={focused ? 'text' : 'textTertiary'} weight={focused ? 'semibold' : 'medium'} align="center" numberOfLines={1}>
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+/** Cart count badge that bumps whenever the count increases — confirms "added to cart" at a glance. */
+function BadgeBump({ value }: { value: number }) {
+  const scale = useSharedValue(1);
+  const previous = useRef(value);
+  useEffect(() => {
+    if (value > previous.current) {
+      scale.value = withSequence(withTiming(1.35, { duration: 120 }), withSpring(1, { damping: 10, stiffness: 260 }));
+    }
+    previous.current = value;
+  }, [value, scale]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View
+      style={[
+        { position: 'absolute', top: -2, end: 6, minWidth: 17, height: 17, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.inverse, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.surface },
+        style,
+      ]}
+    >
+      <Text variant="micro" color="textInverse" style={{ fontSize: 10, lineHeight: 13 }} ltr maxFontSizeMultiplier={1.2}>
+        {value > 9 ? '9+' : value}
+      </Text>
+    </Animated.View>
   );
 }
