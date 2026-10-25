@@ -9,9 +9,8 @@ logistics partners. Qitah never buys, owns or warehouses parts.
 This repository contains the **native customer app** (React Native + Expo), Arabic-first with full RTL
 support and English localisation.
 
-> **Milestone 1.5 — UX & native polish** (branch `claude/m1.5-ux-polish`): see
-> [`docs/ux-audit-m1.5.md`](docs/ux-audit-m1.5.md). The visual identity is **provisional** pending the brand
-> redesign — see [`docs/brand-integration.md`](docs/brand-integration.md).
+> **Milestone 1.5 — UX polish + Brand Guidelines v3.0** (branch `claude/m1.5-brand-v3`): see
+> [`docs/ux-audit-m1.5.md`](docs/ux-audit-m1.5.md) and [`docs/brand-integration.md`](docs/brand-integration.md).
 >
 > **Milestone 1 status — demo build.** Every product, seller, price, rating and review is clearly-labelled
 > sample data. Payments, shipping and order progress are **simulated**. See [Known limitations](#known-limitations).
@@ -22,7 +21,7 @@ support and English localisation.
 
 | Area | Highlights |
 | --- | --- |
-| Brand & design system | Brake-rotor + caliper mark, charcoal / warm-white / orange palette, IBM Plex Sans Arabic, design tokens (`src/theme/tokens.ts`), ~20 UI primitives, animated rotor splash, haptics |
+| Brand & design system | Official Qitah identity (Brand Guidelines v3.0): car + piece symbol, Qitah Blue / Orange, IBM Plex Sans Arabic · Sans · Mono, Lucide icons, design tokens (`src/theme/tokens.ts`), animated logo reveal, haptics |
 | Onboarding | Animated splash, 3-step intro, Arabic default with instant English toggle, guest browsing, simulated phone-OTP sign-in |
 | Vehicle garage | Multiple vehicles (make → model → year → trim → engine → optional VIN with ISO 3779 validation), quick switcher sheet; the selected vehicle drives ranking and fitment |
 | Home | Prominent search, selected vehicle, live order strip, category grid, vehicle recommendations, featured, recently viewed |
@@ -43,8 +42,8 @@ State (garage, cart, favorites, addresses, orders, preferences) persists locally
 - **Expo Router** (file-based routes, native stack, native form sheets, custom tab bar)
 - **React Native Reanimated 4** for purposeful motion
 - **Zustand** (+ persist / AsyncStorage) for app state
-- `react-native-svg` for the logo and part illustrations, `@expo/vector-icons` (Feather) for UI icons
-- `expo-haptics`, `expo-localization` (RTL config), `@expo-google-fonts/ibm-plex-sans-arabic`
+- `react-native-svg` for the logo and part illustrations, `lucide-react-native` for UI icons (1.75 stroke)
+- `expo-haptics`, `expo-localization` (RTL config), `@expo-google-fonts/ibm-plex-sans-arabic`, `ibm-plex-sans`, `ibm-plex-mono`
 - Jest (`jest-expo`) for domain unit tests; Playwright scripts for end-to-end checks on the web build
 
 TanStack Query is intentionally **not** installed yet — there is no remote data in this milestone. The
@@ -175,7 +174,7 @@ payment and logistics credentials live on the server.
 - **Shipping and order progress are simulated** on a compressed clock (minutes, not days); carriers are mocks.
 - Sign-in is a local simulation (any 4-digit code); there is no backend account.
 - Seller messaging, push notifications and image search are entry points / contracts only.
-- Light theme only; dark mode is planned.
+- Light theme only; the brand guidelines don't define a dark UI theme yet.
 - Part imagery uses generated geometric illustrations in place of photography.
 - **Not yet run in the iOS Simulator.** Milestone 1 was built on Linux: verification covered strict type-checking,
   Jest domain tests, a successful iOS (Hermes) bundle export, and Playwright end-to-end runs of the web build in
