@@ -46,7 +46,7 @@ export default function OrderDetails() {
     <Screen header={<ScreenHeader back title={order.number} subtitle={`${s.orders.placedOn} ${date(order.createdAt)}`} />}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' }}>
         <Badge label={s.orders.status[status]} tone={visual.tone} icon={visual.icon} />
-        {order.isSample ? <Badge label={s.orders.sampleOrder} tone="accent" icon="flag" /> : null}
+        {order.isSample ? <Badge label={s.orders.sampleOrder} tone="info" icon="flag" /> : null}
       </View>
 
       {order.cancellation ? (
@@ -88,9 +88,9 @@ export default function OrderDetails() {
                 </View>
               </View>
               {!order.cancellation && stage !== 'delivered' ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.accentWash, borderRadius: radius.sm, padding: space.md }}>
-                  <Icon name="truck" size={16} color="accentPressed" />
-                  <Text variant="caption" color="accentPressed">
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.surfaceSunken, borderRadius: radius.sm, padding: space.md }}>
+                  <Icon name="truck" size={16} color="heading" />
+                  <Text variant="caption" color="heading">
                     {s.orders.eta}: {date(delivered.at)} · {time(delivered.at)}
                   </Text>
                 </View>
@@ -132,7 +132,7 @@ export default function OrderDetails() {
       <Section title={s.orders.deliveryAddress}>
         <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.lg, gap: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-            <Icon name={order.address.kind === 'workshop' ? 'tool' : 'home'} size={16} color="accent" />
+            <Icon name={order.address.kind === 'workshop' ? 'tool' : 'home'} size={16} color="heading" />
             <Text variant="bodyStrong">{order.address.workshopName ?? order.address.label}</Text>
           </View>
           <Text variant="callout" color="textSecondary">

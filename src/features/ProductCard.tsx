@@ -8,6 +8,7 @@ import { colors, radius, space } from '@/theme/tokens';
 import { Pressable } from '@/ui/Pressable';
 import { RatingInline } from '@/ui/Rating';
 import { Text } from '@/ui/Text';
+import { Price } from '@/ui/Price';
 
 import { FitBadge, OriginBadge } from './badges';
 
@@ -29,7 +30,7 @@ function useListingLabel(listing: ProductListing): string {
 
 /** Vertical card for horizontal carousels on Home. */
 export function ProductCard({ listing, width = 168 }: { listing: ProductListing; width?: number }) {
-  const { tx, money, s } = useI18n();
+  const { tx, s } = useI18n();
   const { product, bestOffer, offerCount, fit } = listing;
   const a11yLabel = useListingLabel(listing);
   return (
@@ -52,11 +53,7 @@ export function ProductCard({ listing, width = 168 }: { listing: ProductListing;
         </Text>
         {fit !== 'noVehicle' && fit !== 'bySpecification' ? <FitBadge status={fit} /> : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
-          {bestOffer ? (
-            <Text variant="bodyStrong" weight="bold">
-              {money(bestOffer.price)}
-            </Text>
-          ) : null}
+          {bestOffer ? <Price amount={bestOffer.price} /> : null}
           {product.rating ? <RatingInline average={product.rating.average} /> : null}
         </View>
         <Text variant="micro" color="textSecondary">
@@ -69,7 +66,7 @@ export function ProductCard({ listing, width = 168 }: { listing: ProductListing;
 
 /** Horizontal row used in search results and lists. */
 export function ProductRow({ listing }: { listing: ProductListing }) {
-  const { tx, money, s } = useI18n();
+  const { tx, s } = useI18n();
   const { product, bestOffer, offerCount, fit, conditions, matchedPartNumber } = listing;
   const a11yLabel = useListingLabel(listing);
   return (
@@ -95,7 +92,7 @@ export function ProductRow({ listing }: { listing: ProductListing }) {
           {tx(product.name)}
         </Text>
         <Text variant="caption" color="textTertiary" numberOfLines={1}>
-          {product.brand} · <Text variant="caption" color={matchedPartNumber ? 'accentPressed' : 'textTertiary'} ltr>{product.partNumber}</Text>
+          {product.brand} · <Text variant="caption" color={matchedPartNumber ? 'link' : 'textTertiary'} mono>{product.partNumber}</Text>
         </Text>
         {fit !== 'noVehicle' ? <FitBadge status={fit} /> : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
@@ -105,11 +102,7 @@ export function ProductRow({ listing }: { listing: ProductListing }) {
                 {s.common.from}
               </Text>
             ) : null}
-            {bestOffer ? (
-              <Text variant="bodyStrong" weight="bold">
-                {money(bestOffer.price)}
-              </Text>
-            ) : null}
+            {bestOffer ? <Price amount={bestOffer.price} /> : null}
           </View>
           <Text variant="micro" color="textSecondary">
             {offerCount > 0 ? s.common.offers(offerCount) : s.product.outOfStock}

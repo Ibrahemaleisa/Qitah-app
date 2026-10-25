@@ -56,7 +56,7 @@ export default function SellerScreen() {
         </Text>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           <Badge label={seller.verifiedBusiness ? s.seller.verified : s.seller.unverified} tone={seller.verifiedBusiness ? 'success' : 'neutral'} icon={seller.verifiedBusiness ? 'check-circle' : 'clock'} />
-          <Badge label={s.common.sampleData} tone="accent" icon="flag" />
+          <Badge label={s.common.sampleData} tone="info" icon="flag" />
         </View>
       </View>
 
@@ -95,7 +95,7 @@ export default function SellerScreen() {
 function Stat({ icon, label, value }: { icon: IconName; label: string; value: string }) {
   return (
     <View style={{ width: '48.5%', backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: space.md, gap: 4 }}>
-      <Icon name={icon} size={16} color="accent" />
+      <Icon name={icon} size={16} color="heading" />
       <Text variant="headline" ltr>
         {value}
       </Text>

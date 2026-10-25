@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
-import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
 import { PartArt } from '@/brand/PartArt';
 import { getProduct } from '@/data/catalog';
@@ -12,6 +12,7 @@ import { deliveryWindow, estimatedTotal, fastestDelivery, getSeller } from '@/do
 import type { Condition, DeliveryDestination, Offer } from '@/domain/types';
 import { useI18n } from '@/i18n';
 import { useAppStore } from '@/store/app-store';
+import { enterUp, layoutMove } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 import { Chip } from '@/ui/Chip';
 import { EmptyState } from '@/ui/EmptyState';
@@ -65,7 +66,7 @@ export default function OffersScreen() {
           <Text variant="callout" weight="semibold" numberOfLines={2}>
             {tx(product.name)}
           </Text>
-          <Text variant="caption" color="textTertiary" ltr>
+          <Text variant="caption" color="textSecondary" mono>
             {product.partNumber}
           </Text>
         </View>
@@ -110,7 +111,7 @@ export default function OffersScreen() {
 
       <View style={{ marginTop: space.lg, gap: space.md }}>
         {offers.map((o, i) => (
-          <Animated.View key={o.id} entering={FadeInDown.delay(i * 40).duration(260)} layout={LinearTransition.springify().damping(18)}>
+          <Animated.View key={o.id} entering={enterUp(i)} layout={layoutMove}>
             <OfferCard offer={o} destination={destination} city={city} highlights={highlights[o.id]} />
           </Animated.View>
         ))}

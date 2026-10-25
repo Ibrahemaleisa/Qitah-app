@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
-import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
 import { VehicleRow } from '@/features/VehicleRow';
 import { useI18n } from '@/i18n';
 import { confirmAction } from '@/lib/confirm';
 import { useAppStore } from '@/store/app-store';
+import { enterUp, layoutMove } from '@/theme/motion';
 import { space } from '@/theme/tokens';
 import { Button } from '@/ui/Button';
 import { EmptyState } from '@/ui/EmptyState';
@@ -34,11 +35,11 @@ export default function Garage() {
         {s.garage.subtitle}
       </Text>
       {vehicles.length === 0 ? (
-        <EmptyState icon="truck" title={s.garage.empty} body={s.garage.emptyHint} action={{ label: s.garage.add, onPress: () => router.push('/garage/add') }} />
+        <EmptyState icon="car" title={s.garage.empty} body={s.garage.emptyHint} action={{ label: s.garage.add, onPress: () => router.push('/garage/add') }} />
       ) : (
         <View style={{ gap: space.md }}>
           {vehicles.map((v, i) => (
-            <Animated.View key={v.id} entering={FadeInDown.delay(i * 40)} layout={LinearTransition}>
+            <Animated.View key={v.id} entering={enterUp(i)} layout={layoutMove}>
               <VehicleRow
                 vehicle={v}
                 selected={v.id === selectedId}

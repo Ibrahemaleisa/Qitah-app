@@ -7,23 +7,19 @@ import { useI18n } from '@/i18n';
 import { vehicleLabel } from '@/lib/vehicle';
 import { colors, radius, space } from '@/theme/tokens';
 import { Button } from '@/ui/Button';
-import { Icon } from '@/ui/Icon';
 import { Text } from '@/ui/Text';
 
-import { fitVisuals } from './badges';
+import { FitMarker, fitVisuals } from './badges';
 
-const toneColors = {
-  success: { bg: colors.successSoft, fg: 'success' },
-  warning: { bg: colors.warningSoft, fg: 'warning' },
-  info: { bg: colors.infoSoft, fg: 'info' },
-  neutral: { bg: colors.surfaceSunken, fg: 'textSecondary' },
-} as const;
-
-/** Prominent, honest compatibility statement for the selected vehicle. */
+/**
+ * Compatibility indicator (guidelines p.31). Fits → solid card with the full symbol;
+ * needs confirmation → dashed card with the car alone; by specification / no vehicle → tinted card.
+ */
 export function FitPanel({ product, vehicle, status }: { product: Product; vehicle: Vehicle | undefined; status: FitStatus }) {
   const { s, tx, lang } = useI18n();
   const v = fitVisuals[status];
-  const tone = toneColors[(v.tone in toneColors ? v.tone : 'neutral') as keyof typeof toneColors];
+  const pending = status === 'sellerReported' || status === 'noData';
+  const tinted = status === 'bySpecification' || status === 'noVehicle';
   const detail =
     status === 'catalogMatch'
       ? s.fit.catalogMatchDetail
@@ -37,23 +33,38 @@ export function FitPanel({ product, vehicle, status }: { product: Product; vehic
             ? s.fit.noDataDetail
             : s.fit.noVehicleDetail;
   return (
-    <View style={{ backgroundColor: tone.bg, borderRadius: radius.lg, padding: space.lg, gap: space.sm }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-        <Icon name={v.icon} size={20} color={tone.fg} />
-        <Text variant="headline" color={tone.fg} style={{ flex: 1 }}>
-          {s.fit[status]}
-        </Text>
+    <View
+      accessible={false}
+      style={{
+        backgroundColor: tinted ? colors.surfaceSunken : colors.surface,
+        borderRadius: radius.lg,
+        borderWidth: tinted ? 0 : status === 'catalogMatch' ? 1.5 : 1,
+        borderStyle: pending ? 'dashed' : 'solid',
+        borderColor: status === 'catalogMatch' ? colors.primary : colors.lineStrong,
+        padding: space.lg,
+        gap: space.sm,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+        <FitMarker status={status} size={44} />
+        <View style={{ flex: 1 }}>
+          <Text variant="headline" color={v.color === 'heading' ? 'heading' : 'text'} accessibilityRole="header">
+            {s.fit[status]}
+          </Text>
+          {vehicle && status !== 'bySpecification' ? (
+            <Text variant="caption" color="textSecondary">
+              {vehicleLabel(vehicle, lang)} · <Text variant="caption" color="textSecondary" ltr>{vehicle.engine}</Text>
+            </Text>
+          ) : null}
+        </View>
       </View>
-      {vehicle && status !== 'bySpecification' ? (
-        <Text variant="callout" weight="semibold">
-          {vehicleLabel(vehicle, lang)} · <Text variant="callout" ltr>{vehicle.engine}</Text>
+      {detail ? (
+        <Text variant="caption" color="textSecondary">
+          {detail}
         </Text>
       ) : null}
-      <Text variant="caption" color="textSecondary">
-        {detail}
-      </Text>
-      {status === 'noVehicle' ? <Button label={s.home.addVehicle} variant="dark" size="sm" icon="plus" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/garage/add')} /> : null}
-      {vehicle && status !== 'bySpecification' ? <Button label={s.home.change} variant="secondary" size="sm" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/vehicle-switcher')} /> : null}
+      {status === 'noVehicle' ? <Button label={s.home.addVehicle} variant="secondary" size="sm" icon="plus" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/garage/add')} /> : null}
+      {vehicle && status !== 'bySpecification' ? <Button label={s.home.change} variant="ghost" size="sm" icon="car" style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }} onPress={() => router.push('/vehicle-switcher')} /> : null}
     </View>
   );
 }

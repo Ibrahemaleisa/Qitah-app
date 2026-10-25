@@ -42,7 +42,7 @@ export function RatingSummaryCard({ title, hint, rating, emptyLabel }: { title: 
           <Text variant="caption" color="textSecondary">
             {s.product.verifiedShare(Math.round(rating.verifiedShare * 100))}
           </Text>
-          <Badge label={s.common.sampleData} tone="accent" />
+          <Badge label={s.common.sampleData} tone="info" />
         </View>
       ) : null}
     </View>

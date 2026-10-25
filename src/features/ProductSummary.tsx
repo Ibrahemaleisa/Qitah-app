@@ -8,7 +8,7 @@ import { Text } from '@/ui/Text';
 
 /** At-a-glance facts across all in-stock offers: lowest price, fastest delivery, best warranty. */
 export function ProductSummary({ offers }: { offers: Offer[] }) {
-  const { s, money } = useI18n();
+  const { s, money, isRTL } = useI18n();
   const inStock = offers.filter((o) => o.stock > 0);
   if (inStock.length === 0) return null;
   const minPrice = Math.min(...inStock.map((o) => o.price));
@@ -32,7 +32,7 @@ export function ProductSummary({ offers }: { offers: Offer[] }) {
           key={c.label}
           accessible
           accessibilityLabel={`${c.label}: ${c.value}${c.hint ? `, ${c.hint}` : ''}`}
-          style={{ flex: 1, paddingVertical: space.md, paddingHorizontal: space.sm, alignItems: 'center', gap: 2, borderStartWidth: i === 0 ? 0 : 1, borderStartColor: colors.line }}
+          style={{ flex: 1, paddingVertical: space.md, paddingHorizontal: space.sm, alignItems: 'center', gap: 2, ...(i === 0 ? null : isRTL ? { borderRightWidth: 1, borderRightColor: colors.line } : { borderLeftWidth: 1, borderLeftColor: colors.line }) }}
         >
           <Text variant="micro" color="textTertiary" align="center" numberOfLines={1}>
             {c.label}

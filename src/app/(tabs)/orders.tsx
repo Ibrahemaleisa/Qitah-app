@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
 import { PartArt } from '@/brand/PartArt';
 import { orderStatusVisuals } from '@/features/orderVisuals';
@@ -10,6 +10,7 @@ import { currentStage, orderStatus, shipmentStages } from '@/services/orders';
 import { getSeller } from '@/domain/pricing';
 import { ShipmentProgress } from '@/features/ShipmentTimeline';
 import { useAppStore } from '@/store/app-store';
+import { enterUp } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 import { Badge } from '@/ui/Badge';
 import { EmptyState } from '@/ui/EmptyState';
@@ -17,6 +18,7 @@ import { Icon } from '@/ui/Icon';
 import { Pressable } from '@/ui/Pressable';
 import { Screen, ScreenHeader } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
+import { Price } from '@/ui/Price';
 
 export default function Orders() {
   const { s, tx, money, date } = useI18n();
@@ -34,7 +36,7 @@ export default function Orders() {
             const status = orderStatus(order, now);
             const visual = orderStatusVisuals[status];
             return (
-              <Animated.View key={order.id} entering={FadeInDown.delay(i * 40).duration(260)}>
+              <Animated.View key={order.id} entering={enterUp(i)}>
                 <Pressable
                   onPress={() => router.push(`/order/${order.id}`)}
                   pressScale={0.985}
@@ -83,12 +85,10 @@ export default function Orders() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                     <View style={{ flexDirection: 'row', gap: 6 }}>
                       <Badge label={s.success.shipments(order.shipments.length)} icon="truck" />
-                      {order.isSample ? <Badge label={s.orders.sampleOrder} tone="accent" icon="flag" /> : null}
+                      {order.isSample ? <Badge label={s.orders.sampleOrder} tone="info" icon="flag" /> : null}
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Text variant="bodyStrong" weight="bold">
-                        {money(order.totals.total)}
-                      </Text>
+                      <Price amount={order.totals.total} />
                       <Icon name="chevron-right" size={16} color="textTertiary" />
                     </View>
                   </View>

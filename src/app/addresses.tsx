@@ -37,7 +37,7 @@ export default function Addresses() {
           {addresses.map((a) => (
             <Pressable key={a.id} onPress={() => router.push({ pathname: '/address/edit', params: { id: a.id } })} pressScale={0.985} accessibilityLabel={a.label} style={{ flexDirection: 'row', gap: space.md, padding: space.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}>
               <View style={{ width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name={a.kind === 'workshop' ? 'tool' : 'home'} size={18} color="accent" />
+                <Icon name={a.kind === 'workshop' ? 'tool' : 'home'} size={18} color="heading" />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text variant="bodyStrong">{a.workshopName ?? a.label}</Text>

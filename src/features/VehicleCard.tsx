@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
 
+import { LogoSymbol } from '@/brand/Logo';
 import type { Vehicle } from '@/domain/types';
 import { useI18n } from '@/i18n';
 import { vehicleLabel, vehicleSpec } from '@/lib/vehicle';
@@ -9,29 +10,29 @@ import { Icon } from '@/ui/Icon';
 import { Pressable } from '@/ui/Pressable';
 import { Text } from '@/ui/Text';
 
-/** The selected-vehicle card: the anchor of the whole shopping experience. */
+/** The selected-vehicle bar (guidelines p.21: blue bar, car icon, "change"). */
 export function VehicleCard({ vehicle }: { vehicle: Vehicle | undefined }) {
   const { s, lang } = useI18n();
   if (!vehicle) {
+    // Empty state mirrors the "needs confirmation" indicator: dashed outline, car without its piece.
     return (
       <Pressable
         onPress={() => router.push('/garage/add')}
         haptics="impact"
         accessibilityLabel={s.home.addVehicle}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.xl, backgroundColor: colors.accent }}
+        accessibilityHint={s.home.addVehicleHint}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.primary }}
       >
-        <View style={{ width: 48, height: 48, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="plus" size={24} color="textOnAccent" />
-        </View>
+        <LogoSymbol width={52} tone="pending" />
         <View style={{ flex: 1 }}>
-          <Text variant="headline" color="textOnAccent">
+          <Text variant="headline" color="heading">
             {s.home.addVehicle}
           </Text>
-          <Text variant="caption" style={{ color: 'rgba(255,255,255,0.85)' }}>
+          <Text variant="caption" color="textSecondary">
             {s.home.addVehicleHint}
           </Text>
         </View>
-        <Icon name="chevron-right" size={20} color="textOnAccent" />
+        <Icon name="plus" size={22} color="heading" />
       </Pressable>
     );
   }
@@ -39,25 +40,25 @@ export function VehicleCard({ vehicle }: { vehicle: Vehicle | undefined }) {
     <Pressable
       onPress={() => router.push('/vehicle-switcher')}
       haptics="tap"
-      accessibilityLabel={`${s.home.yourVehicle}: ${vehicleLabel(vehicle, lang)}`}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.xl, backgroundColor: colors.inverse, overflow: 'hidden' }}
+      accessibilityLabel={`${s.home.yourVehicle}: ${vehicleLabel(vehicle, lang)}, ${vehicleSpec(vehicle)}`}
+      accessibilityHint={s.home.change}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md, paddingHorizontal: space.lg, borderRadius: radius.lg, backgroundColor: colors.inverse }}
     >
-      <View style={{ position: 'absolute', end: -30, top: -30, width: 120, height: 120, borderRadius: 60, borderWidth: 18, borderColor: colors.inverseMuted }} />
-      <View style={{ width: 48, height: 48, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="truck" size={22} color="textOnAccent" />
+      <View style={{ width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.inverseMuted, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="car" size={22} color="textInverse" />
       </View>
       <View style={{ flex: 1 }}>
-        <Text variant="micro" style={{ color: colors.textInverseTertiary }}>
+        <Text variant="micro" color="textInverseTertiary">
           {s.home.yourVehicle}
         </Text>
         <Text variant="headline" color="textInverse" numberOfLines={1}>
           {vehicleLabel(vehicle, lang)}
         </Text>
-        <Text variant="caption" style={{ color: colors.textInverseSecondary }} numberOfLines={1}>
+        <Text variant="caption" color="textInverseSecondary" numberOfLines={1} ltr>
           {vehicleSpec(vehicle)}
         </Text>
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: space.md, height: 32, borderRadius: radius.pill, backgroundColor: colors.inverseMuted }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: space.md, height: 32, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.inverseBorder }}>
         <Text variant="captionStrong" color="textInverse">
           {s.home.change}
         </Text>

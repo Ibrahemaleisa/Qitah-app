@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useDeferredValue, useEffect, useMemo, useRef } from 'react';
 import { FlatList, TextInput, View, type TextInputInstance } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PartArt } from '@/brand/PartArt';
@@ -13,7 +13,8 @@ import { vehicleLabel } from '@/lib/vehicle';
 import { categorySuggestions, popularSearches, searchWithFallback } from '@/services/catalog';
 import { useAppStore, useSelectedVehicle } from '@/store/app-store';
 import { activeFilterCount, useSearchStore } from '@/store/search-store';
-import { colors, fonts, gutter, radius, space } from '@/theme/tokens';
+import { enterUp } from '@/theme/motion';
+import { colors, gutter, radius, space } from '@/theme/tokens';
 import { Chip } from '@/ui/Chip';
 import { EmptyState } from '@/ui/EmptyState';
 import { HScroll } from '@/ui/HList';
@@ -22,7 +23,7 @@ import { ListGroup } from '@/ui/ListRow';
 import { Notice } from '@/ui/Notice';
 import { Pressable } from '@/ui/Pressable';
 import { Screen } from '@/ui/Screen';
-import { Text } from '@/ui/Text';
+import { fontFamilyFor, Text } from '@/ui/Text';
 
 export default function Search() {
   const { s, tx, lang, isRTL } = useI18n();
@@ -57,7 +58,7 @@ export default function Search() {
   const header = (
     <View style={{ paddingTop: insets.top + space.sm, paddingHorizontal: gutter, paddingBottom: space.sm, gap: space.md, backgroundColor: colors.background }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, height: 52, paddingHorizontal: space.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}>
-        <Icon name="search" size={20} color="accent" />
+        <Icon name="search" size={20} color="textSecondary" />
         <TextInput
           ref={inputRef}
           value={query}
@@ -65,12 +66,12 @@ export default function Search() {
           onSubmitEditing={() => pushRecentSearch(query)}
           placeholder={s.search.placeholder}
           placeholderTextColor={colors.textTertiary}
-          selectionColor={colors.accent}
+          selectionColor={colors.primary}
           returnKeyType="search"
           autoCorrect={false}
           autoCapitalize="none"
           accessibilityLabel={s.search.placeholder}
-          style={{ flex: 1, minWidth: 0, outlineWidth: 0, ...webNoOutline, fontFamily: fonts.regular, fontSize: 16, color: colors.text, textAlign: isRTL ? 'right' : 'left', writingDirection: isRTL ? 'rtl' : 'ltr', paddingVertical: 0 }}
+          style={{ flex: 1, minWidth: 0, outlineWidth: 0, ...webNoOutline, fontFamily: fontFamilyFor('regular', lang), fontSize: 16, color: colors.text, textAlign: isRTL ? 'right' : 'left', writingDirection: isRTL ? 'rtl' : 'ltr', paddingVertical: 0 }}
         />
         {query ? (
           <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityLabel={s.search.clear}>
@@ -98,7 +99,7 @@ export default function Search() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.sm }}>
               <Text variant="headline">{s.search.recentSearches}</Text>
               <Pressable onPress={clearRecentSearches} hitSlop={8} accessibilityLabel={s.search.clear}>
-                <Text variant="callout" color="accentPressed" weight="semibold">
+                <Text variant="callout" color="link" weight="semibold">
                   {s.search.clear}
                 </Text>
               </Pressable>
@@ -188,7 +189,7 @@ export default function Search() {
           </View>
         }
         renderItem={({ item, index }) => (
-          <Animated.View entering={index < 8 ? FadeIn.delay(index * 25).duration(220) : undefined}>
+          <Animated.View entering={index < 8 ? enterUp(index) : undefined}>
             <ProductRow listing={item} />
           </Animated.View>
         )}

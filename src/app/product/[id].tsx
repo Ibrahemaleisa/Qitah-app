@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Share, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PartArt } from '@/brand/PartArt';
@@ -18,6 +18,7 @@ import { useI18n } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { buildListing } from '@/services/catalog';
 import { useAppStore, useSelectedVehicle } from '@/store/app-store';
+import { enterFade } from '@/theme/motion';
 import { colors, gutter, radius, space } from '@/theme/tokens';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
@@ -27,11 +28,12 @@ import { RatingInline } from '@/ui/Rating';
 import { Screen, StickyFooter } from '@/ui/Screen';
 import { Section } from '@/ui/Section';
 import { Text } from '@/ui/Text';
+import { Price } from '@/ui/Price';
 import { toast } from '@/ui/Toast';
 
 export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { s, tx, money, lang } = useI18n();
+  const { s, tx, lang } = useI18n();
   const insets = useSafeAreaInsets();
   const vehicle = useSelectedVehicle();
   const product = getProduct(id ?? '');
@@ -82,9 +84,7 @@ export default function ProductScreen() {
               <Text variant="micro" color="textTertiary">
                 {s.product.bestPrice}
               </Text>
-              <Text variant="title2" weight="bold">
-                {best ? money(best.price) : '—'}
-              </Text>
+              {best ? <Price amount={best.price} variant="title2" /> : <Text variant="title2">—</Text>}
               {best && bestSeller ? (
                 <Text variant="micro" color="textSecondary" numberOfLines={1}>
                   {s.product.youAreAdding(tx(bestSeller.name), s.condition[best.condition])}
@@ -108,7 +108,7 @@ export default function ProductScreen() {
         </StickyFooter>
       }
     >
-      <Animated.View entering={FadeIn.duration(260)}>
+      <Animated.View entering={enterFade}>
         <View style={{ height: 270 + insets.top, paddingTop: insets.top, backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }}>
           <PartArt kind={product.art} size={220} background="transparent" />
         </View>
@@ -117,7 +117,7 @@ export default function ProductScreen() {
         <IconButton icon="chevron-left" label={s.common.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
         <View style={{ flexDirection: 'row', gap: space.sm }}>
           <IconButton icon="share" label={s.product.share} onPress={() => Share.share({ message: `${tx(product.name)} — ${product.partNumber} · ${s.brand.name}` }).catch(() => {})} />
-          <IconButton icon="heart" label={isFavorite ? s.product.removedFavorite : s.product.favorite} onPress={onToggleFavorite} tone={isFavorite ? 'accent' : 'surface'} />
+          <IconButton icon="heart" label={isFavorite ? s.product.removedFavorite : s.product.favorite} onPress={onToggleFavorite} filled={isFavorite} iconColor={isFavorite ? 'heading' : undefined} />
         </View>
       </View>
 
@@ -137,7 +137,7 @@ export default function ProductScreen() {
           <Text variant="callout" color="textTertiary">
             ·
           </Text>
-          <Text variant="callout" color="textSecondary" ltr selectable>
+          <Text variant="callout" color="textSecondary" mono selectable>
             {product.partNumber}
           </Text>
           {product.rating ? <RatingInline average={product.rating.average} count={product.rating.count} /> : null}
@@ -171,7 +171,7 @@ export default function ProductScreen() {
                 <Text variant="callout" color="textSecondary">
                   {tx(spec.label)}
                 </Text>
-                <Text variant="callout" weight="semibold" style={{ flexShrink: 1 }} align="end" ltr={typeof spec.value === 'string'}>
+                <Text variant="callout" weight="semibold" style={{ flexShrink: 1 }} align="end" ltr={typeof spec.value === 'string'} mono={i === 0}>
                   {typeof spec.value === 'string' ? spec.value : tx(spec.value)}
                 </Text>
               </View>
@@ -194,7 +194,7 @@ export default function ProductScreen() {
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                 {product.oemReferences.map((r) => (
                   <View key={r} style={{ paddingHorizontal: space.sm, paddingVertical: 2, borderRadius: radius.xs, backgroundColor: colors.surfaceSunken }}>
-                    <Text variant="caption" ltr selectable>
+                    <Text variant="caption" mono selectable>
                       {r}
                     </Text>
                   </View>

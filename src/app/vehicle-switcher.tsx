@@ -39,7 +39,7 @@ export default function VehicleSwitcher() {
             onSelect={() => {
               selectVehicle(v.id);
               haptic.success();
-              toast(vehicleLabel(v, lang), 'truck');
+              toast(vehicleLabel(v, lang), 'car');
               router.back();
             }}
           />

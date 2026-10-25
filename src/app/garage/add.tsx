@@ -1,13 +1,14 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
-import Animated, { FadeInDown, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
 import { getMake, getModel, makes } from '@/data/vehicles';
 import { useI18n } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { isValidVin } from '@/lib/vehicle';
 import { useAppStore } from '@/store/app-store';
+import { enterUp } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 import { Button } from '@/ui/Button';
 import { Chip } from '@/ui/Chip';
@@ -77,7 +78,7 @@ export default function AddVehicle() {
           <View>
             <ScreenHeader back dismiss={index === 0 ? 'close' : 'back'} inSheet title={s.garage.add} subtitle={s.garage.stepOf(index + 1, STEPS.length)} />
             <View style={{ height: 3, backgroundColor: colors.line }}>
-              <Animated.View style={[{ height: 3, backgroundColor: colors.accent }, progress]} />
+              <Animated.View style={[{ height: 3, backgroundColor: colors.primary }, progress]} />
             </View>
           </View>
         }
@@ -103,7 +104,7 @@ export default function AddVehicle() {
           </View>
         ) : null}
 
-        <Animated.View key={step} entering={FadeInDown.duration(240)} style={{ marginTop: space.xl, gap: space.md }}>
+        <Animated.View key={step} entering={enterUp()} style={{ marginTop: space.xl, gap: space.md }}>
           <Text variant="title1">{s.garage.steps[step]}</Text>
 
           {step === 'make' ? (
@@ -142,7 +143,7 @@ export default function AddVehicle() {
             <View style={{ gap: space.sm }}>
               {model.engines.map((e) => (
                 <Pressable key={e} onPress={() => choose({ engine: e }, 'vin')} haptics="tap" accessibilityLabel={e} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: draft.engine === e ? 1.5 : 1, borderColor: draft.engine === e ? colors.text : colors.line }}>
-                  <Icon name="settings" size={18} color="accent" />
+                  <Icon name="settings" size={18} color="heading" />
                   <Text variant="bodyStrong" style={{ flex: 1 }} ltr>
                     {e}
                   </Text>

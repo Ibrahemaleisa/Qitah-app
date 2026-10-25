@@ -17,8 +17,8 @@ export default function SellerContactSheet() {
   return (
     <View style={{ flex: 1, direction: isRTL ? 'rtl' : 'ltr', backgroundColor: colors.background, paddingHorizontal: gutter, paddingTop: space.xl, gap: space.lg }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-        <View style={{ width: 48, height: 48, borderRadius: radius.md, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="message-circle" size={22} color="accentPressed" />
+        <View style={{ width: 48, height: 48, borderRadius: radius.md, backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="message-circle" size={22} color="heading" />
         </View>
         <View style={{ flex: 1 }}>
           <Text variant="title2">{s.seller.contact}</Text>

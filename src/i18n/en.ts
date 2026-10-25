@@ -3,7 +3,7 @@ import type { Strings } from './ar';
 const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
 
 const en: Strings = {
-  brand: { name: 'Qitah', latin: 'Qitah', promise: 'Find the right part. Compare your options. Get it delivered.' },
+  brand: { name: 'Qitah', latin: 'Qitah', promise: 'The right part, at a clear price, from a seller you know.' },
   common: {
     sar: 'SAR',
     continue: 'Continue',
@@ -138,15 +138,15 @@ const en: Strings = {
   originShort: { oem: 'OEM', aftermarket: 'Aftermarket' },
   condition: { new: 'New', used: 'Used', refurbished: 'Refurbished' },
   fit: {
-    catalogMatch: 'Fits your vehicle',
-    catalogMatchDetail: 'Per sample catalog data. Confirm with your VIN before fitting.',
-    sellerReported: 'Fitment unconfirmed',
-    sellerReportedDetail: 'Fitment is reported by the seller and not verified. Contact the seller with your VIN.',
+    catalogMatch: 'Fits your car',
+    catalogMatchDetail: 'Matched by sample catalog data. Confirm with your VIN before fitting.',
+    sellerReported: 'Needs confirmation',
+    sellerReportedDetail: 'The seller says it fits; we haven’t verified it. Contact them with your VIN.',
     bySpecification: 'Fits by specification',
     noData: 'No fitment data',
-    noDataDetail: 'We have no data confirming this part fits your vehicle.',
-    noVehicle: 'Add your vehicle to check',
-    noVehicleDetail: 'Select your vehicle to see available fitment data.',
+    noDataDetail: 'We have no data confirming it fits your car. Check the part number with the seller.',
+    noVehicle: 'Add your car to check',
+    noVehicleDetail: 'Select your car to see the fitment data we have.',
   },
   product: {
     bestPrice: 'Best price',
@@ -282,8 +282,8 @@ const en: Strings = {
     vehicleNote: (v) => `For: ${v}`,
   },
   success: {
-    title: 'Order confirmed',
-    subtitle: 'Your order was created and sent to the sellers (simulated).',
+    title: 'Your order is in',
+    subtitle: 'The sellers are preparing it now. You’ll find the expected delivery on the tracking page (simulated).',
     orderNumber: 'Order number',
     simulatedNote: 'No real payment took place. Shipping status advances automatically for demonstration.',
     track: 'Track order',
@@ -410,7 +410,8 @@ const en: Strings = {
     notFound: 'Page not found',
     notFoundHint: 'The product may have moved or been removed.',
     goHome: 'Back to home',
-    generic: 'Something went wrong',
+    generic: 'We couldn’t show this page. Please try again.',
+    paymentFailed: 'We couldn’t complete the payment. Check your payment details and try again.',
   },
 };
 

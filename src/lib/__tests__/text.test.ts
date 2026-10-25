@@ -20,3 +20,4 @@ describe('text helpers', () => {
     expect(withinOneEdit('filter', 'filtar')).toBe(true);
   });
 });
+

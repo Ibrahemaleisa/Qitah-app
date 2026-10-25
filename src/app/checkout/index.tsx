@@ -24,6 +24,7 @@ import { Screen, ScreenHeader, StickyFooter } from '@/ui/Screen';
 import { Section } from '@/ui/Section';
 import { Segmented } from '@/ui/Segmented';
 import { Text } from '@/ui/Text';
+import { toast } from '@/ui/Toast';
 
 const methodIcons: Record<PaymentMethodId, IconName> = {
   applePay: 'smartphone',
@@ -89,6 +90,7 @@ export default function Checkout() {
     if (result.status !== 'authorized') {
       setProcessing(false);
       haptic.warning();
+      toast(s.errors.paymentFailed, 'alert-circle');
       return;
     }
     const choice: Record<string, DeliveryOptionId> = {};
@@ -213,7 +215,7 @@ export default function Checkout() {
                     <Icon name={methodIcons[m.id]} size={17} />
                   </View>
                 }
-                trailing={<Badge label={s.common.simulated} tone="accent" />}
+                trailing={<Badge label={s.common.simulated} tone="info" />}
               />
             );
           })}
@@ -246,7 +248,7 @@ function SummaryRow({ label, value, strong }: { label: string; value: string; st
       <Text variant={strong ? 'headline' : 'callout'} color={strong ? 'text' : 'textSecondary'}>
         {label}
       </Text>
-      <Text variant={strong ? 'headline' : 'callout'} weight={strong ? 'bold' : 'semibold'}>
+      <Text variant={strong ? 'headline' : 'callout'} weight={strong ? 'bold' : 'semibold'} color={strong ? 'heading' : 'text'} tabular>
         {value}
       </Text>
     </View>

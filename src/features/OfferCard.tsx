@@ -15,7 +15,10 @@ import { Icon, type IconName } from '@/ui/Icon';
 import { Pressable } from '@/ui/Pressable';
 import { RatingInline } from '@/ui/Rating';
 import { Text } from '@/ui/Text';
+import { Price } from '@/ui/Price';
 import { toast } from '@/ui/Toast';
+
+import { PieceMark } from '@/brand/Logo';
 
 import { ConditionBadge } from './badges';
 
@@ -31,7 +34,7 @@ type Props = {
 const highlightVisuals = {
   cheapest: { tone: 'accent', icon: 'tag' },
   fastest: { tone: 'info', icon: 'zap' },
-  topRated: { tone: 'success', icon: 'award' },
+  topRated: { tone: 'info', icon: 'award' },
 } as const;
 
 /**
@@ -39,7 +42,7 @@ const highlightVisuals = {
  * lines so offers can be compared at a glance without mental arithmetic.
  */
 export function OfferCard({ offer, destination = 'home', city, highlights = [] }: Props) {
-  const { s, tx, money } = useI18n();
+  const { s, tx, money, isRTL } = useI18n();
   const addToCart = useAppStore((st) => st.addToCart);
   const inCart = useAppStore((st) => st.cart.find((l) => l.offerId === offer.id)?.qty ?? 0);
   const seller = getSeller(offer.sellerId);
@@ -59,7 +62,13 @@ export function OfferCard({ offer, destination = 'home', city, highlights = [] }
   };
 
   return (
-    <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: featured ? 1.5 : 1, borderColor: featured ? colors.text : colors.line, padding: space.lg, gap: space.md, opacity: outOfStock ? 0.7 : 1 }}>
+    <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: featured ? 1.5 : 1, borderColor: featured ? colors.primary : colors.line, padding: space.lg, gap: space.md, opacity: outOfStock ? 0.7 : 1 }}>
+      {featured ? (
+        // The orange piece marks the selected / best offer (guidelines p.14). Never mirrored.
+        <View style={[{ position: 'absolute', top: space.lg }, isRTL ? { left: space.lg } : { right: space.lg }]} accessible={false}>
+          <PieceMark width={34} />
+        </View>
+      ) : null}
       {highlights.length ? (
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
           {highlights.map((h) => (
@@ -112,26 +121,22 @@ export function OfferCard({ offer, destination = 'home', city, highlights = [] }
       <View accessible accessibilityLabel={`${s.product.partPrice} ${money(offer.price)}, ${s.product.deliveryFee} ${deliveryText}, ${s.product.total} ${est.delivery ? money(est.total) : '—'}`} style={{ backgroundColor: colors.surfaceMuted, borderRadius: radius.md, padding: space.md, gap: 6 }}>
         <Line label={s.product.partPrice}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.sm }}>
-            {offer.compareAtPrice ? (
-              <Text variant="caption" color="textTertiary" style={{ textDecorationLine: 'line-through' }}>
-                {money(offer.compareAtPrice)}
-              </Text>
-            ) : null}
-            <Text variant="callout" weight="semibold">
-              {money(offer.price)}
-            </Text>
+            {offer.compareAtPrice ? <Price amount={offer.compareAtPrice} variant="caption" strike /> : null}
+            <Price amount={offer.price} variant="callout" color="text" />
           </View>
         </Line>
         <Line label={s.product.deliveryFee}>
-          <Text variant="callout" weight="semibold" color={!est.delivery ? 'danger' : est.freeShipping ? 'success' : 'text'}>
-            {deliveryText}
-          </Text>
+          {est.delivery && !est.freeShipping ? (
+            <Price amount={est.fee} variant="callout" color="text" />
+          ) : (
+            <Text variant="callout" weight="semibold" color={!est.delivery ? 'danger' : 'success'}>
+              {deliveryText}
+            </Text>
+          )}
         </Line>
         <View style={{ height: 1, backgroundColor: colors.line }} />
         <Line label={s.product.total} strong>
-          <Text variant="headline" weight="bold">
-            {est.delivery ? money(est.total) : '—'}
-          </Text>
+          {est.delivery ? <Price amount={est.total} variant="headline" /> : <Text variant="headline">—</Text>}
         </Line>
       </View>
 
@@ -144,7 +149,7 @@ export function OfferCard({ offer, destination = 'home', city, highlights = [] }
       <Button
         label={outOfStock ? s.product.outOfStock : atMax ? s.cart.maxStock : inCart ? `${s.product.addToCart} (${inCart})` : s.product.addToCart}
         icon={outOfStock || atMax ? undefined : 'plus'}
-        variant={featured ? 'primary' : 'dark'}
+        variant={featured ? 'primary' : 'secondary'}
         size="md"
         disabled={outOfStock || atMax}
         accessibilityHint={`${s.condition[offer.condition]} · ${tx(seller.name)}`}

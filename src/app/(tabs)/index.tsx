@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Logo } from '@/brand/Logo';
@@ -17,6 +17,7 @@ import { featuredListings, listingsByIds, recommendedFor, type ProductListing } 
 import { orderStatus } from '@/services/orders';
 import { useAppStore, useSelectedVehicle } from '@/store/app-store';
 import { useSearchStore } from '@/store/search-store';
+import { enterUp } from '@/theme/motion';
 import { colors, gutter, radius, space } from '@/theme/tokens';
 import { Badge } from '@/ui/Badge';
 import { HList } from '@/ui/HList';
@@ -61,12 +62,12 @@ export default function Home() {
       <View style={{ paddingHorizontal: gutter }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-            <Logo size={34} />
+            <Logo height={24} />
             <SampleBadge />
           </View>
           <View style={{ flexDirection: 'row', gap: space.sm }}>
             <IconButton icon="heart" label={s.account.favorites} onPress={() => router.push('/favorites')} />
-            <IconButton icon="truck" label={s.garage.title} onPress={() => router.push('/garage')} />
+            <IconButton icon="car" label={s.garage.title} onPress={() => router.push('/garage')} />
           </View>
         </View>
 
@@ -84,7 +85,7 @@ export default function Home() {
           accessibilityLabel={s.home.searchPlaceholder}
           style={{ marginTop: space.lg, flexDirection: 'row', alignItems: 'center', gap: space.md, height: 56, paddingHorizontal: space.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}
         >
-          <Icon name="search" size={20} color="accent" />
+          <Icon name="search" size={20} color="textSecondary" />
           <Text variant="body" color="textTertiary" style={{ flex: 1 }} numberOfLines={1}>
             {s.home.searchPlaceholder}
           </Text>
@@ -110,10 +111,10 @@ export default function Home() {
               <Badge label={s.orders.status[orderStatus(activeOrder, now)]} {...orderStatusVisuals[orderStatus(activeOrder, now)]} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-              <Text variant="callout" weight="semibold" color="accentPressed">
+              <Text variant="callout" weight="semibold" color="link">
                 {s.home.trackOrder}
               </Text>
-              <Icon name="chevron-right" size={16} color="accentPressed" />
+              <Icon name="chevron-right" size={16} color="link" />
             </View>
           </Pressable>
         ) : null}
@@ -121,7 +122,7 @@ export default function Home() {
         <Section title={s.home.categories}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
             {categories.map((c, i) => (
-              <Animated.View key={c.id} entering={FadeInDown.delay(i * 30).duration(280)} style={{ width: '31%' }}>
+              <Animated.View key={c.id} entering={enterUp(i)} style={{ width: '31%' }}>
                 <Pressable
                   onPress={() => openCategory(c.id)}
                   haptics="tap"

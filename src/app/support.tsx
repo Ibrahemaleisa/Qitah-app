@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
 import { useI18n } from '@/i18n';
+import { enterFade } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 import { Icon } from '@/ui/Icon';
 import { Notice } from '@/ui/Notice';
@@ -25,10 +26,10 @@ export default function Support() {
                   <Text variant="bodyStrong" style={{ flex: 1 }}>
                     {f.q}
                   </Text>
-                  <Icon name={open === i ? 'minus' : 'plus'} size={18} color="accent" />
+                  <Icon name={open === i ? 'minus' : 'plus'} size={18} color="heading" />
                 </View>
                 {open === i ? (
-                  <Animated.View entering={FadeIn.duration(200)}>
+                  <Animated.View entering={enterFade}>
                     <Text variant="callout" color="textSecondary">
                       {f.a}
                     </Text>

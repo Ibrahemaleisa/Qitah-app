@@ -19,3 +19,9 @@ export function vehicleSpec(vehicle: Vehicle): string {
 export function isValidVin(vin: string): boolean {
   return /^[A-HJ-NPR-Z0-9]{17}$/.test(vin.toUpperCase());
 }
+
+/** VINs are shown in two groups (9 + 8) for easier matching and never wrap (guidelines p.30). */
+export function formatVin(vin: string): string {
+  const v = vin.toUpperCase();
+  return v.length === 17 ? `${v.slice(0, 9)}\u00A0${v.slice(9)}` : v;
+}
