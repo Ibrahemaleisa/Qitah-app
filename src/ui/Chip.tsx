@@ -37,7 +37,7 @@ export function Chip({ label, selected, onPress, icon, count }: Props) {
         {label}
       </Text>
       {count ? (
-        <Text variant="micro" color={selected ? 'accent' : 'textTertiary'}>
+        <Text variant="micro" color={selected ? 'textInverseSecondary' : 'textTertiary'}>
           {count}
         </Text>
       ) : null}

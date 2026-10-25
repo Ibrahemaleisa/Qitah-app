@@ -15,7 +15,8 @@ function formatNumber(n: number): string {
   const rounded = Math.round(n * 100) / 100;
   const [int, dec] = rounded.toFixed(2).split('.');
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return dec === '00' ? grouped : `${grouped}.${dec}`;
+  // Prices always show two decimals (guidelines p.21, p.30).
+  return `${grouped}.${dec}`;
 }
 
 export function createI18n(lang: Lang) {

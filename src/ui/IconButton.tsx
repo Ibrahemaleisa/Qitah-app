@@ -14,10 +14,12 @@ type Props = {
   size?: number;
   iconColor?: keyof typeof colors;
   badge?: number;
+  /** Filled glyph, e.g. a saved favorite. */
+  filled?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
-export function IconButton({ icon, onPress, label, tone = 'surface', size = 44, iconColor, badge, style }: Props) {
+export function IconButton({ icon, onPress, label, tone = 'surface', size = 44, iconColor, badge, filled, style }: Props) {
   const bg = tone === 'surface' ? colors.surface : tone === 'dark' ? colors.inverse : tone === 'accent' ? colors.accent : 'transparent';
   const fg = iconColor ?? (tone === 'dark' || tone === 'accent' ? 'textInverse' : 'text');
   return (
@@ -26,6 +28,7 @@ export function IconButton({ icon, onPress, label, tone = 'surface', size = 44, 
       haptics="tap"
       pressScale={0.92}
       accessibilityLabel={label}
+      accessibilityState={filled !== undefined ? { selected: filled } : undefined}
       hitSlop={6}
       style={[
         {
@@ -41,9 +44,9 @@ export function IconButton({ icon, onPress, label, tone = 'surface', size = 44, 
         style,
       ]}
     >
-      <Icon name={icon} size={size * 0.46} color={fg} />
+      <Icon name={icon} size={size * 0.46} color={fg} filled={filled} />
       {badge ? (
-        <View style={{ position: 'absolute', top: -2, end: -2, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
+        <View style={{ position: 'absolute', top: -2, end: -2, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
           <Text variant="micro" color="textOnAccent" style={{ lineHeight: 14 }}>
             {badge > 9 ? '9+' : badge}
           </Text>

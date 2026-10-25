@@ -1,6 +1,7 @@
 import { View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
+import { enterUp } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 
 import { Button } from './Button';
@@ -16,9 +17,9 @@ type Props = {
 
 export function EmptyState({ icon, title, body, action }: Props) {
   return (
-    <Animated.View entering={FadeInDown.duration(320)} style={{ alignItems: 'center', paddingVertical: space.huge, paddingHorizontal: space.xxl, gap: space.md }}>
-      <View style={{ width: 76, height: 76, borderRadius: radius.xl, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', marginBottom: space.sm }}>
-        <Icon name={icon} size={30} color="accent" />
+    <Animated.View entering={enterUp()} style={{ alignItems: 'center', paddingVertical: space.huge, paddingHorizontal: space.xxl, gap: space.md }}>
+      <View style={{ width: 76, height: 76, borderRadius: radius.xl, backgroundColor: colors.surfaceSunken, borderWidth: 0, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', marginBottom: space.sm }}>
+        <Icon name={icon} size={30} color="heading" />
       </View>
       <Text variant="title2" align="center">
         {title}

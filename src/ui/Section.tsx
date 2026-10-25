@@ -43,7 +43,7 @@ export function Section({ title, subtitle, action, children, style, inset = 0, s
         </View>
         {action ? (
           <Pressable onPress={action.onPress} hitSlop={8}>
-            <Text variant="callout" weight="semibold" color="accentPressed">
+            <Text variant="callout" weight="semibold" color="link">
               {action.label}
             </Text>
           </Pressable>

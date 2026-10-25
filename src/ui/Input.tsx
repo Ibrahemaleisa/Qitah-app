@@ -3,10 +3,10 @@ import { TextInput, View, type TextInputInstance, type TextInputProps } from 're
 
 import { useI18n } from '@/i18n';
 import { webNoOutline } from '@/lib/platform-styles';
-import { colors, fonts, radius, space } from '@/theme/tokens';
+import { colors, radius, space } from '@/theme/tokens';
 
 import { Icon, type IconName } from './Icon';
-import { Text } from './Text';
+import { fontFamilyFor, Text } from './Text';
 
 type Props = TextInputProps & {
   label?: string;
@@ -18,7 +18,7 @@ type Props = TextInputProps & {
 };
 
 export const Input = forwardRef<TextInputInstance, Props>(function Input({ label, hint, error, icon, prefix, ltr, style, onFocus, onBlur, ...rest }, ref) {
-  const { isRTL } = useI18n();
+  const { isRTL, lang } = useI18n();
   const [focused, setFocused] = useState(false);
   const borderColor = error ? colors.danger : focused ? colors.text : colors.lineStrong;
   const rtlText = isRTL && !ltr;
@@ -51,7 +51,7 @@ export const Input = forwardRef<TextInputInstance, Props>(function Input({ label
         <TextInput
           ref={ref}
           placeholderTextColor={colors.textTertiary}
-          selectionColor={colors.accent}
+          selectionColor={colors.primary}
           {...rest}
           onFocus={(e) => {
             setFocused(true);
@@ -67,7 +67,7 @@ export const Input = forwardRef<TextInputInstance, Props>(function Input({ label
               minWidth: 0,
               outlineWidth: 0,
               ...webNoOutline,
-              fontFamily: fonts.regular,
+              fontFamily: fontFamilyFor('regular', lang, ltr ? 'latin' : 'text'),
               fontSize: 16,
               color: colors.text,
               paddingVertical: space.md,

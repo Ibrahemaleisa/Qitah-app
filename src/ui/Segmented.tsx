@@ -29,7 +29,7 @@ export function Segmented<T extends string>({ options, value, onChange }: Props<
             ]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              {o.icon ? <Icon name={o.icon} size={16} color={active ? 'accent' : 'textSecondary'} /> : null}
+              {o.icon ? <Icon name={o.icon} size={16} color={active ? 'heading' : 'textSecondary'} /> : null}
               <Text variant="bodyStrong" color={active ? 'text' : 'textSecondary'}>
                 {o.label}
               </Text>

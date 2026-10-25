@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather';
 import {
   IBMPlexSansArabic_400Regular,
   IBMPlexSansArabic_500Medium,
@@ -6,6 +5,8 @@ import {
   IBMPlexSansArabic_700Bold,
   useFonts,
 } from '@expo-google-fonts/ibm-plex-sans-arabic';
+import { IBMPlexMono_400Regular, IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
+import { IBMPlexSans_400Regular, IBMPlexSans_500Medium, IBMPlexSans_600SemiBold, IBMPlexSans_700Bold } from '@expo-google-fonts/ibm-plex-sans';
 import { LocaleProvider, Stack, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -51,7 +52,12 @@ export default function RootLayout() {
     IBMPlexSansArabic_500Medium,
     IBMPlexSansArabic_600SemiBold,
     IBMPlexSansArabic_700Bold,
-    ...Feather.font,
+    IBMPlexSans_400Regular,
+    IBMPlexSans_500Medium,
+    IBMPlexSans_600SemiBold,
+    IBMPlexSans_700Bold,
+    IBMPlexMono_400Regular,
+    IBMPlexMono_500Medium,
   });
   const hydrated = useStoreHydrated();
   const ready = (fontsLoaded || !!fontError) && hydrated;
@@ -87,7 +93,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <LocaleProvider direction={isRTL ? 'rtl' : 'ltr'}>
           <View style={{ flex: 1, backgroundColor: colors.background, direction: isRTL ? 'rtl' : 'ltr' }}>
-            <StatusBar style={splashDone ? 'dark' : 'light'} />
+            <StatusBar style="dark" />
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />

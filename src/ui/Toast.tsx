@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
-import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
+import Animated, { FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { create } from 'zustand';
 
 import { useI18n } from '@/i18n';
+import { toastEnter } from '@/theme/motion';
 import { colors, radius, shadow, space } from '@/theme/tokens';
 
 import { Icon, type IconName } from './Icon';
@@ -36,7 +37,7 @@ export function ToastHost() {
     <View pointerEvents="none" style={{ position: 'absolute', top: insets.top + space.sm, start: 0, end: 0, alignItems: 'center', direction: isRTL ? 'rtl' : 'ltr' }}>
       <Animated.View
         key={key}
-        entering={FadeInUp.springify().damping(18)}
+        entering={toastEnter}
         exiting={FadeOutUp.duration(180)}
         style={[{ flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.inverse, paddingHorizontal: space.lg, paddingVertical: space.md, borderRadius: radius.pill, maxWidth: '90%' }, shadow.raised]}
       >

@@ -10,10 +10,12 @@ type Props = Omit<PressableProps, 'style'> & {
   /** Scale applied while pressed. 1 disables the effect. */
   pressScale?: number;
   haptics?: 'tap' | 'impact' | false;
+  /** Fade when disabled. Components with their own disabled styling turn this off. */
+  dimWhenDisabled?: boolean;
 };
 
 /** Pressable with a subtle spring scale — the base of every tappable surface. */
-export function Pressable({ style, pressScale = 0.97, haptics = false, onPressIn, onPressOut, onPress, disabled, ...rest }: Props) {
+export function Pressable({ style, pressScale = 0.97, haptics = false, dimWhenDisabled = true, onPressIn, onPressOut, onPress, disabled, ...rest }: Props) {
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
@@ -33,7 +35,7 @@ export function Pressable({ style, pressScale = 0.97, haptics = false, onPressIn
         if (haptics) haptic[haptics]();
         onPress?.(e);
       }}
-      style={[style, animated, disabled ? { opacity: 0.45 } : null]}
+      style={[style, animated, disabled && dimWhenDisabled ? { opacity: 0.45 } : null]}
     />
   );
 }

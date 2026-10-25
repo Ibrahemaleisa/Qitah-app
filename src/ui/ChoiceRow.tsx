@@ -35,7 +35,7 @@ export function ChoiceRow({ selected, onPress, title, subtitle, trailing, leadin
         padding: space.lg,
         borderRadius: radius.md,
         borderWidth: selected ? 1.5 : 1,
-        borderColor: selected ? colors.text : colors.line,
+        borderColor: selected ? colors.primary : colors.line,
         backgroundColor: colors.surface,
       }}
     >
@@ -46,7 +46,7 @@ export function ChoiceRow({ selected, onPress, title, subtitle, trailing, leadin
           borderRadius: multi ? 6 : 11,
           borderWidth: selected ? 0 : 1.5,
           borderColor: colors.lineStrong,
-          backgroundColor: selected ? colors.accent : 'transparent',
+          backgroundColor: selected ? colors.primary : 'transparent',
           alignItems: 'center',
           justifyContent: 'center',
         }}

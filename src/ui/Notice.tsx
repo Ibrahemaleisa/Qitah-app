@@ -10,7 +10,7 @@ type Tone = 'info' | 'warning' | 'sample' | 'success' | 'danger';
 const tones: Record<Tone, { bg: string; fg: keyof typeof colors; icon: IconName }> = {
   info: { bg: colors.infoSoft, fg: 'info', icon: 'info' },
   warning: { bg: colors.warningSoft, fg: 'warning', icon: 'alert-triangle' },
-  sample: { bg: colors.accentWash, fg: 'accentPressed', icon: 'flag' },
+  sample: { bg: colors.infoSoft, fg: 'info', icon: 'flag' },
   success: { bg: colors.successSoft, fg: 'success', icon: 'check-circle' },
   danger: { bg: colors.dangerSoft, fg: 'danger', icon: 'alert-octagon' },
 };

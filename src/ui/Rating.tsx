@@ -9,7 +9,7 @@ import { Text } from './Text';
 export function RatingInline({ average, count, size = 'sm' }: { average: number; count?: number; size?: 'sm' | 'md' }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-      <Star size={size === 'sm' ? 12 : 15} color={colors.accent} />
+      <Star size={size === 'sm' ? 12 : 15} color={colors.heading} />
       <Text variant={size === 'sm' ? 'captionStrong' : 'bodyStrong'} ltr>
         {average.toFixed(1)}
       </Text>
@@ -26,7 +26,7 @@ export function Stars({ value, size = 14 }: { value: number; size?: number }) {
   return (
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <Star key={i} size={size} color={i <= Math.round(value) ? colors.accent : colors.lineStrong} />
+        <Star key={i} size={size} color={i <= Math.round(value) ? colors.heading : colors.lineStrong} />
       ))}
     </View>
   );

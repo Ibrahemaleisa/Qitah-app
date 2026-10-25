@@ -9,7 +9,7 @@ export type BadgeTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' 
 
 const tones: Record<BadgeTone, { bg: string; fg: keyof typeof colors }> = {
   neutral: { bg: colors.surfaceSunken, fg: 'textSecondary' },
-  accent: { bg: colors.accentSoft, fg: 'accentPressed' },
+  accent: { bg: colors.accentSoft, fg: 'accentText' },
   success: { bg: colors.successSoft, fg: 'success' },
   warning: { bg: colors.warningSoft, fg: 'warning' },
   danger: { bg: colors.dangerSoft, fg: 'danger' },
@@ -24,7 +24,7 @@ const tones: Record<BadgeTone, { bg: string; fg: keyof typeof colors }> = {
 export function Badge({ label, tone = 'neutral', icon }: { label: string; tone?: BadgeTone; icon?: IconName }) {
   const t = tones[tone];
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, backgroundColor: t.bg, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 2 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, backgroundColor: t.bg, borderRadius: radius.xs, paddingHorizontal: space.sm, paddingVertical: 2 }}>
       {icon ? <Icon name={icon} size={11} color={t.fg} /> : null}
       <Text variant="micro" color={t.fg} numberOfLines={1}>
         {label}
