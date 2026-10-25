@@ -1,0 +1,131 @@
+import type { CityId, DeliveryOption, DeliveryOptionId, L10n, Seller } from '@/domain/types';
+
+import { sampleRating } from './rating';
+
+export const cities: Record<CityId, L10n> = {
+  riyadh: { ar: 'الرياض', en: 'Riyadh' },
+  jeddah: { ar: 'جدة', en: 'Jeddah' },
+  dammam: { ar: 'الدمام', en: 'Dammam' },
+  khobar: { ar: 'الخبر', en: 'Khobar' },
+  makkah: { ar: 'مكة المكرمة', en: 'Makkah' },
+  madinah: { ar: 'المدينة المنورة', en: 'Madinah' },
+};
+
+export const cityIds = Object.keys(cities) as CityId[];
+
+/** SAMPLE DATA — fictional merchants used only to demonstrate the multi-seller experience. */
+export const sellers: Seller[] = [
+  {
+    id: 's-riyadh-center',
+    name: { ar: 'مركز الرياض لقطع الغيار', en: 'Riyadh Parts Center' },
+    city: 'riyadh',
+    verifiedBusiness: true,
+    joinedYear: 2021,
+    rating: sampleRating(4.8, 1240, 0.92),
+    fulfilledOrders: 8400,
+    onTimeRate: 0.97,
+    responseHours: 1,
+    supportsWorkshopDelivery: true,
+    freeShippingOver: 400,
+    specialty: { ar: 'قطع أصلية لتويوتا ولكزس', en: 'Genuine Toyota & Lexus parts' },
+  },
+  {
+    id: 's-eastern',
+    name: { ar: 'قطع الشرقية', en: 'Eastern Parts Co.' },
+    city: 'dammam',
+    verifiedBusiness: true,
+    joinedYear: 2022,
+    rating: sampleRating(4.5, 860, 0.88),
+    fulfilledOrders: 5100,
+    onTimeRate: 0.93,
+    responseHours: 3,
+    supportsWorkshopDelivery: true,
+    specialty: { ar: 'قطع بديلة لجميع الماركات', en: 'Aftermarket parts, all makes' },
+  },
+  {
+    id: 's-brake-house',
+    name: { ar: 'بيت الفرامل', en: 'Brake House' },
+    city: 'jeddah',
+    verifiedBusiness: true,
+    joinedYear: 2022,
+    rating: sampleRating(4.7, 430, 0.9),
+    fulfilledOrders: 2300,
+    onTimeRate: 0.95,
+    responseHours: 2,
+    supportsWorkshopDelivery: true,
+    freeShippingOver: 300,
+    specialty: { ar: 'متخصصون في أنظمة الفرامل والتعليق', en: 'Brake & suspension specialists' },
+  },
+  {
+    id: 's-salvage',
+    name: { ar: 'سوق التشليح المعتمد', en: 'Certified Salvage Market' },
+    city: 'riyadh',
+    verifiedBusiness: true,
+    joinedYear: 2023,
+    rating: sampleRating(4.2, 310, 0.81),
+    fulfilledOrders: 1200,
+    onTimeRate: 0.88,
+    responseHours: 5,
+    supportsWorkshopDelivery: false,
+    specialty: { ar: 'قطع مستعملة ومجددة مفحوصة', en: 'Inspected used & refurbished parts' },
+  },
+  {
+    id: 's-elite-oils',
+    name: { ar: 'النخبة للزيوت والفلاتر', en: 'Elite Oils & Filters' },
+    city: 'khobar',
+    verifiedBusiness: true,
+    joinedYear: 2021,
+    rating: sampleRating(4.6, 2100, 0.94),
+    fulfilledOrders: 15200,
+    onTimeRate: 0.96,
+    responseHours: 2,
+    supportsWorkshopDelivery: true,
+    freeShippingOver: 250,
+    specialty: { ar: 'زيوت وفلاتر ومستلزمات الصيانة الدورية', en: 'Oils, filters & routine service' },
+  },
+  {
+    id: 's-quickfix',
+    name: { ar: 'متجر الصيانة السريعة', en: 'QuickFix Store' },
+    city: 'madinah',
+    verifiedBusiness: false,
+    joinedYear: 2026,
+    rating: null,
+    fulfilledOrders: 38,
+    onTimeRate: null,
+    responseHours: 6,
+    supportsWorkshopDelivery: true,
+    specialty: { ar: 'كهرباء وإضاءة', en: 'Electrical & lighting' },
+  },
+];
+
+export const deliveryOptions: Record<DeliveryOptionId, DeliveryOption> = {
+  standard: {
+    id: 'standard',
+    name: { ar: 'توصيل قياسي', en: 'Standard delivery' },
+    carrier: { ar: 'ناقل وطني (تجريبي)', en: 'National carrier (mock)' },
+    etaDays: [2, 4],
+    fee: 25,
+  },
+  express: {
+    id: 'express',
+    name: { ar: 'توصيل سريع', en: 'Express delivery' },
+    carrier: { ar: 'ناقل سريع (تجريبي)', en: 'Express carrier (mock)' },
+    etaDays: [1, 2],
+    fee: 39,
+  },
+  sameDay: {
+    id: 'sameDay',
+    name: { ar: 'توصيل في نفس اليوم', en: 'Same-day delivery' },
+    carrier: { ar: 'مندوب محلي (تجريبي)', en: 'Local courier (mock)' },
+    etaDays: [0, 0],
+    fee: 49,
+    sameCityOnly: true,
+  },
+  freight: {
+    id: 'freight',
+    name: { ar: 'شحن القطع الكبيرة', en: 'Large-item freight' },
+    carrier: { ar: 'شحن ثقيل (تجريبي)', en: 'Freight carrier (mock)' },
+    etaDays: [3, 6],
+    fee: 85,
+  },
+};

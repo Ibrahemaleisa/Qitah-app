@@ -1,0 +1,224 @@
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo } from 'react';
+import { Share, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { PartArt } from '@/brand/PartArt';
+import { getCategory, getProduct } from '@/data/catalog';
+import { reviewsForProduct } from '@/data/reviews';
+import { getMake, getModel } from '@/data/vehicles';
+import { OriginBadge, SampleBadge } from '@/features/badges';
+import { FitPanel } from '@/features/FitPanel';
+import { OfferCard, offerHighlights } from '@/features/OfferCard';
+import { RatingSummaryCard, ReviewItem } from '@/features/Reviews';
+import { estimatedTotal } from '@/domain/pricing';
+import { useI18n } from '@/i18n';
+import { haptic } from '@/lib/haptics';
+import { buildListing } from '@/services/catalog';
+import { useAppStore, useSelectedVehicle } from '@/store/app-store';
+import { colors, gutter, radius, space } from '@/theme/tokens';
+import { Badge } from '@/ui/Badge';
+import { Button } from '@/ui/Button';
+import { EmptyState } from '@/ui/EmptyState';
+import { IconButton } from '@/ui/IconButton';
+import { RatingInline } from '@/ui/Rating';
+import { Screen, StickyFooter } from '@/ui/Screen';
+import { Section } from '@/ui/Section';
+import { Text } from '@/ui/Text';
+import { toast } from '@/ui/Toast';
+
+export default function ProductScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { s, tx, money, lang } = useI18n();
+  const insets = useSafeAreaInsets();
+  const vehicle = useSelectedVehicle();
+  const product = getProduct(id ?? '');
+  const isFavorite = useAppStore((st) => (product ? st.favorites.includes(product.id) : false));
+  const toggleFavorite = useAppStore((st) => st.toggleFavorite);
+  const trackView = useAppStore((st) => st.trackView);
+  const addToCart = useAppStore((st) => st.addToCart);
+
+  useEffect(() => {
+    if (product) trackView(product.id);
+  }, [product, trackView]);
+
+  const listing = useMemo(() => (product ? buildListing(product, vehicle) : undefined), [product, vehicle]);
+
+  if (!product || !listing) {
+    return (
+      <Screen safeTop header={<View style={{ padding: gutter }}><IconButton icon="chevron-left" label={s.common.back} onPress={() => router.back()} /></View>}>
+        <EmptyState icon="alert-circle" title={s.errors.notFound} body={s.errors.notFoundHint} action={{ label: s.errors.goHome, onPress: () => router.replace('/') }} />
+      </Screen>
+    );
+  }
+
+  const category = getCategory(product.categoryId);
+  const reviews = reviewsForProduct(product.id);
+  const sortedOffers = [...listing.offers].sort((a, b) => (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) || estimatedTotal(a).total - estimatedTotal(b).total);
+  const highlights = offerHighlights(listing.offers);
+  const best = listing.bestOffer;
+  const bestInStock = best && best.stock > 0;
+
+  const onToggleFavorite = () => {
+    toggleFavorite(product.id);
+    haptic.tap();
+  };
+
+  return (
+    <Screen
+      padded={false}
+      footer={
+        <StickyFooter>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+            <View style={{ flex: 1 }}>
+              <Text variant="micro" color="textTertiary">
+                {s.product.bestPrice}
+              </Text>
+              <Text variant="title2" weight="bold">
+                {best ? money(best.price) : '—'}
+              </Text>
+            </View>
+            <Button
+              label={bestInStock ? s.product.addToCart : s.product.outOfStock}
+              size="md"
+              icon={bestInStock ? 'shopping-bag' : undefined}
+              disabled={!bestInStock}
+              onPress={() => {
+                if (!best) return;
+                addToCart(best.id);
+                haptic.success();
+                toast(s.product.added, 'shopping-bag');
+              }}
+            />
+          </View>
+        </StickyFooter>
+      }
+    >
+      <Animated.View entering={FadeIn.duration(260)}>
+        <View style={{ height: 310 + insets.top, paddingTop: insets.top, backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }}>
+          <PartArt kind={product.art} size={250} background="transparent" />
+        </View>
+      </Animated.View>
+      <View style={{ position: 'absolute', top: insets.top + space.xs, start: gutter, end: gutter, flexDirection: 'row', justifyContent: 'space-between' }}>
+        <IconButton icon="chevron-left" label={s.common.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
+        <View style={{ flexDirection: 'row', gap: space.sm }}>
+          <IconButton icon="share" label={s.product.share} onPress={() => Share.share({ message: `${tx(product.name)} — ${product.partNumber} · ${s.brand.name}` }).catch(() => {})} />
+          <IconButton icon="heart" label={s.product.favorite} onPress={onToggleFavorite} tone={isFavorite ? 'accent' : 'surface'} />
+        </View>
+      </View>
+
+      <View style={{ paddingHorizontal: gutter, marginTop: -space.xxl, backgroundColor: colors.background, borderTopLeftRadius: radius.xxl, borderTopRightRadius: radius.xxl, paddingTop: space.xl }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          <OriginBadge origin={product.origin} />
+          {category ? <Badge label={tx(category.name)} /> : null}
+          <SampleBadge />
+        </View>
+        <Text variant="title1" style={{ marginTop: space.sm }}>
+          {tx(product.name)}
+        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.sm, marginTop: 2 }}>
+          <Text variant="callout" color="textSecondary">
+            {product.brand}
+          </Text>
+          <Text variant="callout" color="textTertiary">
+            ·
+          </Text>
+          <Text variant="callout" color="textSecondary" ltr selectable>
+            {product.partNumber}
+          </Text>
+          {product.rating ? <RatingInline average={product.rating.average} count={product.rating.count} /> : null}
+        </View>
+
+        <View style={{ marginTop: space.lg }}>
+          <FitPanel product={product} vehicle={vehicle} status={listing.fit} />
+        </View>
+
+        <Section
+          title={s.product.offers}
+          subtitle={`${s.common.sellers(new Set(listing.offers.map((o) => o.sellerId)).size)} · ${s.common.vatIncluded}`}
+          action={listing.offers.length > 2 ? { label: s.common.seeAll, onPress: () => router.push(`/offers/${product.id}`) } : undefined}
+        >
+          <View style={{ gap: space.md }}>
+            {sortedOffers.slice(0, 2).map((o) => (
+              <OfferCard key={o.id} offer={o} highlights={highlights[o.id]} />
+            ))}
+            {listing.offers.length > 2 ? <Button label={s.product.compareOffers(listing.offers.length)} variant="secondary" size="md" icon="layers" onPress={() => router.push(`/offers/${product.id}`)} /> : null}
+          </View>
+        </Section>
+
+        <Section title={s.product.specs}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line }}>
+            {[{ label: { ar: 'رقم القطعة', en: 'Part number' }, value: product.partNumber }, { label: { ar: 'الماركة', en: 'Brand' }, value: product.brand }, ...product.specs].map((spec, i, arr) => (
+              <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.md, paddingVertical: space.md, paddingHorizontal: space.lg, borderBottomWidth: i === arr.length - 1 ? 0 : 1, borderBottomColor: colors.line }}>
+                <Text variant="callout" color="textSecondary">
+                  {tx(spec.label)}
+                </Text>
+                <Text variant="callout" weight="semibold" style={{ flexShrink: 1 }} align="end" ltr={typeof spec.value === 'string'}>
+                  {typeof spec.value === 'string' ? spec.value : tx(spec.value)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </Section>
+
+        <Section title={s.product.description}>
+          <Text variant="body" color="textSecondary">
+            {tx(product.description)}
+          </Text>
+          {product.oemReferences.length ? (
+            <View style={{ marginTop: space.md, gap: 4 }}>
+              <Text variant="captionStrong" color="textSecondary">
+                {s.product.oemRefs}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {product.oemReferences.map((r) => (
+                  <View key={r} style={{ paddingHorizontal: space.sm, paddingVertical: 2, borderRadius: radius.xs, backgroundColor: colors.surfaceSunken }}>
+                    <Text variant="caption" ltr selectable>
+                      {r}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+        </Section>
+
+        {product.fitment.length ? (
+          <Section title={s.product.compatibility} subtitle={s.product.fitsVehicles}>
+            <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line }}>
+              {product.fitment.map((f, i) => {
+                const model = getModel(f.modelId);
+                const make = model ? getMake(model.makeId) : undefined;
+                return (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md, paddingHorizontal: space.lg, borderBottomWidth: i === product.fitment.length - 1 ? 0 : 1, borderBottomColor: colors.line }}>
+                    <View style={{ flex: 1 }}>
+                      <Text variant="callout" weight="semibold">
+                        {make ? tx(make.name) : ''} {model ? tx(model.name) : f.modelId}
+                      </Text>
+                      <Text variant="caption" color="textSecondary">
+                        <Text variant="caption" color="textSecondary" ltr>{`${f.yearFrom}–${f.yearTo}`}</Text> · {f.engines ? f.engines.join(lang === 'ar' ? '، ' : ', ') : s.product.allEngines}
+                      </Text>
+                    </View>
+                    {f.source === 'seller' ? <Badge label={s.product.sellerReportedTag} tone="warning" icon="alert-circle" /> : <Badge label={s.common.sampleData} tone="neutral" />}
+                  </View>
+                );
+              })}
+            </View>
+          </Section>
+        ) : null}
+
+        <Section title={s.seller.reviews}>
+          <RatingSummaryCard title={s.product.productRating} hint={s.product.productRatingHint} rating={product.rating} emptyLabel={s.product.noRatings} />
+          {reviews.length ? (
+            <View style={{ marginTop: space.sm }}>
+              {reviews.map((r) => (
+                <ReviewItem key={r.id} review={r} />
+              ))}
+            </View>
+          ) : null}
+        </Section>
+      </View>
+    </Screen>
+  );
+}
