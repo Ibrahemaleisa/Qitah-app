@@ -4,7 +4,9 @@ import Animated from 'react-native-reanimated';
 
 import { VehicleRow } from '@/features/VehicleRow';
 import { useI18n } from '@/i18n';
+import { apiErrorMessage } from '@/lib/api-errors';
 import { confirmAction } from '@/lib/confirm';
+import { removeVehicle } from '@/services/remote/account';
 import { useAppStore } from '@/store/app-store';
 import { enterUp, layoutMove } from '@/theme/motion';
 import { space } from '@/theme/tokens';
@@ -12,13 +14,13 @@ import { Button } from '@/ui/Button';
 import { EmptyState } from '@/ui/EmptyState';
 import { Screen, ScreenHeader, StickyFooter } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
+import { toast } from '@/ui/Toast';
 
 export default function Garage() {
   const { s } = useI18n();
   const vehicles = useAppStore((st) => st.vehicles);
   const selectedId = useAppStore((st) => st.selectedVehicleId);
   const selectVehicle = useAppStore((st) => st.selectVehicle);
-  const removeVehicle = useAppStore((st) => st.removeVehicle);
 
   return (
     <Screen
@@ -44,7 +46,7 @@ export default function Garage() {
                 vehicle={v}
                 selected={v.id === selectedId}
                 onSelect={() => selectVehicle(v.id)}
-                onRemove={() => confirmAction(s.garage.removeConfirm, s.common.remove, s.common.cancel, () => removeVehicle(v.id))}
+                onRemove={() => confirmAction(s.garage.removeConfirm, s.common.remove, s.common.cancel, () => removeVehicle(v.id).catch((e) => toast(apiErrorMessage(s, e), 'alert-circle')))}
               />
             </Animated.View>
           ))}

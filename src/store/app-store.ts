@@ -2,12 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { isRemote } from '@/config/env';
 import { getOffer } from '@/data/offers';
 import type { Address, CartLine, Lang, Order, ReturnReason, Vehicle } from '@/domain/types';
 import { makeId } from '@/lib/id';
 import { buildSampleOrder } from '@/services/orders';
 
-export type User = { name: string; phone: string; email?: string };
+/** `id` is the server user id (remote mode). */
+export type User = { id?: string; name: string; phone: string; email?: string };
 
 export type NotificationPrefs = { orderUpdates: boolean; priceDrops: boolean; offers: boolean };
 
@@ -51,6 +53,14 @@ type Actions = {
   saveAddress: (address: Omit<Address, 'id'> & { id?: string }) => Address;
   removeAddress: (id: string) => void;
 
+  /** Remote sync: replace local copies with the account's server state (source of truth). */
+  setVehicles: (vehicles: Vehicle[]) => void;
+  upsertVehicle: (vehicle: Vehicle) => void;
+  setAddresses: (addresses: Address[]) => void;
+  setCart: (lines: CartLine[]) => void;
+  /** The customer acknowledged a changed price for a cart line. */
+  acknowledgePrice: (offerId: string) => void;
+
   placeOrder: (order: Order) => void;
   cancelOrder: (orderId: string, reason: string) => void;
   requestReturn: (orderId: string, lineId: string, reason: ReturnReason) => void;
@@ -90,7 +100,8 @@ export const useAppStore = create<State & Actions>()(
       completeOnboarding: () => set({ onboardingDone: true }),
       signIn: (user) => set({ user }),
       updateUser: (patch) => set((s) => (s.user ? { user: { ...s.user, ...patch } } : s)),
-      signOut: () => set({ user: null }),
+      // Remote mode: the garage and addresses belong to the account, so they leave with it.
+      signOut: () => set(isRemote ? { user: null, vehicles: [], selectedVehicleId: null, addresses: [] } : { user: null }),
 
       addVehicle: (input) => {
         const vehicle: Vehicle = { ...input, id: makeId('veh'), addedAt: Date.now() };
@@ -112,7 +123,7 @@ export const useAppStore = create<State & Actions>()(
             return { cart: s.cart.map((l) => (l.offerId === offerId ? { ...l, qty: clampQty(offerId, l.qty + qty) } : l)) };
           }
           const clamped = clampQty(offerId, qty);
-          return clamped > 0 ? { cart: [...s.cart, { offerId, qty: clamped }] } : s;
+          return clamped > 0 ? { cart: [...s.cart, { offerId, qty: clamped, seenPrice: getOffer(offerId)?.price }] } : s;
         }),
       setQty: (offerId, qty) =>
         set((s) => {
@@ -148,6 +159,21 @@ export const useAppStore = create<State & Actions>()(
       },
       removeAddress: (id) => set((s) => ({ addresses: s.addresses.filter((a) => a.id !== id) })),
 
+      setVehicles: (vehicles) =>
+        set((s) => ({
+          vehicles,
+          selectedVehicleId: vehicles.some((v) => v.id === s.selectedVehicleId) ? s.selectedVehicleId : (vehicles[0]?.id ?? null),
+        })),
+      upsertVehicle: (vehicle) =>
+        set((s) => ({
+          vehicles: s.vehicles.some((v) => v.id === vehicle.id) ? s.vehicles.map((v) => (v.id === vehicle.id ? vehicle : v)) : [vehicle, ...s.vehicles],
+          selectedVehicleId: vehicle.id,
+        })),
+      setAddresses: (addresses) => set({ addresses }),
+      setCart: (lines) => set({ cart: lines }),
+      acknowledgePrice: (offerId) =>
+        set((s) => ({ cart: s.cart.map((l) => (l.offerId === offerId ? { ...l, seenPrice: getOffer(offerId)?.price ?? l.seenPrice } : l)) })),
+
       placeOrder: (order) => set((s) => ({ orders: [order, ...s.orders], cart: [] })),
       cancelOrder: (orderId, reason) =>
         set((s) => ({
@@ -162,16 +188,18 @@ export const useAppStore = create<State & Actions>()(
 
       setNotificationPref: (key, value) => set((s) => ({ notificationPrefs: { ...s.notificationPrefs, [key]: value } })),
       ensureSampleOrder: () => {
-        if (get().sampleOrderSeeded) return;
+        // Remote mode shows only real orders from the server — never the demo order.
+        if (isRemote || get().sampleOrderSeeded) return;
         set((s) => ({ orders: [...s.orders, buildSampleOrder()], sampleOrderSeeded: true }));
       },
       resetDemo: () => {
         const { lang } = get();
-        set({ ...initialState, lang, onboardingDone: true, orders: [buildSampleOrder()], sampleOrderSeeded: true });
+        set({ ...initialState, lang, onboardingDone: true, orders: isRemote ? [] : [buildSampleOrder()], sampleOrderSeeded: !isRemote });
       },
     }),
     {
-      name: 'qitah-app-state',
+      // Remote and demo state never mix on one device/browser profile.
+      name: isRemote ? 'qitah-app-state-remote' : 'qitah-app-state',
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },

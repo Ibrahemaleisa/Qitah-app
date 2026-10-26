@@ -8,4 +8,7 @@ export const orderStatusVisuals: Record<OrderStatus, { tone: BadgeTone; icon: Ic
   partiallyDelivered: { tone: 'accent', icon: 'package' },
   delivered: { tone: 'success', icon: 'check-circle' },
   cancelled: { tone: 'danger', icon: 'x-circle' },
+  pendingPayment: { tone: 'warning', icon: 'credit-card' },
+  paymentFailed: { tone: 'danger', icon: 'alert-circle' },
+  expired: { tone: 'neutral', icon: 'clock' },
 };

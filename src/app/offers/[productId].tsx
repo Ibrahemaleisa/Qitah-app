@@ -4,6 +4,8 @@ import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { PartArt } from '@/brand/PartArt';
+import { useCatalogVersion } from '@/catalog/remote-catalog';
+import { isRemote } from '@/config/env';
 import { getProduct } from '@/data/catalog';
 import { offersForProduct } from '@/data/offers';
 import { OriginBadge } from '@/features/badges';
@@ -33,7 +35,9 @@ export default function OffersScreen() {
   const [sort, setSort] = useState<SortKey>('total');
   const [condition, setCondition] = useState<Condition | 'all'>('all');
 
-  const all = useMemo(() => offersForProduct(productId ?? ''), [productId]);
+  const catalogVersion = useCatalogVersion();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion picks up live price/stock after a refresh
+  const all = useMemo(() => offersForProduct(productId ?? ''), [productId, catalogVersion]);
   const conditions = [...new Set(all.map((o) => o.condition))];
 
   const offers = useMemo(() => {
@@ -86,8 +90,9 @@ export default function OffersScreen() {
             {s.offers.sortBy}
           </Text>
           <HScroll gap={space.sm}>
-            {(['total', 'rating', 'delivery'] as SortKey[]).map((k) => (
-              <Chip key={k} label={s.offers.sort[k]} selected={sort === k} onPress={() => setSort(k)} />
+            {/* Remote mode has no seller ratings yet, so sorting by rating would be meaningless. */}
+            {((isRemote ? ['total', 'delivery'] : ['total', 'rating', 'delivery']) as SortKey[]).map((k) => (
+              <Chip key={k} label={isRemote && k === 'total' ? s.product.partPrice : s.offers.sort[k]} selected={sort === k} onPress={() => setSort(k)} />
             ))}
           </HScroll>
         </View>
@@ -105,7 +110,7 @@ export default function OffersScreen() {
           </View>
         ) : null}
         <Text variant="caption" color="textTertiary">
-          {s.product.estTotalHint} · {s.common.vatIncluded}
+          {isRemote ? s.remote.liveCatalogNote : `${s.product.estTotalHint} · ${s.common.vatIncluded}`}
         </Text>
       </View>
 
@@ -117,7 +122,7 @@ export default function OffersScreen() {
         ))}
       </View>
       <View style={{ marginTop: space.lg }}>
-        <Notice tone="sample" text={s.home.sampleBanner} />
+        {isRemote ? null : <Notice tone="sample" text={s.home.sampleBanner} />}
       </View>
     </Screen>
   );

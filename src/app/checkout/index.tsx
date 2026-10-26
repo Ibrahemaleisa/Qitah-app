@@ -2,7 +2,9 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Platform, View } from 'react-native';
 
+import { isRemote } from '@/config/env';
 import { cities } from '@/data/sellers';
+import { RemoteCheckout } from '@/features/remote/RemoteCheckout';
 import { groupCartBySeller, shippingFeeFor, vatIncluded } from '@/domain/pricing';
 import type { DeliveryDestination, DeliveryOptionId, PaymentMethodId } from '@/domain/types';
 import { useI18n } from '@/i18n';
@@ -35,7 +37,12 @@ const methodIcons: Record<PaymentMethodId, IconName> = {
   tamara: 'calendar',
 };
 
+/** Remote mode uses the server's smart-cart plans; demo mode keeps the simulated checkout. */
 export default function Checkout() {
+  return isRemote ? <RemoteCheckout /> : <DemoCheckout />;
+}
+
+function DemoCheckout() {
   const { s, tx, money, lang } = useI18n();
   const cart = useAppStore((st) => st.cart);
   const user = useAppStore((st) => st.user);

@@ -1,3 +1,5 @@
+import { catalogIndex, useRemoteCatalog } from '@/catalog/remote-catalog';
+import { isRemote } from '@/config/env';
 import type { VehicleMake, VehicleModel } from '@/domain/types';
 
 /** SAMPLE DATA — a small demonstration vehicle catalog, not an authoritative fitment database. */
@@ -73,10 +75,19 @@ export const makes: VehicleMake[] = [
 const modelIndex = new Map<string, VehicleModel>();
 for (const make of makes) for (const model of make.models) modelIndex.set(model.id, model);
 
+/** Vehicle makes of the active catalog (bundled SAMPLE data, or the API reference data when remote). */
+export function allMakes(): VehicleMake[] {
+  if (!isRemote) return makes;
+  const remote = useRemoteCatalog.getState().makes;
+  return remote.length ? remote : makes;
+}
+
 export function getModel(id: string): VehicleModel | undefined {
+  if (isRemote && useRemoteCatalog.getState().makes.length) return catalogIndex().models.get(id);
   return modelIndex.get(id);
 }
 
 export function getMake(id: string): VehicleMake | undefined {
+  if (isRemote && useRemoteCatalog.getState().makes.length) return catalogIndex().makes.get(id);
   return makes.find((m) => m.id === id);
 }

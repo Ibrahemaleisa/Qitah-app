@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { LogoSymbol } from '@/brand/Logo';
-import type { StageEvent } from '@/services/orders';
+import type { ShipmentStage } from '@/domain/types';
 import { useI18n } from '@/i18n';
 import { enterFade } from '@/theme/motion';
 import { colors, space } from '@/theme/tokens';
@@ -16,7 +16,10 @@ const DOT = 24;
  * stage carries the full symbol, upcoming stages are empty circles. Text is always shown.
  * Laid out vertically on mobile to fit six stages with timestamps.
  */
-export function ShipmentTimeline({ events, cancelled }: { events: StageEvent[]; cancelled?: boolean }) {
+/** `at` may be unknown for a reached stage (remote orders only carry some timestamps); then no time is shown. */
+type TimelineEvent = { stage: ShipmentStage; reached: boolean; at?: number | null };
+
+export function ShipmentTimeline({ events, cancelled }: { events: TimelineEvent[]; cancelled?: boolean }) {
   const { s, time, date } = useI18n();
   const lastReached = events.reduce((acc, e, i) => (e.reached ? i : acc), 0);
   return (
@@ -24,7 +27,7 @@ export function ShipmentTimeline({ events, cancelled }: { events: StageEvent[]; 
       {events.map((e, i) => {
         const isCurrent = i === lastReached && !cancelled;
         return (
-          <View key={e.stage} style={{ flexDirection: 'row', gap: space.md }} accessible accessibilityLabel={`${s.orders.stages[e.stage]}${e.reached ? `، ${date(e.at)} ${time(e.at)}` : ''}`}>
+          <View key={e.stage} style={{ flexDirection: 'row', gap: space.md }} accessible accessibilityLabel={`${s.orders.stages[e.stage]}${e.reached && e.at ? `، ${date(e.at)} ${time(e.at)}` : ''}`}>
             <View style={{ alignItems: 'center', width: 34 }}>
               <View style={{ height: DOT, justifyContent: 'center', alignItems: 'center' }}>
                 {isCurrent ? (
@@ -43,7 +46,7 @@ export function ShipmentTimeline({ events, cancelled }: { events: StageEvent[]; 
               <Text variant={isCurrent ? 'bodyStrong' : 'callout'} color={isCurrent ? 'heading' : e.reached ? 'text' : 'textTertiary'}>
                 {s.orders.stages[e.stage]}
               </Text>
-              {e.reached ? (
+              {e.reached && e.at ? (
                 <Animated.View entering={enterFade}>
                   <Text variant="caption" color="textTertiary">
                     {date(e.at)} · {time(e.at)}

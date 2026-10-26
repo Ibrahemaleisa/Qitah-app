@@ -3,9 +3,12 @@ import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
-import { getMake, getModel, makes } from '@/data/vehicles';
+import { allMakes, getMake, getModel } from '@/data/vehicles';
+import { isRemote } from '@/config/env';
 import { useI18n } from '@/i18n';
+import { apiErrorMessage } from '@/lib/api-errors';
 import { haptic } from '@/lib/haptics';
+import { addVehicle } from '@/services/remote/account';
 import { isValidVin } from '@/lib/vehicle';
 import { useAppStore } from '@/store/app-store';
 import { enterUp } from '@/theme/motion';
@@ -26,7 +29,9 @@ type Draft = { makeId?: string; modelId?: string; year?: number; trim?: string; 
 
 export default function AddVehicle() {
   const { s, tx } = useI18n();
-  const addVehicle = useAppStore((st) => st.addVehicle);
+  const signedIn = useAppStore((st) => !!st.user);
+  const [saving, setSaving] = useState(false);
+  const makes = allMakes();
   const [step, setStep] = useState<Step>('make');
   const [draft, setDraft] = useState<Draft>({});
   const [vin, setVin] = useState('');
@@ -55,7 +60,7 @@ export default function AddVehicle() {
     else setStep(STEPS[index - 1]);
   };
 
-  const save = (withVin: boolean) => {
+  const save = async (withVin: boolean) => {
     if (!draft.makeId || !draft.modelId || !draft.year || !draft.trim || !draft.engine) return;
     const cleanVin = vin.trim().toUpperCase();
     if (withVin && cleanVin && !isValidVin(cleanVin)) {
@@ -63,9 +68,19 @@ export default function AddVehicle() {
       haptic.warning();
       return;
     }
-    addVehicle({ makeId: draft.makeId, modelId: draft.modelId, year: draft.year, trim: draft.trim, engine: draft.engine, vin: withVin && cleanVin ? cleanVin : undefined });
+    setSaving(true);
+    try {
+      // Remote + signed in: saved to the account (POST /v1/me/vehicles). Otherwise kept on device.
+      await addVehicle({ makeId: draft.makeId, modelId: draft.modelId, year: draft.year, trim: draft.trim, engine: draft.engine, vin: withVin && cleanVin ? cleanVin : undefined });
+    } catch (e) {
+      setSaving(false);
+      haptic.warning();
+      toast(apiErrorMessage(s, e), 'alert-circle');
+      return;
+    }
+    setSaving(false);
     haptic.success();
-    toast(`${make ? tx(make.name) : ''} ${model ? tx(model.name) : ''} ${draft.year}`);
+    toast(`${make ? tx(make.name) : ''} ${model ? tx(model.name) : ''} ${draft.year}${signedIn && isRemote ? ` · ${s.remote.syncedToAccount}` : ''}`);
     router.back();
   };
 
@@ -85,8 +100,8 @@ export default function AddVehicle() {
         footer={
           step === 'vin' ? (
             <StickyFooter>
-              <Button label={s.garage.saveVehicle} onPress={() => save(true)} disabled={!vin.trim()} />
-              <Button label={s.garage.skipVin} variant="ghost" size="md" onPress={() => save(false)} />
+              <Button label={s.garage.saveVehicle} onPress={() => save(true)} disabled={!vin.trim() || saving} loading={saving} />
+              <Button label={s.garage.skipVin} variant="ghost" size="md" onPress={() => save(false)} disabled={saving} />
             </StickyFooter>
           ) : undefined
         }

@@ -167,6 +167,10 @@ export type Offer = {
   dispatchDays: [number, number];
   deliveryOptions: DeliveryOptionId[];
   note?: L10n;
+  /** Remote mode: the pickup location this offer ships from (a merchant may have several). */
+  originCity?: CityId;
+  /** Remote mode: the offer exists but can no longer be bought (paused, merchant suspended…). */
+  unavailable?: boolean;
 };
 
 export type Review = {
@@ -198,7 +202,11 @@ export type Address = {
   workshopName?: string;
 };
 
-export type CartLine = { offerId: string; qty: number };
+/**
+ * `seenPrice` (SAR) is the unit price the customer saw when adding the line. In remote mode it is
+ * compared with the live price so a price change is shown before checkout.
+ */
+export type CartLine = { offerId: string; qty: number; seenPrice?: number };
 
 // ---------------------------------------------------------------- orders
 

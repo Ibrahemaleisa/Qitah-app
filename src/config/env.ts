@@ -14,6 +14,3 @@ const raw = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 export const API_BASE_URL = raw.trim().replace(/\/+$/, '');
 
 export const isRemote = API_BASE_URL.length > 0;
-
-/** Show developer hints (e.g. the sandbox OTP) only in development builds. */
-export const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';

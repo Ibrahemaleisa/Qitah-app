@@ -5,6 +5,8 @@ import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PartArt } from '@/brand/PartArt';
+import { useCatalogVersion } from '@/catalog/remote-catalog';
+import { isRemote } from '@/config/env';
 import { getCategory, getProduct } from '@/data/catalog';
 import { reviewsForProduct } from '@/data/reviews';
 import { getMake, getModel } from '@/data/vehicles';
@@ -47,7 +49,9 @@ export default function ProductScreen() {
     if (product) trackView(product.id);
   }, [product, trackView]);
 
-  const listing = useMemo(() => (product ? buildListing(product, vehicle) : undefined), [product, vehicle]);
+  const catalogVersion = useCatalogVersion();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion picks up live price/stock after a refresh
+  const listing = useMemo(() => (product ? buildListing(product, vehicle) : undefined), [product, vehicle, catalogVersion]);
 
   if (!product || !listing) {
     return (
@@ -125,7 +129,7 @@ export default function ProductScreen() {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           <OriginBadge origin={product.origin} />
           {category ? <Badge label={tx(category.name)} /> : null}
-          <SampleBadge />
+          {isRemote ? null : <SampleBadge />}
         </View>
         <Text variant="title1" style={{ marginTop: space.sm }}>
           {tx(product.name)}
@@ -220,7 +224,7 @@ export default function ProductScreen() {
                         <Text variant="caption" color="textSecondary" ltr>{`${f.yearFrom}–${f.yearTo}`}</Text> · {f.engines ? f.engines.join(lang === 'ar' ? '، ' : ', ') : s.product.allEngines}
                       </Text>
                     </View>
-                    {f.source === 'seller' ? <Badge label={s.product.sellerReportedTag} tone="warning" icon="alert-circle" /> : <Badge label={s.common.sampleData} tone="neutral" />}
+                    {f.source === 'seller' ? <Badge label={s.product.sellerReportedTag} tone="warning" icon="alert-circle" /> : <Badge label={isRemote ? s.remote.catalogFitment : s.common.sampleData} tone="neutral" />}
                   </View>
                 );
               })}

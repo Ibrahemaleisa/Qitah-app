@@ -5,7 +5,8 @@ import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PartArt } from '@/brand/PartArt';
-import { categories, getCategory } from '@/data/catalog';
+import { useCatalogVersion } from '@/catalog/remote-catalog';
+import { allCategories, getCategory } from '@/data/catalog';
 import { ProductRow } from '@/features/ProductCard';
 import { useI18n } from '@/i18n';
 import { webNoOutline } from '@/lib/platform-styles';
@@ -43,7 +44,10 @@ export default function Search() {
     }
   }, [focusRequest]);
 
-  const outcome = useMemo(() => searchWithFallback({ query: deferredQuery, filters, sort, vehicle }), [deferredQuery, filters, sort, vehicle]);
+  const catalogVersion = useCatalogVersion();
+  const categories = allCategories();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion re-runs the search after a catalog refresh
+  const outcome = useMemo(() => searchWithFallback({ query: deferredQuery, filters, sort, vehicle }), [deferredQuery, filters, sort, vehicle, catalogVersion]);
   const results = outcome.results;
   const suggestedCategories = useMemo(() => (filters.categoryId ? [] : categorySuggestions(deferredQuery)), [deferredQuery, filters.categoryId]);
   const browsing = !query.trim() && !filters.categoryId;

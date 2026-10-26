@@ -5,7 +5,9 @@ import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { cities, cityIds } from '@/data/sellers';
 import type { CityId, DeliveryDestination } from '@/domain/types';
 import { useI18n } from '@/i18n';
+import { apiErrorMessage } from '@/lib/api-errors';
 import { haptic } from '@/lib/haptics';
+import { saveAddress } from '@/services/remote/account';
 import { useAppStore } from '@/store/app-store';
 import { space } from '@/theme/tokens';
 import { Button } from '@/ui/Button';
@@ -14,13 +16,14 @@ import { Input } from '@/ui/Input';
 import { Screen, ScreenHeader, StickyFooter } from '@/ui/Screen';
 import { Segmented } from '@/ui/Segmented';
 import { Text } from '@/ui/Text';
+import { toast } from '@/ui/Toast';
 
 export default function EditAddress() {
   const params = useLocalSearchParams<{ id?: string; kind?: DeliveryDestination }>();
   const { s, tx } = useI18n();
   const user = useAppStore((st) => st.user);
   const existing = useAppStore((st) => st.addresses.find((a) => a.id === params.id));
-  const saveAddress = useAppStore((st) => st.saveAddress);
+  const [saving, setSaving] = useState(false);
 
   const [kind, setKind] = useState<DeliveryDestination>(existing?.kind ?? params.kind ?? 'home');
   const [label, setLabel] = useState(existing?.label ?? '');
@@ -37,14 +40,17 @@ export default function EditAddress() {
   const phoneDigits = phone.replace(/\D/g, '');
   const phoneError = submitted && !/^5\d{8}$/.test(phoneDigits) ? s.auth.invalidPhone : undefined;
 
-  const save = () => {
+  const save = async () => {
     setSubmitted(true);
     const missing = !district.trim() || !street.trim() || !contactName.trim() || (kind === 'workshop' && !workshopName.trim()) || !/^5\d{8}$/.test(phoneDigits);
     if (missing) {
       haptic.warning();
       return;
     }
-    saveAddress({
+    setSaving(true);
+    try {
+      // Remote + signed in: saved to the account (POST/PUT /v1/me/addresses).
+      await saveAddress({
       id: existing?.id,
       kind,
       label: label.trim() || (kind === 'home' ? s.checkout.home : workshopName.trim()),
@@ -55,7 +61,14 @@ export default function EditAddress() {
       details: details.trim() || undefined,
       contactName: contactName.trim(),
       phone: `+966${phoneDigits}`,
-    });
+      });
+    } catch (e) {
+      setSaving(false);
+      haptic.warning();
+      toast(apiErrorMessage(s, e), 'alert-circle');
+      return;
+    }
+    setSaving(false);
     haptic.success();
     router.back();
   };
@@ -66,7 +79,7 @@ export default function EditAddress() {
         header={<ScreenHeader back dismiss="close" inSheet title={existing ? s.common.edit : s.addresses.add} />}
         footer={
           <StickyFooter>
-            <Button label={s.common.save} onPress={save} />
+            <Button label={s.common.save} onPress={save} loading={saving} />
           </StickyFooter>
         }
       >

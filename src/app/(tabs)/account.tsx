@@ -3,6 +3,9 @@ import { router } from 'expo-router';
 import { View } from 'react-native';
 
 import { LogoSymbol } from '@/brand/Logo';
+import { isRemote } from '@/config/env';
+import { signOut as signOutRemote } from '@/services/remote/account';
+import { clearRemoteOrders, useRemoteOrders } from '@/services/remote/orders';
 import { useI18n } from '@/i18n';
 import { confirmAction } from '@/lib/confirm';
 import { useAppStore } from '@/store/app-store';
@@ -19,7 +22,9 @@ export default function Account() {
   const vehicles = useAppStore((st) => st.vehicles.length);
   const addresses = useAppStore((st) => st.addresses.length);
   const favorites = useAppStore((st) => st.favorites.length);
-  const orders = useAppStore((st) => st.orders.length);
+  const localOrders = useAppStore((st) => st.orders.length);
+  const remoteOrders = useRemoteOrders((st) => st.list.length);
+  const orders = isRemote ? remoteOrders : localOrders;
   const signOut = useAppStore((st) => st.signOut);
   const resetDemo = useAppStore((st) => st.resetDemo);
   const version = Constants.expoConfig?.version ?? '1.0.0';
@@ -72,20 +77,42 @@ export default function Account() {
           <ListRow icon="bell" title={s.account.notifications} onPress={() => router.push('/notifications')} />
           <ListRow icon="help-circle" title={s.account.support} onPress={() => router.push('/support')} last />
         </ListGroup>
+        {isRemote && !user ? null : (
         <ListGroup>
-          <ListRow
-            icon="refresh-ccw"
-            title={s.account.resetDemo}
-            onPress={() =>
-              confirmAction(s.account.resetDemoConfirm, s.common.reset, s.common.cancel, () => {
-                resetDemo();
-                toast(s.common.done);
-              })
-            }
-            last={!user}
-          />
-          {user ? <ListRow icon="log-out" title={s.auth.signOut} destructive onPress={signOut} last /> : null}
+          {isRemote ? null : (
+            <ListRow
+              icon="refresh-ccw"
+              title={s.account.resetDemo}
+              onPress={() =>
+                confirmAction(s.account.resetDemoConfirm, s.common.reset, s.common.cancel, () => {
+                  resetDemo();
+                  toast(s.common.done);
+                })
+              }
+              last={!user}
+            />
+          )}
+          {user ? (
+            <ListRow
+              icon="log-out"
+              title={s.auth.signOut}
+              destructive
+              onPress={
+                isRemote
+                  ? () => {
+                      // Revokes the refresh token server-side, then clears the device session.
+                      signOutRemote().finally(() => {
+                        clearRemoteOrders();
+                        toast(s.remote.signedOut);
+                      });
+                    }
+                  : signOut
+              }
+              last
+            />
+          ) : null}
         </ListGroup>
+        )}
       </View>
       <View style={{ alignItems: 'center', marginTop: space.xxl, gap: space.xs }}>
         <LogoSymbol width={48} />

@@ -1,9 +1,11 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
 
-import { cities } from '@/data/sellers';
+import { cityLabel } from '@/data/sellers';
 import { useI18n } from '@/i18n';
+import { apiErrorMessage } from '@/lib/api-errors';
 import { confirmAction } from '@/lib/confirm';
+import { removeAddress } from '@/services/remote/account';
 import { useAppStore } from '@/store/app-store';
 import { colors, radius, space } from '@/theme/tokens';
 import { Badge } from '@/ui/Badge';
@@ -14,11 +16,11 @@ import { IconButton } from '@/ui/IconButton';
 import { Pressable } from '@/ui/Pressable';
 import { Screen, ScreenHeader, StickyFooter } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
+import { toast } from '@/ui/Toast';
 
 export default function Addresses() {
   const { s, tx } = useI18n();
   const addresses = useAppStore((st) => st.addresses);
-  const removeAddress = useAppStore((st) => st.removeAddress);
   return (
     <Screen
       header={<ScreenHeader back title={s.addresses.title} />}
@@ -42,11 +44,11 @@ export default function Addresses() {
               <View style={{ flex: 1, gap: 2 }}>
                 <Text variant="bodyStrong">{a.workshopName ?? a.label}</Text>
                 <Text variant="caption" color="textSecondary">
-                  {tx(cities[a.city])} · {a.district} · {a.street}
+                  {tx(cityLabel(a.city))} · {a.district} · {a.street}
                 </Text>
                 <Badge label={a.kind === 'workshop' ? s.checkout.workshop : s.checkout.home} />
               </View>
-              <IconButton icon="trash-2" label={s.common.remove} tone="plain" iconColor="textTertiary" size={36} onPress={() => confirmAction(s.common.remove, s.common.remove, s.common.cancel, () => removeAddress(a.id))} />
+              <IconButton icon="trash-2" label={s.common.remove} tone="plain" iconColor="textTertiary" size={36} onPress={() => confirmAction(s.common.remove, s.common.remove, s.common.cancel, () => removeAddress(a.id).catch((e) => toast(apiErrorMessage(s, e), 'alert-circle')))} />
             </Pressable>
           ))}
         </View>

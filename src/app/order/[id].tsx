@@ -2,6 +2,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 
 import { PartArt } from '@/brand/PartArt';
+import { isRemote } from '@/config/env';
+import { RemoteOrderDetail } from '@/features/remote/RemoteOrderDetail';
 import { cities, deliveryOptions } from '@/data/sellers';
 import { ConditionBadge } from '@/features/badges';
 import { orderStatusVisuals } from '@/features/orderVisuals';
@@ -24,6 +26,10 @@ import { Section } from '@/ui/Section';
 import { Text } from '@/ui/Text';
 
 export default function OrderDetails() {
+  return isRemote ? <RemoteOrderDetail /> : <DemoOrderDetails />;
+}
+
+function DemoOrderDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { s, tx, money, date, time } = useI18n();
   const order = useAppStore((st) => st.orders.find((o) => o.id === id));

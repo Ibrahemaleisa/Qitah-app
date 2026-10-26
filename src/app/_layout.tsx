@@ -16,6 +16,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BrandSplash } from '@/brand/BrandSplash';
+import { isRemote } from '@/config/env';
+import { NetworkBanner, RemoteBoot } from '@/features/remote/RemoteBoot';
 import { createI18n, useI18n } from '@/i18n';
 import { useAppStore } from '@/store/app-store';
 import { colors, fonts, radius, space } from '@/theme/tokens';
@@ -94,6 +96,7 @@ export default function RootLayout() {
         <LocaleProvider direction={isRTL ? 'rtl' : 'ltr'}>
           <View style={{ flex: 1, backgroundColor: colors.background, direction: isRTL ? 'rtl' : 'ltr' }}>
             <StatusBar style="dark" />
+            <BootGate>
             <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
@@ -107,7 +110,10 @@ export default function RootLayout() {
               <Stack.Screen name="order/return" options={sheet([0.85])} />
               <Stack.Screen name="seller-contact" options={sheet([0.45])} />
               <Stack.Screen name="checkout/success" options={{ gestureEnabled: false, animation: 'fade' }} />
+              <Stack.Screen name="checkout/payment" options={{ gestureEnabled: false }} />
             </Stack>
+            </BootGate>
+            {isRemote ? <NetworkBanner /> : null}
             <ToastHost />
             {!splashDone ? <BrandSplash onDone={finishSplash} /> : null}
           </View>
@@ -115,6 +121,11 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+/** Remote mode waits for the live catalog (skeleton / retry); demo mode renders immediately. */
+function BootGate({ children }: { children: React.ReactNode }) {
+  return isRemote ? <RemoteBoot>{children}</RemoteBoot> : <>{children}</>;
 }
 
 /** Last-resort screen for unexpected render errors: explains, and offers a retry instead of a blank app. */

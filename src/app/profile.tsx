@@ -2,7 +2,10 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
+import { isRemote } from '@/config/env';
 import { useI18n } from '@/i18n';
+import { apiErrorMessage } from '@/lib/api-errors';
+import { updateProfile } from '@/services/remote/account';
 import { haptic } from '@/lib/haptics';
 import { useAppStore } from '@/store/app-store';
 import { space } from '@/theme/tokens';
@@ -18,7 +21,29 @@ export default function Profile() {
   const updateUser = useAppStore((st) => st.updateUser);
   const [name, setName] = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
+  const [saving, setSaving] = useState(false);
   const emailError = email && !/^\S+@\S+\.\S+$/.test(email) ? s.profile.invalidEmail : undefined;
+
+  const save = async () => {
+    const patch = { name: name.trim(), email: email.trim() || undefined };
+    if (isRemote) {
+      // Server is the source of truth for the profile (PATCH /v1/me).
+      setSaving(true);
+      try {
+        await updateProfile(patch);
+      } catch (e) {
+        setSaving(false);
+        toast(apiErrorMessage(s, e), 'alert-circle');
+        return;
+      }
+      setSaving(false);
+    } else {
+      updateUser(patch);
+    }
+    haptic.success();
+    toast(s.profile.saved);
+    router.back();
+  };
 
   if (!user) {
     return (
@@ -35,13 +60,9 @@ export default function Profile() {
         <StickyFooter>
           <Button
             label={s.common.save}
-            disabled={!name.trim() || !!emailError}
-            onPress={() => {
-              updateUser({ name: name.trim(), email: email.trim() || undefined });
-              haptic.success();
-              toast(s.profile.saved);
-              router.back();
-            }}
+            disabled={name.trim().length < 2 || !!emailError}
+            loading={saving}
+            onPress={save}
           />
         </StickyFooter>
       }

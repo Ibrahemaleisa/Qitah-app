@@ -1,3 +1,5 @@
+import { isRemote } from '@/config/env';
+
 import { deliveryWindow, estimatedTotal, fastestDelivery, getSeller } from './pricing';
 import type { CityId, Condition, DeliveryDestination, Offer } from './types';
 
@@ -18,6 +20,8 @@ export function offerHighlights(offers: Offer[], destination: DeliveryDestinatio
 
   const total = (o: Offer) => estimatedTotal(o, destination, city).total;
   const speed = (o: Offer) => {
+    // Remote: carrier ETAs are quoted at checkout, so compare on the seller's dispatch time only.
+    if (isRemote) return o.dispatchDays[1];
     const f = fastestDelivery(o, destination, city);
     return f ? deliveryWindow(o, f)[1] : Number.POSITIVE_INFINITY;
   };
