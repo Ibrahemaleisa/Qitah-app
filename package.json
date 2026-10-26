@@ -60,10 +60,11 @@
     },
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/e2e/",
-      "/services/",
-      "/portals/",
-      "/infra/"
+      "<rootDir>/e2e/",
+      "<rootDir>/services/",
+      "<rootDir>/portals/",
+      "<rootDir>/infra/",
+      "<rootDir>/.claude/"
     ]
   }
 }
