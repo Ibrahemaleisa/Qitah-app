@@ -9,7 +9,14 @@
     "resolveJsonModule": true,
     "outDir": "dist",
     "rootDir": ".",
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src", "test", "prisma/*.ts"]
+  "include": [
+    "src",
+    "test",
+    "prisma/*.ts",
+    "scripts"
+  ]
 }
