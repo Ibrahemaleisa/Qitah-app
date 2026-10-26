@@ -1,0 +1,137 @@
+name: Deploy staging
+
+# Every push to main: build the API image (tag = git SHA), deploy the staging stacks, run
+# migrations BEFORE the services roll, wait for stability, smoke-test through CloudFront.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  deploy:
+    name: Deploy to staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment:
+      name: staging
+      url: ${{ steps.urls.outputs.api_url }}
+    permissions:
+      contents: read
+      id-token: write # GitHub OIDC -> AWS (no long-lived keys)
+    env:
+      # GitHub environment `staging` variables (see docs/aws/DEPLOYMENT.md):
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      IMAGE_TAG: ${{ github.sha }}
+      STAGE: Qitah-staging
+      DEPLOY_HOSTING: ${{ vars.DEPLOY_HOSTING || 'false' }}
+      # Optional: overrides monitoring.alarmEmails in infra/config (comma-separated).
+      ALARM_EMAIL: ${{ vars.ALARM_EMAIL || '' }}
+      FAIL_ON_CRITICAL_CVES: ${{ vars.FAIL_ON_CRITICAL_CVES || 'true' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Install CDK app
+        working-directory: infra
+        run: npm ci
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gh-staging-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: CDK context (written to infra/cdk.context.json, read by every cdk command)
+        run: |
+          jq -n --arg a "$AWS_ACCOUNT_ID" --arg r "$AWS_REGION" --arg t "$IMAGE_TAG" --arg e "$ALARM_EMAIL" \
+            '{env: "staging", stagingAccount: $a, stagingRegion: $r, imageTag: $t} + (if $e == "" then {} else {stagingAlarmEmail: $e} end)' \
+            > infra/cdk.context.json
+          cat infra/cdk.context.json
+          echo "REPO_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/qitah/staging/api" >> "$GITHUB_ENV"
+
+      - name: Ensure ECR repository and cluster (Platform stack)
+        working-directory: infra
+        run: npx cdk deploy "$STAGE/Platform" --require-approval never --progress events
+
+      - name: Log in to ECR
+        run: aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${REPO_URI%%/*}"
+
+      - name: Check whether the image already exists (immutable tags)
+        id: exists
+        run: |
+          if aws ecr describe-images --repository-name qitah/staging/api --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: steps.exists.outputs.found == 'false'
+
+      - name: Build and push API image
+        if: steps.exists.outputs.found == 'false'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: services/api
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ${{ env.REPO_URI }}:${{ env.IMAGE_TAG }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=qitah-api
+          cache-to: type=gha,mode=max,scope=qitah-api
+
+      - name: ECR scan gate (CRITICAL findings)
+        run: |
+          aws ecr wait image-scan-complete --repository-name qitah/staging/api --image-id imageTag="$IMAGE_TAG" || true
+          crit="$(aws ecr describe-image-scan-findings --repository-name qitah/staging/api --image-id imageTag="$IMAGE_TAG" \
+            --query 'imageScanFindings.findingSeverityCounts.CRITICAL' --output text 2>/dev/null || echo None)"
+          echo "CRITICAL findings: ${crit}"
+          if [ "$FAIL_ON_CRITICAL_CVES" = "true" ] && [ "$crit" != "None" ] && [ "$crit" != "0" ]; then
+            echo "::error::Image has CRITICAL vulnerabilities; set FAIL_ON_CRITICAL_CVES=false to override deliberately."
+            exit 1
+          fi
+
+      - name: Deploy migration task definition (and its dependencies)
+        working-directory: infra
+        run: npx cdk deploy "$STAGE/Migrations" --require-approval never --progress events --outputs-file cdk-outputs.json
+
+      - name: Run database migrations (fail the deploy otherwise)
+        run: bash infra/scripts/run-migration.sh infra/cdk-outputs.json "$STAGE-Migrations"
+
+      - name: Deploy application stacks
+        working-directory: infra
+        run: |
+          stacks=("$STAGE/Api" "$STAGE/Monitoring")
+          if [ "$DEPLOY_HOSTING" = "true" ]; then stacks+=("$STAGE/Hosting"); fi
+          npx cdk deploy "${stacks[@]}" --require-approval never --progress events --outputs-file cdk-outputs.json
+
+      - name: Read outputs
+        id: urls
+        run: |
+          api_url="$(jq -er --arg s "$STAGE-Api" '.[$s].ApiBaseUrl' infra/cdk-outputs.json)"
+          echo "api_url=${api_url}" >> "$GITHUB_OUTPUT"
+          echo "ALB_DNS=$(jq -er --arg s "$STAGE-Api" '.[$s].AlbDnsName' infra/cdk-outputs.json)" >> "$GITHUB_ENV"
+
+      - name: Wait for ECS services to become stable
+        run: aws ecs wait services-stable --cluster qitah-staging --services qitah-staging-api qitah-staging-worker
+
+      - name: Smoke test via CloudFront
+        run: bash infra/scripts/smoke-test.sh "${{ steps.urls.outputs.api_url }}"

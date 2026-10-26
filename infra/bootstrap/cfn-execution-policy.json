@@ -1,0 +1,109 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "QitahServices",
+      "Effect": "Allow",
+      "Action": [
+        "acm:DescribeCertificate",
+        "acm:ListCertificates",
+        "amplify:*",
+        "application-autoscaling:*",
+        "backup:*",
+        "backup-storage:*",
+        "budgets:*",
+        "cloudformation:*",
+        "cloudfront:*",
+        "cloudwatch:*",
+        "cognito-idp:*",
+        "ec2:*",
+        "ecr:*",
+        "ecs:*",
+        "elasticloadbalancing:*",
+        "events:*",
+        "kms:*",
+        "lambda:*",
+        "logs:*",
+        "rds:*",
+        "route53:ChangeResourceRecordSets",
+        "route53:GetChange",
+        "route53:GetHostedZone",
+        "route53:ListResourceRecordSets",
+        "s3:*",
+        "secretsmanager:*",
+        "serverlessrepo:*",
+        "sns:*",
+        "sqs:*",
+        "ssm:*",
+        "sts:GetCallerIdentity",
+        "wafv2:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IamForQitahRolesOnly",
+      "Effect": "Allow",
+      "Action": [
+        "iam:AttachRolePolicy",
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:DeleteRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "iam:PassRole",
+        "iam:PutRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:UpdateRole",
+        "iam:UpdateRoleDescription"
+      ],
+      "Resource": [
+        "arn:aws:iam::*:role/Qitah-*",
+        "arn:aws:iam::*:role/qitah-*"
+      ]
+    },
+    {
+      "Sid": "ServiceLinkedRoles",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "iam:AWSServiceName": [
+            "ecs.amazonaws.com",
+            "elasticloadbalancing.amazonaws.com",
+            "rds.amazonaws.com",
+            "ecs.application-autoscaling.amazonaws.com",
+            "backup.amazonaws.com",
+            "wafv2.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ProtectPipelineIdentity",
+      "Effect": "Deny",
+      "Action": "iam:*",
+      "Resource": [
+        "arn:aws:iam::*:role/qitah-*-github-deploy",
+        "arn:aws:iam::*:oidc-provider/token.actions.githubusercontent.com"
+      ]
+    },
+    {
+      "Sid": "NoLongLivedCredentials",
+      "Effect": "Deny",
+      "Action": [
+        "iam:CreateUser",
+        "iam:CreateAccessKey",
+        "iam:CreateLoginProfile",
+        "iam:AttachUserPolicy",
+        "iam:PutUserPolicy"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
