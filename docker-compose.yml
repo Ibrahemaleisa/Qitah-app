@@ -1,0 +1,96 @@
+# Local development stack for the Qitah API (sandbox providers, local auth). NOT for production.
+#
+#   docker compose up --build        # postgres -> migrate (one-off) -> api + worker
+#   curl http://localhost:4000/health
+#   docker compose down -v           # stop and wipe the database volume
+#   QITAH_PG_PORT=55432 QITAH_API_PORT=14000 docker compose up   # if 5432/4000 are taken
+#
+# The same image runs in AWS (ECS Fargate); there DATABASE_URL is composed by the entrypoint from
+# the RDS secret (DB_HOST/DB_PORT/DB_USER/DB_PASSWORD) with sslmode=require.
+name: qitah
+
+x-api-image: &api-image
+  build:
+    context: ./services/api
+  image: qitah-api:local
+  init: true
+
+x-db-env: &db-env
+  # Local Postgres has no TLS; AWS always uses sslmode=require.
+  DATABASE_URL: postgresql://qitah:qitah@postgres:5432/qitah?schema=public&sslmode=disable
+
+x-app-env: &app-env
+  <<: *db-env
+  NODE_ENV: development
+  PORT: "4000"
+  HOST: 0.0.0.0
+  PUBLIC_BASE_URL: http://localhost:4000
+  AUTH_MODE: local
+  JWT_SECRET: dev-only-change-me-at-least-32-characters-long
+  PAYMENT_PROVIDER: sandbox
+  PAYMENT_WEBHOOK_SECRET: dev-sandbox-webhook-secret
+  CARRIER_PROVIDER: sandbox
+  CARRIER_WEBHOOK_SECRET: dev-sandbox-carrier-secret
+  CORS_ORIGINS: http://localhost:8081,http://localhost:3000,http://localhost:3001
+  # Empty UPLOADS_BUCKET => signed local-disk uploads (sandbox/dev only).
+  UPLOADS_BUCKET: ""
+  JOBS_QUEUE_URL: ""
+  AWS_REGION: eu-central-1
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: qitah
+      POSTGRES_PASSWORD: qitah
+      POSTGRES_DB: qitah
+    ports:
+      - "127.0.0.1:${QITAH_PG_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qitah -d qitah"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *api-image
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment:
+      <<: *db-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *api-image
+    command: ["node", "dist/main.js"]
+    environment:
+      <<: *app-env
+    ports:
+      - "127.0.0.1:${QITAH_API_PORT:-4000}:4000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  worker:
+    <<: *api-image
+    command: ["node", "dist/worker.js"]
+    environment:
+      <<: *app-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  pgdata:
