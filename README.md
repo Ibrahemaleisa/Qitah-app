@@ -17,6 +17,21 @@ support and English localisation.
 
 ---
 
+## Integrated marketplace (Phase 1, sandbox)
+
+One system, one PostgreSQL source of truth:
+
+| Component | Path | Status |
+| --- | --- | --- |
+| Marketplace API + worker (Fastify, Prisma, PostgreSQL) | [`services/api`](services/api/README.md) | Working locally; 31 backend tests (lifecycle E2E + failure scenarios) |
+| Customer app (this Expo app), remote mode | `src/` with `EXPO_PUBLIC_API_BASE_URL` | Working (web E2E verified; native payment sheet not yet device-tested) |
+| Merchant portal (Next.js, Arabic RTL) | [`portals/merchant`](portals/merchant/README.md) | Working; Playwright smoke 14/14 |
+| Qitah operations portal + shipping control tower | [`portals/ops`](portals/ops/README.md) | Working; Playwright smoke 24/24 |
+| AWS infrastructure (CDK) + CI/CD (GitHub OIDC) | [`infra`](infra), [`.github/workflows`](.github/workflows), [`docs/aws`](docs/aws) | Synthesized + tested; **not deployed** |
+
+Payments and shipping use clearly labelled **sandbox** providers (no real money; `SBX…` tracking numbers).
+The engineering log and remaining production blockers are in [`docs/EXECUTION_LOG.md`](docs/EXECUTION_LOG.md).
+
 ## What's in Milestone 1
 
 | Area | Highlights |
