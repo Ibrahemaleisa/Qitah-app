@@ -20,6 +20,9 @@ const schema = z.object({
   ALLOW_SANDBOX_IN_PRODUCTION: bool,
   CORS_ORIGINS: z.string().default(''),
   JOBS_QUEUE_URL: z.string().optional(),
+  /** Private S3 bucket for documents; empty = local disk (sandbox/dev only). */
+  UPLOADS_BUCKET: z.string().optional(),
+  LOCAL_UPLOADS_DIR: z.string().optional(),
   AWS_REGION: z.string().default('me-central-1'),
   RESERVATION_MINUTES: z.coerce.number().int().positive().default(30),
   RETURN_WINDOW_DAYS: z.coerce.number().int().positive().default(7),
@@ -39,6 +42,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (parsed.NODE_ENV === 'production' && parsed.AUTH_MODE === 'local') {
     throw new Error('Refusing to start: AUTH_MODE=local is not allowed in production (use cognito)');
   }
+  if (parsed.NODE_ENV === 'production' && !parsed.UPLOADS_BUCKET) throw new Error('UPLOADS_BUCKET is required in production');
   if (parsed.AUTH_MODE === 'cognito' && !(parsed.COGNITO_REGION && parsed.COGNITO_USER_POOL_ID && parsed.COGNITO_CLIENT_IDS)) {
     throw new Error('COGNITO_REGION, COGNITO_USER_POOL_ID and COGNITO_CLIENT_IDS are required for AUTH_MODE=cognito');
   }

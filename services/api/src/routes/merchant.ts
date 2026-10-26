@@ -1,4 +1,4 @@
-import type { MerchantOrderStatus, Prisma } from '@prisma/client';
+import { MerchantOrderStatus as MerchantOrderStatusEnum, type MerchantOrderStatus, type Prisma } from '@prisma/client';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
@@ -563,7 +563,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     const merchantId = mid(req);
     await requireMerchant(req, merchantId);
     const q = parse(pageQuery.extend({ status: z.string().optional() }), req.query);
-    const statuses = q.status?.split(',').filter(Boolean) as MerchantOrderStatus[] | undefined;
+    const statuses = q.status?.split(',').filter((x): x is MerchantOrderStatus => x in MerchantOrderStatusEnum);
     const where: Prisma.MerchantOrderWhereInput = { merchantId, status: statuses?.length ? { in: statuses } : { not: 'PENDING_PAYMENT' } };
     const [total, rows] = await Promise.all([
       prisma.merchantOrder.count({ where }),
@@ -653,5 +653,26 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     const merchantId = mid(req);
     await requireMerchant(req, merchantId, 'MANAGER');
     return { events: await prisma.auditEvent.findMany({ where: { merchantId }, orderBy: { createdAt: 'desc' }, take: 100 }) };
+  });
+}
+
+/** Document uploads (verification documents). Separate registration keeps merchantRoutes readable. */
+export async function merchantUploadRoutes(app: FastifyInstance, deps: Deps) {
+  const { requireMerchant } = deps.guards;
+  const { uploads } = deps.ctx;
+
+  app.post('/v1/merchants/:merchantId/uploads', async (req) => {
+    const { merchantId } = parse(z.object({ merchantId: z.string().max(64) }), req.params);
+    await requireMerchant(req, merchantId, 'MANAGER');
+    const body = parse(z.object({ purpose: z.enum(['verification']), contentType: z.string(), sizeBytes: z.number().int(), fileName: z.string().min(1).max(200) }), req.body);
+    return uploads.createUpload({ prefix: `merchants/${merchantId}/${body.purpose}`, contentType: body.contentType, sizeBytes: body.sizeBytes, fileName: body.fileName });
+  });
+
+  app.get('/v1/merchants/:merchantId/uploads', async (req) => {
+    const { merchantId } = parse(z.object({ merchantId: z.string().max(64) }), req.params);
+    await requireMerchant(req, merchantId);
+    const { key } = parse(z.object({ key: z.string().max(300) }), req.query);
+    if (!key.startsWith(`merchants/${merchantId}/`)) throw notFound('File');
+    return { url: await uploads.downloadUrl(key) };
   });
 }

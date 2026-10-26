@@ -14,9 +14,10 @@ import { authRoutes } from './routes/auth.js';
 import { catalogRoutes } from './routes/catalog.js';
 import { customerRoutes } from './routes/customer.js';
 import { eventRoutes } from './routes/events.js';
-import { merchantRoutes } from './routes/merchant.js';
+import { merchantRoutes, merchantUploadRoutes } from './routes/merchant.js';
 import { opsRoutes } from './routes/ops.js';
 import { sandboxRoutes } from './routes/sandbox.js';
+import { localUploadRoutes } from './routes/uploads.js';
 import { webhookRoutes } from './routes/webhooks.js';
 
 export type Deps = { ctx: Ctx; tokens: TokenService; guards: Guards; app: FastifyInstance };
@@ -85,6 +86,8 @@ export async function buildApp(config: Config, overrides: Partial<Ctx> = {}) {
   await app.register(async (s) => catalogRoutes(s, deps));
   await app.register(async (s) => customerRoutes(s, deps));
   await app.register(async (s) => merchantRoutes(s, deps));
+  await app.register(async (s) => merchantUploadRoutes(s, deps));
+  await app.register(async (s) => localUploadRoutes(s, deps));
   await app.register(async (s) => opsRoutes(s, deps));
   await app.register(async (s) => webhookRoutes(s, deps));
   await app.register(async (s) => eventRoutes(s, deps));

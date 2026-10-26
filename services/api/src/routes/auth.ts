@@ -10,6 +10,7 @@ import { parse, rateLimit, saudiPhone } from '../lib/http.js';
 import { randomInt } from 'node:crypto';
 
 const OTP_TTL_MS = 5 * 60_000;
+const DUMMY_HASH = await hashPassword('dummy-password-for-timing-only');
 const OTP_MAX_ATTEMPTS = 5;
 
 export async function issueSession(deps: Deps, userId: string, userAgent?: string) {
@@ -59,7 +60,8 @@ export async function authRoutes(app: FastifyInstance, deps: Deps) {
     localOnly();
     const body = parse(z.object({ email: z.string().email().toLowerCase(), password: z.string().min(1).max(200) }), req.body);
     const user = await prisma.user.findUnique({ where: { email: body.email } });
-    const ok = await verifyPassword(body.password, user?.passwordHash);
+    // Always run scrypt so response time does not reveal whether the email exists.
+    const ok = await verifyPassword(body.password, user?.passwordHash ?? DUMMY_HASH);
     if (!user || !ok || user.status !== 'ACTIVE') throw unauthorized('Incorrect email or password');
     return issueSession(deps, user.id, req.headers['user-agent']);
   });
@@ -68,7 +70,12 @@ export async function authRoutes(app: FastifyInstance, deps: Deps) {
     localOnly();
     const { refreshToken } = parse(z.object({ refreshToken: z.string().min(20) }), req.body);
     const session = await prisma.authSession.findUnique({ where: { refreshTokenHash: sha256(refreshToken) }, include: { user: true } });
-    if (!session || session.revokedAt || session.expiresAt < new Date() || session.user.status !== 'ACTIVE') throw unauthorized('Session expired');
+    if (session?.revokedAt) {
+      // A rotated refresh token was replayed: assume theft and end every session of this user.
+      await prisma.authSession.updateMany({ where: { userId: session.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      throw unauthorized('Session expired');
+    }
+    if (!session || session.expiresAt < new Date() || session.user.status !== 'ACTIVE') throw unauthorized('Session expired');
     // Rotation: the old refresh token is revoked on use.
     await prisma.authSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
     return issueSession(deps, session.userId, req.headers['user-agent']);

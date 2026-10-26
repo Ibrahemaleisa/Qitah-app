@@ -1,4 +1,4 @@
-import type { MerchantStatus, Prisma, ShipmentStatus } from '@prisma/client';
+import { OrderStatus as OrderStatusEnum, ReturnStatus as ReturnStatusEnum, type MerchantStatus, type OrderStatus, type Prisma, type ReturnStatus, type ShipmentStatus } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
@@ -62,6 +62,12 @@ export async function opsRoutes(app: FastifyInstance, deps: Deps) {
       prisma.merchant.findMany({ where, include: { _count: { select: { offers: true, locations: true, merchantOrders: true } } }, orderBy: { createdAt: 'desc' }, take: q.limit, skip: q.offset }),
     ]);
     return { total, items };
+  });
+
+  app.get('/v1/ops/uploads', async (req) => {
+    await ops(req);
+    const { key } = parse(z.object({ key: z.string().max(300).regex(/^merchants\//) }), req.query);
+    return { url: await ctx.uploads.downloadUrl(key) };
   });
 
   app.get('/v1/ops/merchants/:id', async (req) => {
@@ -130,9 +136,9 @@ export async function opsRoutes(app: FastifyInstance, deps: Deps) {
   app.get('/v1/ops/orders', async (req) => {
     await ops(req);
     const q = parse(pageQuery.extend({ status: z.string().optional(), q: z.string().max(60).optional() }), req.query);
-    const statuses = q.status?.split(',').filter(Boolean);
+    const statuses = q.status?.split(',').filter((x): x is OrderStatus => x in OrderStatusEnum);
     const where: Prisma.OrderWhereInput = {
-      ...(statuses?.length ? { status: { in: statuses as never } } : {}),
+      ...(statuses?.length ? { status: { in: statuses } } : {}),
       ...(q.q ? { OR: [{ number: { contains: q.q.toUpperCase() } }, { customer: { phone: { contains: q.q } } }] } : {}),
     };
     const [total, items] = await Promise.all([
@@ -322,10 +328,10 @@ export async function opsRoutes(app: FastifyInstance, deps: Deps) {
   app.get('/v1/ops/returns', async (req) => {
     await ops(req);
     const q = parse(z.object({ status: z.string().optional() }), req.query);
-    const statuses = q.status?.split(',').filter(Boolean);
+    const statuses = q.status?.split(',').filter((x): x is ReturnStatus => x in ReturnStatusEnum);
     return {
       items: await prisma.returnCase.findMany({
-        where: statuses?.length ? { status: { in: statuses as never } } : {},
+        where: statuses?.length ? { status: { in: statuses } } : {},
         include: { items: { include: { orderItem: true } }, merchant: { select: { displayNameAr: true } }, order: { select: { number: true } }, shipments: true, refunds: true },
         orderBy: { createdAt: 'desc' },
         take: 100,
