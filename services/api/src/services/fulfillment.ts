@@ -18,14 +18,13 @@ async function lockMerchantOrder(tx: Tx, id: string, merchantId?: string) {
 }
 
 async function transition(
-  ctx: Ctx,
+  _ctx: Ctx,
   actor: Actor,
   id: string,
   merchantId: string | undefined,
   to: MerchantOrderStatus,
   extra: (mo: Awaited<ReturnType<typeof lockMerchantOrder>>, tx: Tx) => Promise<Record<string, unknown>> = async () => ({}),
 ) {
-  void ctx;
   return withTx(async (tx) => {
     const mo = await lockMerchantOrder(tx, id, merchantId);
     assertTransition(MERCHANT_ORDER_TRANSITIONS, mo.status, to, 'Merchant order');
@@ -71,6 +70,7 @@ export async function rejectMerchantOrder(ctx: Ctx, actor: Actor, id: string, re
     return mo.orderId;
   });
   await submitPendingRefunds(ctx, result);
+  await cancelCarrierLabels(ctx, { merchantOrderId: id });
   return prisma.merchantOrder.findUniqueOrThrow({ where: { id } });
 }
 
@@ -136,6 +136,19 @@ export async function cancelOrderByCustomer(ctx: Ctx, userId: string, orderId: s
     await audit(tx, actor, { action: 'order.cancelled', entityType: 'order', entityId: orderId, data: { reason } });
   });
   await submitPendingRefunds(ctx, orderId);
+  await cancelCarrierLabels(ctx, { orderId });
+}
+
+/** Voids carrier labels of shipments cancelled in the database (after commit; carrier cancel is idempotent). */
+async function cancelCarrierLabels(ctx: Ctx, where: { orderId?: string; merchantOrderId?: string }) {
+  const cancelled = await prisma.shipment.findMany({ where: { ...where, status: 'CANCELLED', carrierShipmentId: { not: null } } });
+  for (const s of cancelled) {
+    try {
+      await ctx.carrier.cancel({ carrierShipmentId: s.carrierShipmentId! });
+    } catch (e) {
+      await prisma.notification.create({ data: { audience: 'OPS', type: 'shipment.cancel_failed', title: 'تعذر إلغاء بوليصة', body: `${s.trackingNumber}: ${String(e).slice(0, 200)}`, data: { shipmentId: s.id } } });
+    }
+  }
 }
 
 export function assertMerchantScope(merchantId: string | undefined, rowMerchantId: string) {

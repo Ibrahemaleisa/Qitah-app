@@ -6,7 +6,7 @@ import { notFound } from '../lib/errors.js';
 export const orderInclude = {
   merchantOrders: { include: { merchant: { select: { id: true, displayNameAr: true, displayNameEn: true, city: true } } }, orderBy: { number: 'asc' } },
   items: true,
-  groups: true,
+  groups: { include: { originLocation: { select: { city: true } } } },
   shipments: { include: { events: { orderBy: { occurredAt: 'asc' } }, originLocation: { select: { city: true, name: true } } }, orderBy: { createdAt: 'asc' } },
   payments: { orderBy: { createdAt: 'asc' } },
   refunds: { orderBy: { createdAt: 'asc' } },
@@ -65,7 +65,7 @@ export function presentCustomerOrder(o: OrderFull) {
         shippingHalalas: g.quotedHalalas,
         etaDaysMin: g.etaDaysMin,
         etaDaysMax: g.etaDaysMax,
-        originCity: o.shipments.find((s) => s.fulfillmentGroupId === g.id)?.originLocation.city ?? null,
+        originCity: g.originLocation.city,
         shipment: shipment && {
           id: shipment.id,
           status: shipment.status,
