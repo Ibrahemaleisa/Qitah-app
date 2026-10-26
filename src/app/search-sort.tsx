@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
 
+import { isRemote } from '@/config/env';
 import { useI18n } from '@/i18n';
 import type { SortKey } from '@/services/catalog';
 import { useSearchStore } from '@/store/search-store';
@@ -8,7 +9,8 @@ import { colors, gutter, space } from '@/theme/tokens';
 import { ChoiceRow } from '@/ui/ChoiceRow';
 import { Text } from '@/ui/Text';
 
-const keys: SortKey[] = ['relevance', 'priceAsc', 'priceDesc', 'rating', 'fastest'];
+// Remote mode has no verified ratings yet, so "top rated" would be an arbitrary order.
+const keys: SortKey[] = isRemote ? ['relevance', 'priceAsc', 'priceDesc', 'fastest'] : ['relevance', 'priceAsc', 'priceDesc', 'rating', 'fastest'];
 
 export default function SearchSortSheet() {
   const { s, isRTL } = useI18n();

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
 
-import { cities } from '@/data/sellers';
+import { cityLabel } from '@/data/sellers';
 import type { OfferHighlight } from '@/domain/offerComparison';
 import { deliveryWindow, estimatedTotal, fastestDelivery, getSeller } from '@/domain/pricing';
 import type { CityId, DeliveryDestination, Offer } from '@/domain/types';
@@ -53,7 +53,13 @@ export function OfferCard({ offer, destination = 'home', city, highlights = [] }
   const outOfStock = offer.stock <= 0;
   const atMax = inCart >= Math.min(offer.stock, 10);
   const featured = highlights.some((h) => h.kind === 'cheapest');
-  const deliveryText = !est.delivery ? s.product.deliveryUnavailableWorkshop : est.freeShipping ? s.product.freeShipping : money(est.fee);
+  const deliveryText = !est.deliverable
+    ? s.product.deliveryUnavailableWorkshop
+    : est.quotedAtCheckout
+      ? s.remote.shippingAtCheckout
+      : est.freeShipping
+        ? s.product.freeShipping
+        : money(est.fee);
 
   const onAdd = () => {
     addToCart(offer.id);
@@ -100,11 +106,11 @@ export function OfferCard({ offer, destination = 'home', city, highlights = [] }
               <RatingInline average={seller.rating.average} count={seller.rating.count} />
             ) : (
               <Text variant="caption" color="textTertiary">
-                {s.seller.newSeller}
+                {est.quotedAtCheckout ? s.remote.noRatingsYet : s.seller.newSeller}
               </Text>
             )}
             <Text variant="caption" color="textTertiary">
-              · {tx(cities[seller.city])}
+              · {tx(cityLabel(seller.city))}
             </Text>
           </View>
         </View>
@@ -115,10 +121,12 @@ export function OfferCard({ offer, destination = 'home', city, highlights = [] }
         <ConditionBadge condition={offer.condition} />
         <Fact icon="shield" text={s.product.warrantyMonths(offer.warrantyMonths)} />
         {window ? <Fact icon="truck" text={s.common.deliveryIn(window[0], window[1])} /> : null}
+        {est.quotedAtCheckout ? <Fact icon="package" text={s.product.dispatchDays(offer.dispatchDays[0], offer.dispatchDays[1])} /> : null}
+        {est.quotedAtCheckout && offer.originCity ? <Fact icon="map-pin" text={s.remote.shipsFrom(tx(cityLabel(offer.originCity)))} /> : null}
         {!outOfStock && offer.stock <= 3 ? <Fact icon="alert-circle" text={s.product.onlyLeft(offer.stock)} tone="warning" /> : null}
       </View>
 
-      <View accessible accessibilityLabel={`${s.product.partPrice} ${money(offer.price)}, ${s.product.deliveryFee} ${deliveryText}, ${s.product.total} ${est.delivery ? money(est.total) : '—'}`} style={{ backgroundColor: colors.surfaceMuted, borderRadius: radius.md, padding: space.md, gap: 6 }}>
+      <View accessible accessibilityLabel={`${s.product.partPrice} ${money(offer.price)}, ${s.product.deliveryFee} ${deliveryText}${est.quotedAtCheckout ? '' : `, ${s.product.total} ${est.delivery ? money(est.total) : '—'}`}`} style={{ backgroundColor: colors.surfaceMuted, borderRadius: radius.md, padding: space.md, gap: 6 }}>
         <Line label={s.product.partPrice}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.sm }}>
             {offer.compareAtPrice ? <Price amount={offer.compareAtPrice} variant="caption" strike /> : null}
@@ -129,15 +137,20 @@ export function OfferCard({ offer, destination = 'home', city, highlights = [] }
           {est.delivery && !est.freeShipping ? (
             <Price amount={est.fee} variant="callout" color="text" />
           ) : (
-            <Text variant="callout" weight="semibold" color={!est.delivery ? 'danger' : 'success'}>
+            <Text variant="callout" weight="semibold" color={!est.deliverable ? 'danger' : est.quotedAtCheckout ? 'textSecondary' : 'success'}>
               {deliveryText}
             </Text>
           )}
         </Line>
-        <View style={{ height: 1, backgroundColor: colors.line }} />
-        <Line label={s.product.total} strong>
-          {est.delivery ? <Price amount={est.total} variant="headline" /> : <Text variant="headline">—</Text>}
-        </Line>
+        {/* Remote: no client-side total — shipping is a live carrier quote shown at checkout. */}
+        {est.quotedAtCheckout ? null : (
+          <>
+            <View style={{ height: 1, backgroundColor: colors.line }} />
+            <Line label={s.product.total} strong>
+              {est.delivery ? <Price amount={est.total} variant="headline" /> : <Text variant="headline">—</Text>}
+            </Line>
+          </>
+        )}
       </View>
 
       {offer.note ? (

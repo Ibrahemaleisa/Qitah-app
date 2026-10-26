@@ -1,5 +1,6 @@
 import { View } from 'react-native';
 
+import { isRemote } from '@/config/env';
 import { deliveryWindow, fastestDelivery } from '@/domain/pricing';
 import type { Offer } from '@/domain/types';
 import { useI18n } from '@/i18n';
@@ -20,9 +21,15 @@ export function ProductSummary({ offers }: { offers: Offer[] }) {
     .filter((w): w is [number, number] => !!w)
     .sort((a, b) => a[1] - b[1]);
   const maxWarranty = Math.max(...inStock.map((o) => o.warrantyMonths));
-  const cells = [
+  const cells: { label: string; value: string; hint?: string }[] = [
     { label: s.product.summaryFrom, value: money(minPrice), hint: s.common.offers(inStock.length) },
-    { label: s.product.summaryDelivery, value: windows[0] ? s.common.days(windows[0][0], windows[0][1]) : '—' },
+    isRemote
+      ? (() => {
+          // Remote: carrier ETAs are quoted at checkout; show the seller's fastest dispatch instead.
+          const fastest = [...inStock].sort((a, b) => a.dispatchDays[1] - b.dispatchDays[1])[0];
+          return { label: s.remote.summaryDispatch, value: s.common.days(fastest.dispatchDays[0], fastest.dispatchDays[1]) };
+        })()
+      : { label: s.product.summaryDelivery, value: windows[0] ? s.common.days(windows[0][0], windows[0][1]) : '—' },
     { label: s.product.summaryWarranty, value: s.product.warrantyMonths(maxWarranty) },
   ];
   return (

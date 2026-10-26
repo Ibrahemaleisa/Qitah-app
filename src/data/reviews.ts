@@ -1,3 +1,4 @@
+import { isRemote } from '@/config/env';
 import type { Review } from '@/domain/types';
 
 /** SAMPLE DATA — illustrative review text. Never shown as genuine customer feedback. */
@@ -18,10 +19,13 @@ export const reviews: Review[] = [
   { id: 'r14', target: { kind: 'seller', sellerId: 's-elite-oils' }, rating: 5, author: 'منيرة د.', daysAgo: 5, verifiedPurchase: true, body: { ar: 'أطلب منهم كل صيانة دورية، دائماً في الوقت.', en: 'I order every service from them — always on time.' } },
 ];
 
+// Remote mode has no verified reviews yet: sample reviews are never shown next to live listings.
 export function reviewsForProduct(productId: string): Review[] {
+  if (isRemote) return [];
   return reviews.filter((r) => r.target.kind === 'product' && r.target.productId === productId);
 }
 
 export function reviewsForSeller(sellerId: string): Review[] {
+  if (isRemote) return [];
   return reviews.filter((r) => r.target.kind === 'seller' && r.target.sellerId === sellerId);
 }

@@ -1,3 +1,5 @@
+import { catalogIndex, useRemoteCatalog } from '@/catalog/remote-catalog';
+import { isRemote } from '@/config/env';
 import type { CityId, DeliveryOption, DeliveryOptionId, L10n, Seller } from '@/domain/types';
 
 import { sampleRating } from './rating';
@@ -12,6 +14,12 @@ export const cities: Record<CityId, L10n> = {
 };
 
 export const cityIds = Object.keys(cities) as CityId[];
+
+/** Bilingual city name that never crashes on a city the app doesn't know yet. */
+export function cityLabel(city: string | null | undefined): L10n {
+  if (!city) return { ar: '—', en: '—' };
+  return cities[city as CityId] ?? { ar: city, en: city };
+}
 
 /** SAMPLE DATA — fictional merchants used only to demonstrate the multi-seller experience. */
 export const sellers: Seller[] = [
@@ -129,3 +137,13 @@ export const deliveryOptions: Record<DeliveryOptionId, DeliveryOption> = {
     fee: 85,
   },
 };
+
+export function allSellers(): Seller[] {
+  return isRemote ? useRemoteCatalog.getState().sellers : sellers;
+}
+
+const sellerIndex = new Map(sellers.map((s) => [s.id, s]));
+
+export function getSeller(id: string): Seller | undefined {
+  return isRemote ? catalogIndex().sellers.get(id) : sellerIndex.get(id);
+}

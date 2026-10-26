@@ -1,5 +1,6 @@
+import { isRemote } from '@/config/env';
 import { getOffer } from '@/data/offers';
-import { deliveryOptions, sellers } from '@/data/sellers';
+import { getSeller as getSellerById, deliveryOptions } from '@/data/sellers';
 
 import type {
   CartLine,
@@ -19,7 +20,7 @@ export function vatIncluded(total: number): number {
 }
 
 export function getSeller(id: string): Seller | undefined {
-  return sellers.find((s) => s.id === id);
+  return getSellerById(id);
 }
 
 /** Delivery options a seller can actually offer for a given destination. */
@@ -49,13 +50,29 @@ export function fastestDelivery(offer: Offer, destination: DeliveryDestination =
   return options.sort((a, b) => a.etaDays[1] - b.etaDays[1])[0];
 }
 
+export type EstimatedTotal = {
+  total: number;
+  fee: number;
+  delivery: DeliveryOption | undefined;
+  freeShipping: boolean;
+  /** Remote mode: shipping is a live carrier quote computed at checkout, so no fee is estimated here. */
+  quotedAtCheckout: boolean;
+  /** False when the seller cannot deliver to this destination (e.g. workshops). */
+  deliverable: boolean;
+};
+
 /** Estimated total for a single unit: price plus the cheapest available delivery fee. */
-export function estimatedTotal(offer: Offer, destination: DeliveryDestination = 'home', city?: CityId) {
+export function estimatedTotal(offer: Offer, destination: DeliveryDestination = 'home', city?: CityId): EstimatedTotal {
   const seller = getSeller(offer.sellerId);
+  if (isRemote) {
+    // Never invent a shipping fee client-side: the server quotes it per shipment at checkout.
+    const deliverable = !!seller && (destination !== 'workshop' || seller.supportsWorkshopDelivery);
+    return { total: offer.price, fee: 0, delivery: undefined, freeShipping: false, quotedAtCheckout: true, deliverable };
+  }
   const delivery = cheapestDelivery(offer, destination, city);
   const freeShipping = !!seller?.freeShippingOver && offer.price >= seller.freeShippingOver;
   const fee = delivery ? (freeShipping ? 0 : delivery.fee) : 0;
-  return { total: offer.price + fee, fee, delivery, freeShipping };
+  return { total: offer.price + fee, fee, delivery, freeShipping, quotedAtCheckout: false, deliverable: !!delivery };
 }
 
 /** Earliest and latest delivery days including seller dispatch time. */

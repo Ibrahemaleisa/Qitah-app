@@ -1,5 +1,6 @@
-import { categories, products } from '@/data/catalog';
+import { allCategories, allProducts, getProduct } from '@/data/catalog';
 import { offersForProduct } from '@/data/offers';
+import { isRemote } from '@/config/env';
 import { fitRank, getFitStatus, type FitStatus } from '@/domain/compatibility';
 import type { Category, CategoryId, Condition, Offer, PartOrigin, Product, Vehicle } from '@/domain/types';
 import { looksLikePartNumber, normalizePartNumber, normalizeText, withinOneEdit } from '@/lib/text';
@@ -56,7 +57,7 @@ export function buildListing(product: Product, vehicle: Vehicle | undefined, con
 }
 
 function haystack(product: Product): string {
-  const category = categories.find((c) => c.id === product.categoryId);
+  const category = allCategories().find((c) => c.id === product.categoryId);
   return normalizeText(
     [
       product.name.ar,
@@ -88,7 +89,7 @@ export function searchProducts({ query, filters, sort, vehicle }: SearchInput): 
   const partNumberQuery = looksLikePartNumber(trimmed);
 
   const results: ProductListing[] = [];
-  for (const product of products) {
+  for (const product of allProducts()) {
     if (filters.categoryId && product.categoryId !== filters.categoryId) continue;
     if (filters.origins.length && !filters.origins.includes(product.origin)) continue;
 
@@ -160,7 +161,7 @@ export function searchWithFallback(input: SearchInput): SearchOutcome {
 export function categorySuggestions(query: string): Category[] {
   const tokens = normalizeText(query).split(/\s+/).filter((t) => t.length >= 2);
   if (!tokens.length) return [];
-  return categories.filter((c) => {
+  return allCategories().filter((c) => {
     const names = [normalizeText(c.name.ar), normalizeText(c.name.en)];
     return tokens.some((t) => names.some((n) => n.includes(t) || n.split(/\s+/).some((w) => w.startsWith(t))));
   });
@@ -176,14 +177,15 @@ export function recommendedFor(vehicle: Vehicle | undefined, limit = 8): Product
 export function featuredListings(vehicle: Vehicle | undefined): ProductListing[] {
   const ids = ['p-oil-5w30', 'p-cabin-filter-hk', 'p-battery-70', 'p-lc-rotor-slotted', 'p-spark-iridium', 'p-camry-pads-ceramic'];
   return ids
-    .map((id) => products.find((p) => p.id === id))
+    .map((id) => getProduct(id))
     .filter((p): p is Product => !!p)
-    .map((p) => buildListing(p, vehicle, [], true));
+    .map((p) => buildListing(p, vehicle, [], true))
+    .filter((l) => !isRemote || l.offers.length > 0);
 }
 
 export function listingsByIds(ids: string[], vehicle: Vehicle | undefined): ProductListing[] {
   return ids
-    .map((id) => products.find((p) => p.id === id))
+    .map((id) => getProduct(id))
     .filter((p): p is Product => !!p)
     .map((p) => buildListing(p, vehicle));
 }

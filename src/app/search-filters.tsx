@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
-import { categories } from '@/data/catalog';
+import { allCategories } from '@/data/catalog';
 import type { Condition, PartOrigin } from '@/domain/types';
 import { useI18n } from '@/i18n';
 import { searchProducts, type SearchFilters } from '@/services/catalog';
@@ -49,7 +49,7 @@ export default function SearchFiltersSheet() {
         </FilterGroup>
         <FilterGroup title={s.search.filterSections.category}>
           <Chip label={s.search.allCategories} selected={!draft.categoryId} onPress={() => setDraft({ ...draft, categoryId: undefined })} />
-          {categories.map((c) => (
+          {allCategories().map((c) => (
             <Chip key={c.id} label={tx(c.name)} selected={draft.categoryId === c.id} onPress={() => setDraft({ ...draft, categoryId: c.id })} />
           ))}
         </FilterGroup>

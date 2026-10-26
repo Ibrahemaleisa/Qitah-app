@@ -2,10 +2,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { View } from 'react-native';
 
-import { products } from '@/data/catalog';
-import { offers } from '@/data/offers';
+import { useCatalogVersion } from '@/catalog/remote-catalog';
+import { isRemote } from '@/config/env';
+import { allProducts } from '@/data/catalog';
+import { allOffers } from '@/data/offers';
 import { reviewsForSeller } from '@/data/reviews';
-import { cities } from '@/data/sellers';
+import { cityLabel } from '@/data/sellers';
 import { ProductRow } from '@/features/ProductCard';
 import { RatingSummaryCard, ReviewItem } from '@/features/Reviews';
 import { getSeller } from '@/domain/pricing';
@@ -25,11 +27,13 @@ export default function SellerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { s, tx } = useI18n();
   const vehicle = useSelectedVehicle();
+  const catalogVersion = useCatalogVersion();
   const seller = getSeller(id ?? '');
   const listings = useMemo(() => {
-    const ids = new Set(offers.filter((o) => o.sellerId === id).map((o) => o.productId));
-    return products.filter((p) => ids.has(p.id)).map((p) => buildListing(p, vehicle));
-  }, [id, vehicle]);
+    const ids = new Set(allOffers().filter((o) => o.sellerId === id).map((o) => o.productId));
+    return allProducts().filter((p) => ids.has(p.id)).map((p) => buildListing(p, vehicle));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion re-runs this after a catalog refresh
+  }, [id, vehicle, catalogVersion]);
 
   if (!seller) {
     return (
@@ -52,11 +56,11 @@ export default function SellerScreen() {
           {tx(seller.name)}
         </Text>
         <Text variant="callout" color="textSecondary" align="center">
-          {tx(seller.specialty)} · {tx(cities[seller.city])}
+          {tx(seller.specialty)} · {tx(cityLabel(seller.city))}
         </Text>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           <Badge label={seller.verifiedBusiness ? s.seller.verified : s.seller.unverified} tone={seller.verifiedBusiness ? 'success' : 'neutral'} icon={seller.verifiedBusiness ? 'check-circle' : 'clock'} />
-          <Badge label={s.common.sampleData} tone="info" icon="flag" />
+          {isRemote ? null : <Badge label={s.common.sampleData} tone="info" icon="flag" />}
         </View>
       </View>
 
@@ -75,7 +79,7 @@ export default function SellerScreen() {
       <Button label={s.seller.contact} variant="secondary" icon="message-circle" size="md" style={{ marginTop: space.lg }} onPress={() => router.push({ pathname: '/seller-contact', params: { sellerId: seller.id } })} />
 
       <View style={{ marginTop: space.xl }}>
-        <RatingSummaryCard title={s.seller.serviceRating} hint={s.seller.serviceRatingHint} rating={seller.rating} emptyLabel={s.seller.newSeller} />
+        <RatingSummaryCard title={s.seller.serviceRating} hint={s.seller.serviceRatingHint} rating={seller.rating} emptyLabel={isRemote ? s.remote.noRatingsYet : s.seller.newSeller} />
         {reviews.map((r) => (
           <ReviewItem key={r.id} review={r} />
         ))}

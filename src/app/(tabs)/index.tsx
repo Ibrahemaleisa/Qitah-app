@@ -1,20 +1,25 @@
-import { router } from 'expo-router';
-import { useMemo } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Logo } from '@/brand/Logo';
 import { PartArt } from '@/brand/PartArt';
-import { categories } from '@/data/catalog';
+import { useCatalogVersion } from '@/catalog/remote-catalog';
+import { isRemote } from '@/config/env';
+import { allCategories } from '@/data/catalog';
 import { SampleBadge } from '@/features/badges';
 import { orderStatusVisuals } from '@/features/orderVisuals';
 import { ProductCard } from '@/features/ProductCard';
 import { VehicleCard } from '@/features/VehicleCard';
+import type { PartArtKind } from '@/domain/types';
 import { useI18n } from '@/i18n';
 import { useNow } from '@/lib/use-now';
 import { featuredListings, listingsByIds, recommendedFor, type ProductListing } from '@/services/catalog';
-import { orderStatus } from '@/services/orders';
+import { orderStatus, type OrderStatus } from '@/services/orders';
+import { toOrderView } from '@/services/remote/orderView';
+import { fetchOrders, useRemoteOrders } from '@/services/remote/orders';
 import { useAppStore, useSelectedVehicle } from '@/store/app-store';
 import { useSearchStore } from '@/store/search-store';
 import { enterUp } from '@/theme/motion';
@@ -37,14 +42,33 @@ export default function Home() {
   const recentIds = useAppStore((st) => st.recentlyViewed);
   const orders = useAppStore((st) => st.orders);
   const now = useNow();
+  const catalogVersion = useCatalogVersion();
+  const categories = allCategories();
 
-  const recommended = useMemo(() => (vehicle ? recommendedFor(vehicle) : []), [vehicle]);
-  const featured = useMemo(() => featuredListings(vehicle), [vehicle]);
-  const recent = useMemo(() => listingsByIds(recentIds, vehicle), [recentIds, vehicle]);
-  const activeOrder = orders.find((o) => {
-    const st = orderStatus(o, now);
-    return st !== 'delivered' && st !== 'cancelled';
-  });
+  /* eslint-disable react-hooks/exhaustive-deps -- catalogVersion re-runs these after a catalog refresh */
+  const recommended = useMemo(() => (vehicle ? recommendedFor(vehicle) : []), [vehicle, catalogVersion]);
+  const featured = useMemo(() => featuredListings(vehicle), [vehicle, catalogVersion]);
+  const recent = useMemo(() => listingsByIds(recentIds, vehicle), [recentIds, vehicle, catalogVersion]);
+  /* eslint-enable react-hooks/exhaustive-deps */
+
+  // Remote mode: the active order comes from the server's order list (refreshed when Home is focused).
+  const remoteList = useRemoteOrders((st) => st.list);
+  useFocusEffect(
+    useCallback(() => {
+      if (isRemote && user) fetchOrders().catch(() => {});
+    }, [user]),
+  );
+  const activeOrder: { id: string; number: string; art: string | undefined; status: OrderStatus } | undefined = useMemo(() => {
+    if (isRemote) {
+      const view = remoteList.map((o) => toOrderView(o)).find((o) => !['delivered', 'cancelled', 'expired'].includes(o.status));
+      return view ? { id: view.id, number: view.number, art: view.items[0]?.art, status: view.status } : undefined;
+    }
+    const o = orders.find((x) => {
+      const st = orderStatus(x, now);
+      return st !== 'delivered' && st !== 'cancelled';
+    });
+    return o ? { id: o.id, number: o.number, art: o.lines[0]?.art, status: orderStatus(o, now) } : undefined;
+  }, [remoteList, orders, now]);
 
   const openSearch = () => {
     useSearchStore.getState().requestFocus();
@@ -63,7 +87,7 @@ export default function Home() {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
             <Logo height={24} />
-            <SampleBadge />
+            {isRemote ? null : <SampleBadge />}
           </View>
           <View style={{ flexDirection: 'row', gap: space.sm }}>
             <IconButton icon="heart" label={s.account.favorites} onPress={() => router.push('/favorites')} />
@@ -99,16 +123,16 @@ export default function Home() {
           <Pressable
             onPress={() => router.push(`/order/${activeOrder.id}`)}
             pressScale={0.985}
-            accessibilityLabel={`${s.home.activeOrder} ${activeOrder.number}, ${s.orders.status[orderStatus(activeOrder, now)]}`}
+            accessibilityLabel={`${s.home.activeOrder} ${activeOrder.number}, ${s.orders.status[activeOrder.status]}`}
             accessibilityHint={s.home.trackOrder}
             style={{ marginTop: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}
           >
-            <PartArt kind={activeOrder.lines[0]?.art ?? 'rotor'} size={44} rounded={radius.sm} />
+            <PartArt kind={(activeOrder.art ?? 'rotor') as PartArtKind} size={44} rounded={radius.sm} />
             <View style={{ flex: 1, gap: 2 }}>
               <Text variant="captionStrong" color="textSecondary">
                 {s.home.activeOrder} · <Text variant="captionStrong" color="textSecondary" ltr>{activeOrder.number}</Text>
               </Text>
-              <Badge label={s.orders.status[orderStatus(activeOrder, now)]} {...orderStatusVisuals[orderStatus(activeOrder, now)]} />
+              <Badge label={s.orders.status[activeOrder.status]} {...orderStatusVisuals[activeOrder.status]} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
               <Text variant="callout" weight="semibold" color="link">
@@ -144,7 +168,7 @@ export default function Home() {
       <Carousel title={s.home.featured} data={featured} />
       {recent.length ? <Carousel title={s.home.recentlyViewed} data={recent} /> : null}
       <View style={{ paddingHorizontal: gutter, marginTop: space.xxl }}>
-        <Notice tone="sample" text={s.home.sampleBanner} />
+        {isRemote ? <Notice tone="info" icon="info" text={s.remote.liveCatalogNote} /> : <Notice tone="sample" text={s.home.sampleBanner} />}
       </View>
     </Screen>
   );

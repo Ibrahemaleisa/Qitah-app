@@ -3,6 +3,8 @@ import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { PartArt } from '@/brand/PartArt';
+import { isRemote } from '@/config/env';
+import { RemoteOrders } from '@/features/remote/RemoteOrders';
 import { orderStatusVisuals } from '@/features/orderVisuals';
 import { useI18n } from '@/i18n';
 import { useNow } from '@/lib/use-now';
@@ -20,7 +22,12 @@ import { Screen, ScreenHeader } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { Price } from '@/ui/Price';
 
+/** Remote mode lists the customer's server orders; demo mode the simulated local ones. */
 export default function Orders() {
+  return isRemote ? <RemoteOrders /> : <DemoOrders />;
+}
+
+function DemoOrders() {
   const { s, tx, money, date } = useI18n();
   const orders = useAppStore((st) => st.orders);
   const now = useNow();

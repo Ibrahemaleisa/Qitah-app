@@ -122,7 +122,8 @@ export function currentStage(order: Order, shipment: Shipment, now: number): Shi
   return reached[reached.length - 1]?.stage ?? 'placed';
 }
 
-export type OrderStatus = 'processing' | 'inTransit' | 'partiallyDelivered' | 'delivered' | 'cancelled';
+/** The last three only occur in remote mode (server orders that wait for / failed payment). */
+export type OrderStatus = 'processing' | 'inTransit' | 'partiallyDelivered' | 'delivered' | 'cancelled' | 'pendingPayment' | 'paymentFailed' | 'expired';
 
 export function orderStatus(order: Order, now: number): OrderStatus {
   if (order.cancellation) return 'cancelled';

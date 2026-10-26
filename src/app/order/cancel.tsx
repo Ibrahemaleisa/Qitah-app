@@ -2,6 +2,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
+import { isRemote } from '@/config/env';
+import { RemoteCancelSheet } from '@/features/remote/RemoteOrderSheets';
 import { useI18n } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { useNow } from '@/lib/use-now';
@@ -15,7 +17,11 @@ import { Notice } from '@/ui/Notice';
 import { Text } from '@/ui/Text';
 import { toast } from '@/ui/Toast';
 
-export default function CancelOrderSheet() {
+export default function CancelOrder() {
+  return isRemote ? <RemoteCancelSheet /> : <CancelOrderSheet />;
+}
+
+function CancelOrderSheet() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { s, isRTL } = useI18n();
   const order = useAppStore((st) => st.orders.find((o) => o.id === id));

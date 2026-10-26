@@ -118,6 +118,26 @@ node e2e/journey.cjs e2e/shots        # full Arabic journey: onboarding → orde
 node e2e/widths.cjs e2e/shots         # 320/375px overflow checks, Arabic + English
 ```
 
+### Remote mode (real marketplace API)
+
+Set `EXPO_PUBLIC_API_BASE_URL` to run against the Qitah API in [`services/api`](services/api) instead
+of the bundled sample data. Unset, the app stays in demo mode (what the Jest suite uses).
+
+```bash
+# API on :4103 (see services/api/README.md); CORS_ORIGINS must include the web origin, e.g. http://127.0.0.1:8081
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:4103 npx expo start            # dev server (iOS / Android / web)
+
+# Web end-to-end against the real API
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:4103 npx expo export --platform web --output-dir dist-remote
+node e2e/serve.cjs "$PWD/dist-remote" 8081 &
+node e2e/remote-journey.cjs           # OTP → vehicle → part → offers → 2 merchants → plan → sandbox pay → delivery → return
+```
+
+In remote mode all network calls go through `src/api/` (timeouts, GET retries, `{code, message}` errors,
+token refresh; tokens in `expo-secure-store`, AsyncStorage on web). Prices from the API are integer
+halalas converted once for display; checkout and order totals are always the server's numbers.
+Payment and carrier rates are the API's sandbox providers and are labelled as such.
+
 ## Project structure
 
 ```
@@ -193,8 +213,8 @@ Customer app builds use the EAS profiles `staging` (EAS environment `preview`) a
 
 ## Environment variables
 
-None are required for Milestone 1. See [`.env.example`](.env.example) for the variables reserved for the
-API milestone. Only `EXPO_PUBLIC_*` variables reach the app bundle — **never put secrets in them**;
+None are required for demo mode. `EXPO_PUBLIC_API_BASE_URL` switches the app to remote mode (see above);
+[`.env.example`](.env.example) lists the variables. Only `EXPO_PUBLIC_*` variables reach the app bundle — **never put secrets in them**;
 payment and logistics credentials live on the server.
 
 ## Roadmap

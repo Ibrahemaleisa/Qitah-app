@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { PartArt } from '@/brand/PartArt';
+import { isRemote } from '@/config/env';
 import type { ReturnReason } from '@/domain/types';
+import { RemoteReturnSheet } from '@/features/remote/RemoteOrderSheets';
 import { useI18n } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { useNow } from '@/lib/use-now';
@@ -17,7 +19,11 @@ import { toast } from '@/ui/Toast';
 
 const reasons: ReturnReason[] = ['wrongPart', 'damaged', 'notAsDescribed', 'changedMind'];
 
-export default function ReturnSheet() {
+export default function ReturnItems() {
+  return isRemote ? <RemoteReturnSheet /> : <ReturnSheet />;
+}
+
+function ReturnSheet() {
   const { id, shipmentId } = useLocalSearchParams<{ id: string; shipmentId?: string }>();
   const { s, tx, isRTL } = useI18n();
   const order = useAppStore((st) => st.orders.find((o) => o.id === id));

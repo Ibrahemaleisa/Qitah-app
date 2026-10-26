@@ -1,3 +1,5 @@
+import { catalogIndex, useRemoteCatalog } from '@/catalog/remote-catalog';
+import { isRemote } from '@/config/env';
 import type { Condition, DeliveryOptionId, L10n, Offer } from '@/domain/types';
 
 type OfferInput = {
@@ -119,12 +121,17 @@ export const offers: Offer[] = [
   o('p-hilux-bumper', 's-riyadh-center', { price: 1320, stock: 1, warranty: 12, dispatch: [1, 3], delivery: FREIGHT }),
 ];
 
+export function allOffers(): Offer[] {
+  return isRemote ? useRemoteCatalog.getState().offers : offers;
+}
+
 export function offersForProduct(productId: string): Offer[] {
+  if (isRemote) return [...(catalogIndex().offersByProduct.get(productId) ?? [])];
   return offers.filter((offer) => offer.productId === productId);
 }
 
 const offerIndex = new Map(offers.map((offer) => [offer.id, offer]));
 
 export function getOffer(id: string): Offer | undefined {
-  return offerIndex.get(id);
+  return isRemote ? catalogIndex().offers.get(id) : offerIndex.get(id);
 }

@@ -4,7 +4,9 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isRemote } from '@/config/env';
 import { useI18n } from '@/i18n';
+import { useRemoteOrder } from '@/services/remote/orders';
 import { useAppStore } from '@/store/app-store';
 import { LogoSymbol } from '@/brand/Logo';
 import { brandEasing, enterUp } from '@/theme/motion';
@@ -17,7 +19,12 @@ export default function OrderSuccess() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const { s, money, isRTL } = useI18n();
   const insets = useSafeAreaInsets();
-  const order = useAppStore((st) => st.orders.find((o) => o.id === orderId));
+  const localOrder = useAppStore((st) => st.orders.find((o) => o.id === orderId));
+  // Remote: the confirmation reads the real order (server number, totals) — never local state.
+  const remote = useRemoteOrder(isRemote ? orderId : undefined).order;
+  const order = isRemote
+    ? remote && { id: remote.id, number: remote.number, itemCount: remote.items.reduce((a, l) => a + l.qty, 0), shipments: remote.shipments.length, total: remote.totals.total }
+    : localOrder && { id: localOrder.id, number: localOrder.number, itemCount: localOrder.lines.reduce((a, l) => a + l.qty, 0), shipments: localOrder.shipments.length, total: localOrder.totals.total };
   // Confirmation reuses the logo's idea: the piece fits onto the car (guidelines p.25).
   const fit = useSharedValue(0);
   const reduceMotion = useReducedMotion();
@@ -42,19 +49,19 @@ export default function OrderSuccess() {
             {s.success.title}
           </Text>
           <Text variant="body" color="textSecondary" align="center">
-            {s.success.subtitle}
+            {isRemote ? s.remote.successSubtitle : s.success.subtitle}
           </Text>
         </Animated.View>
         {order ? (
           <Animated.View entering={enterUp(2)} style={{ width: '100%', marginTop: space.lg, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.lg, gap: space.sm }}>
             <Row label={s.success.orderNumber} value={order.number} ltr />
-            <Row label={s.checkout.items} value={s.common.items(order.lines.reduce((a, l) => a + l.qty, 0))} />
-            <Row label={s.success.shipmentsLabel} value={s.success.shipments(order.shipments.length)} />
-            <Row label={s.checkout.total} value={money(order.totals.total)} strong />
+            <Row label={s.checkout.items} value={s.common.items(order.itemCount)} />
+            <Row label={s.success.shipmentsLabel} value={s.success.shipments(order.shipments)} />
+            <Row label={s.checkout.total} value={money(order.total)} strong />
           </Animated.View>
         ) : null}
         <Animated.View entering={enterUp(3)} style={{ width: '100%', marginTop: space.md }}>
-          <Notice tone="sample" text={s.success.simulatedNote} />
+          <Notice tone="sample" text={isRemote ? s.remote.successNote : s.success.simulatedNote} />
         </Animated.View>
       </View>
       <View style={{ gap: space.sm }}>
