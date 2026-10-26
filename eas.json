@@ -6,15 +6,28 @@
   "build": {
     "simulator": {
       "distribution": "internal",
+      "environment": "development",
       "ios": {
         "simulator": true
       }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "environment": "preview"
+    },
+    "staging": {
+      "distribution": "internal",
+      "environment": "preview",
+      "env": {
+        "APP_ENV": "staging"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "environment": "production",
+      "env": {
+        "APP_ENV": "production"
+      }
     }
   },
   "submit": {

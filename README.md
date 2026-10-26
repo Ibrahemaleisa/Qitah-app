@@ -150,6 +150,47 @@ e2e/                   Playwright end-to-end scripts for the web build
 
 More detail: [`docs/architecture.md`](docs/architecture.md) · [`docs/merchant-platform.md`](docs/merchant-platform.md)
 
+## Backend API (local Docker)
+
+The marketplace API (`services/api`, Fastify + Prisma) and its background worker run from one container image.
+Docker Compose starts the full local stack with sandbox payment/carrier providers and local auth:
+
+```bash
+docker compose up --build            # postgres:16 -> prisma migrate deploy -> api (:4000) + worker
+curl http://localhost:4000/health    # {"ok":true,...}
+curl http://localhost:4000/ready     # checks the database
+docker compose down -v               # stop and wipe the local database
+```
+
+If ports 5432/4000 are taken: `QITAH_PG_PORT=55432 QITAH_API_PORT=14000 docker compose up --build`.
+Seed sample data from the host with
+`cd services/api && DATABASE_URL=postgresql://qitah:qitah@localhost:5432/qitah npm run db:seed`.
+
+The image (`services/api/Dockerfile`) is the one deployed to AWS. There, the entrypoint builds `DATABASE_URL` from
+the RDS secret (`DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASSWORD`, URL-encoded, `sslmode=require`).
+
+## AWS deployment
+
+Infrastructure-as-code (AWS CDK v2) lives in [`infra/`](infra), and CI/CD in [`.github/workflows/`](.github/workflows):
+
+- `ci.yml`: API, infra, customer app and portals on every PR;
+- `deploy-staging.yml`: deploys staging on every push to `main`;
+- `deploy-production.yml`: promotes to production manually, after reviewer approval.
+
+Start with:
+
+- [`docs/aws/DEPLOYMENT.md`](docs/aws/DEPLOYMENT.md): bootstrap, secrets, first deploy, cost, backup/restore,
+  rollback, alerts, and the production-readiness gate;
+- [`docs/aws/REGION_DECISION.md`](docs/aws/REGION_DECISION.md): region and Saudi data-residency evaluation.
+
+```bash
+cd infra && npm ci && npm test        # assertions + cdk-nag
+npx cdk synth -c stagingAccount=111111111111 -c productionAccount=222222222222   # no AWS credentials needed
+```
+
+Customer app builds use the EAS profiles `staging` (EAS environment `preview`) and `production`. Set
+`EXPO_PUBLIC_API_BASE_URL` per EAS environment with `eas env:create` (see DEPLOYMENT.md §5).
+
 ## Environment variables
 
 None are required for Milestone 1. See [`.env.example`](.env.example) for the variables reserved for the
