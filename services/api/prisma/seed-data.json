@@ -1,0 +1,3391 @@
+{
+ "categories": [
+  {
+   "id": "brakes",
+   "name": {
+    "ar": "الفرامل",
+    "en": "Brakes"
+   },
+   "art": "rotor"
+  },
+  {
+   "id": "filters",
+   "name": {
+    "ar": "الفلاتر",
+    "en": "Filters"
+   },
+   "art": "oilFilter"
+  },
+  {
+   "id": "oils",
+   "name": {
+    "ar": "الزيوت والسوائل",
+    "en": "Oils & fluids"
+   },
+   "art": "oil"
+  },
+  {
+   "id": "engine",
+   "name": {
+    "ar": "المحرك",
+    "en": "Engine"
+   },
+   "art": "sparkPlug"
+  },
+  {
+   "id": "suspension",
+   "name": {
+    "ar": "التعليق",
+    "en": "Suspension"
+   },
+   "art": "shock"
+  },
+  {
+   "id": "electrical",
+   "name": {
+    "ar": "الكهرباء",
+    "en": "Electrical"
+   },
+   "art": "battery"
+  },
+  {
+   "id": "lighting",
+   "name": {
+    "ar": "الإضاءة",
+    "en": "Lighting"
+   },
+   "art": "headlight"
+  },
+  {
+   "id": "cooling",
+   "name": {
+    "ar": "التبريد",
+    "en": "Cooling"
+   },
+   "art": "radiator"
+  },
+  {
+   "id": "body",
+   "name": {
+    "ar": "الهيكل",
+    "en": "Body"
+   },
+   "art": "mirror"
+  }
+ ],
+ "makes": [
+  {
+   "id": "toyota",
+   "name": {
+    "ar": "تويوتا",
+    "en": "Toyota"
+   },
+   "models": [
+    {
+     "id": "camry",
+     "makeId": "toyota",
+     "name": {
+      "ar": "كامري",
+      "en": "Camry"
+     },
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "trims": [
+      "LE",
+      "GLE",
+      "SE",
+      "Grande"
+     ],
+     "engines": [
+      "2.5L I4",
+      "3.5L V6"
+     ]
+    },
+    {
+     "id": "land-cruiser",
+     "makeId": "toyota",
+     "name": {
+      "ar": "لاند كروزر",
+      "en": "Land Cruiser"
+     },
+     "yearFrom": 2016,
+     "yearTo": 2025,
+     "trims": [
+      "GX",
+      "GXR",
+      "VXR"
+     ],
+     "engines": [
+      "4.0L V6",
+      "4.6L V8",
+      "3.5L V6 Twin-Turbo"
+     ]
+    },
+    {
+     "id": "hilux",
+     "makeId": "toyota",
+     "name": {
+      "ar": "هايلكس",
+      "en": "Hilux"
+     },
+     "yearFrom": 2016,
+     "yearTo": 2025,
+     "trims": [
+      "Standard",
+      "GL",
+      "GLX"
+     ],
+     "engines": [
+      "2.7L I4",
+      "2.4L Diesel"
+     ]
+    },
+    {
+     "id": "corolla",
+     "makeId": "toyota",
+     "name": {
+      "ar": "كورولا",
+      "en": "Corolla"
+     },
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "trims": [
+      "XLi",
+      "GLi"
+     ],
+     "engines": [
+      "1.6L I4",
+      "2.0L I4"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hyundai",
+   "name": {
+    "ar": "هيونداي",
+    "en": "Hyundai"
+   },
+   "models": [
+    {
+     "id": "elantra",
+     "makeId": "hyundai",
+     "name": {
+      "ar": "إلنترا",
+      "en": "Elantra"
+     },
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "trims": [
+      "Smart",
+      "Comfort",
+      "Limited"
+     ],
+     "engines": [
+      "1.6L I4",
+      "2.0L I4"
+     ]
+    },
+    {
+     "id": "sonata",
+     "makeId": "hyundai",
+     "name": {
+      "ar": "سوناتا",
+      "en": "Sonata"
+     },
+     "yearFrom": 2020,
+     "yearTo": 2025,
+     "trims": [
+      "Smart",
+      "Limited"
+     ],
+     "engines": [
+      "2.5L I4"
+     ]
+    },
+    {
+     "id": "tucson",
+     "makeId": "hyundai",
+     "name": {
+      "ar": "توسان",
+      "en": "Tucson"
+     },
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "trims": [
+      "Smart",
+      "Comfort",
+      "Limited"
+     ],
+     "engines": [
+      "2.0L I4",
+      "1.6L Turbo"
+     ]
+    },
+    {
+     "id": "accent",
+     "makeId": "hyundai",
+     "name": {
+      "ar": "أكسنت",
+      "en": "Accent"
+     },
+     "yearFrom": 2018,
+     "yearTo": 2024,
+     "trims": [
+      "Smart",
+      "Comfort"
+     ],
+     "engines": [
+      "1.4L I4",
+      "1.6L I4"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "nissan",
+   "name": {
+    "ar": "نيسان",
+    "en": "Nissan"
+   },
+   "models": [
+    {
+     "id": "patrol",
+     "makeId": "nissan",
+     "name": {
+      "ar": "باترول",
+      "en": "Patrol"
+     },
+     "yearFrom": 2016,
+     "yearTo": 2025,
+     "trims": [
+      "XE",
+      "SE",
+      "LE",
+      "Nismo"
+     ],
+     "engines": [
+      "4.0L V6",
+      "5.6L V8"
+     ]
+    },
+    {
+     "id": "altima",
+     "makeId": "nissan",
+     "name": {
+      "ar": "ألتيما",
+      "en": "Altima"
+     },
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "trims": [
+      "S",
+      "SV",
+      "SL"
+     ],
+     "engines": [
+      "2.5L I4"
+     ]
+    },
+    {
+     "id": "sunny",
+     "makeId": "nissan",
+     "name": {
+      "ar": "صني",
+      "en": "Sunny"
+     },
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "trims": [
+      "S",
+      "SV"
+     ],
+     "engines": [
+      "1.6L I4"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ford",
+   "name": {
+    "ar": "فورد",
+    "en": "Ford"
+   },
+   "models": [
+    {
+     "id": "taurus",
+     "makeId": "ford",
+     "name": {
+      "ar": "توروس",
+      "en": "Taurus"
+     },
+     "yearFrom": 2020,
+     "yearTo": 2025,
+     "trims": [
+      "Trend",
+      "Titanium"
+     ],
+     "engines": [
+      "1.5L EcoBoost",
+      "2.0L EcoBoost"
+     ]
+    },
+    {
+     "id": "f150",
+     "makeId": "ford",
+     "name": {
+      "ar": "إف-150",
+      "en": "F-150"
+     },
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "trims": [
+      "XL",
+      "XLT",
+      "Lariat",
+      "Raptor"
+     ],
+     "engines": [
+      "3.5L EcoBoost",
+      "5.0L V8"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "chevrolet",
+   "name": {
+    "ar": "شيفروليه",
+    "en": "Chevrolet"
+   },
+   "models": [
+    {
+     "id": "tahoe",
+     "makeId": "chevrolet",
+     "name": {
+      "ar": "تاهو",
+      "en": "Tahoe"
+     },
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "trims": [
+      "LS",
+      "LT",
+      "Z71",
+      "High Country"
+     ],
+     "engines": [
+      "5.3L V8",
+      "6.2L V8"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "gmc",
+   "name": {
+    "ar": "جي إم سي",
+    "en": "GMC"
+   },
+   "models": [
+    {
+     "id": "yukon",
+     "makeId": "gmc",
+     "name": {
+      "ar": "يوكن",
+      "en": "Yukon"
+     },
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "trims": [
+      "SLE",
+      "SLT",
+      "Denali"
+     ],
+     "engines": [
+      "5.3L V8",
+      "6.2L V8"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "kia",
+   "name": {
+    "ar": "كيا",
+    "en": "Kia"
+   },
+   "models": [
+    {
+     "id": "k5",
+     "makeId": "kia",
+     "name": {
+      "ar": "كي 5",
+      "en": "K5"
+     },
+     "yearFrom": 2021,
+     "yearTo": 2025,
+     "trims": [
+      "LX",
+      "EX",
+      "GT-Line"
+     ],
+     "engines": [
+      "2.5L I4",
+      "1.6L Turbo"
+     ]
+    },
+    {
+     "id": "sportage",
+     "makeId": "kia",
+     "name": {
+      "ar": "سبورتاج",
+      "en": "Sportage"
+     },
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "trims": [
+      "LX",
+      "EX",
+      "GT-Line"
+     ],
+     "engines": [
+      "2.0L I4",
+      "1.6L Turbo"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "lexus",
+   "name": {
+    "ar": "لكزس",
+    "en": "Lexus"
+   },
+   "models": [
+    {
+     "id": "lx",
+     "makeId": "lexus",
+     "name": {
+      "ar": "إل إكس",
+      "en": "LX"
+     },
+     "yearFrom": 2016,
+     "yearTo": 2025,
+     "trims": [
+      "LX 570",
+      "LX 600"
+     ],
+     "engines": [
+      "5.7L V8",
+      "3.5L V6 Twin-Turbo"
+     ]
+    }
+   ]
+  }
+ ],
+ "products": [
+  {
+   "id": "p-camry-pads-oem",
+   "name": {
+    "ar": "فحمات فرامل أمامية — كامري",
+    "en": "Front brake pads — Camry"
+   },
+   "categoryId": "brakes",
+   "brand": "Toyota Genuine",
+   "origin": "oem",
+   "partNumber": "04465-X3301",
+   "oemReferences": [
+    "04465-X3301"
+   ],
+   "description": {
+    "ar": "طقم فحمات أمامية أصلي من تويوتا بتركيبة منخفضة الغبار وأداء ثابت في درجات الحرارة العالية.",
+    "en": "Genuine Toyota front pad set with a low-dust compound and stable high-temperature performance."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "الموضع",
+      "en": "Position"
+     },
+     "value": {
+      "ar": "أمامي",
+      "en": "Front"
+     }
+    },
+    {
+     "label": {
+      "ar": "المادة",
+      "en": "Compound"
+     },
+     "value": {
+      "ar": "شبه معدنية منخفضة الغبار",
+      "en": "Low-dust semi-metallic"
+     }
+    },
+    {
+     "label": {
+      "ar": "عدد القطع",
+      "en": "Pieces"
+     },
+     "value": "4"
+    },
+    {
+     "label": {
+      "ar": "حساس التآكل",
+      "en": "Wear sensor"
+     },
+     "value": {
+      "ar": "مدمج",
+      "en": "Integrated"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "camry",
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "source": "catalog"
+    }
+   ],
+   "art": "pads",
+   "keywords": [
+    "brake",
+    "pads",
+    "فحمات",
+    "فرامل",
+    "تيل",
+    "camry"
+   ],
+   "rating": {
+    "average": 4.8,
+    "count": 312,
+    "verifiedShare": 0.85,
+    "distribution": [
+     211,
+     81,
+     16,
+     3,
+     1
+    ]
+   }
+  },
+  {
+   "id": "p-camry-pads-ceramic",
+   "name": {
+    "ar": "فحمات فرامل سيراميك أمامية",
+    "en": "Ceramic front brake pads"
+   },
+   "categoryId": "brakes",
+   "brand": "Torvik",
+   "origin": "aftermarket",
+   "partNumber": "TRV-D2210C",
+   "oemReferences": [
+    "04465-X3301"
+   ],
+   "description": {
+    "ar": "فحمات سيراميك بديلة بصوت منخفض وعمر أطول، مناسبة للقيادة اليومية داخل المدن.",
+    "en": "Aftermarket ceramic pads with low noise and long life, suited to daily city driving."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "الموضع",
+      "en": "Position"
+     },
+     "value": {
+      "ar": "أمامي",
+      "en": "Front"
+     }
+    },
+    {
+     "label": {
+      "ar": "المادة",
+      "en": "Compound"
+     },
+     "value": {
+      "ar": "سيراميك",
+      "en": "Ceramic"
+     }
+    },
+    {
+     "label": {
+      "ar": "عدد القطع",
+      "en": "Pieces"
+     },
+     "value": "4"
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "camry",
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "source": "catalog"
+    },
+    {
+     "modelId": "altima",
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "source": "seller"
+    }
+   ],
+   "art": "pads",
+   "keywords": [
+    "brake",
+    "pads",
+    "ceramic",
+    "فحمات",
+    "سيراميك",
+    "فرامل",
+    "تيل"
+   ],
+   "rating": {
+    "average": 4.5,
+    "count": 188,
+    "verifiedShare": 0.85,
+    "distribution": [
+     83,
+     84,
+     17,
+     3,
+     1
+    ]
+   }
+  },
+  {
+   "id": "p-lc-rotor-oem",
+   "name": {
+    "ar": "هوب فرامل أمامي — لاند كروزر",
+    "en": "Front brake rotor — Land Cruiser"
+   },
+   "categoryId": "brakes",
+   "brand": "Toyota Genuine",
+   "origin": "oem",
+   "partNumber": "43512-X6040",
+   "oemReferences": [
+    "43512-X6040"
+   ],
+   "description": {
+    "ar": "قرص فرامل أمامي مهوّى أصلي مصمم للأوزان الثقيلة والقيادة على الطرق السريعة.",
+    "en": "Genuine vented front rotor engineered for heavy vehicles and highway driving."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "القطر",
+      "en": "Diameter"
+     },
+     "value": "354 mm"
+    },
+    {
+     "label": {
+      "ar": "النوع",
+      "en": "Type"
+     },
+     "value": {
+      "ar": "مهوّى",
+      "en": "Vented"
+     }
+    },
+    {
+     "label": {
+      "ar": "البيع",
+      "en": "Sold as"
+     },
+     "value": {
+      "ar": "قطعة واحدة",
+      "en": "Single unit"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "land-cruiser",
+     "yearFrom": 2016,
+     "yearTo": 2025,
+     "source": "catalog"
+    },
+    {
+     "modelId": "lx",
+     "yearFrom": 2016,
+     "yearTo": 2021,
+     "source": "catalog"
+    }
+   ],
+   "art": "rotor",
+   "keywords": [
+    "rotor",
+    "disc",
+    "هوب",
+    "قرص",
+    "ديسك",
+    "فرامل",
+    "land cruiser"
+   ],
+   "rating": {
+    "average": 4.9,
+    "count": 96,
+    "verifiedShare": 0.85,
+    "distribution": [
+     71,
+     20,
+     4,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "p-lc-rotor-slotted",
+   "name": {
+    "ar": "هوب فرامل مخدد أمامي",
+    "en": "Slotted front brake rotor"
+   },
+   "categoryId": "brakes",
+   "brand": "Torvik",
+   "origin": "aftermarket",
+   "partNumber": "TRV-R6040S",
+   "oemReferences": [
+    "43512-X6040"
+   ],
+   "description": {
+    "ar": "قرص مخدد بطلاء مضاد للصدأ يحسّن تبديد الحرارة.",
+    "en": "Slotted rotor with anti-corrosion coating for better heat dissipation."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "القطر",
+      "en": "Diameter"
+     },
+     "value": "354 mm"
+    },
+    {
+     "label": {
+      "ar": "النوع",
+      "en": "Type"
+     },
+     "value": {
+      "ar": "مخدد ومهوّى",
+      "en": "Slotted, vented"
+     }
+    },
+    {
+     "label": {
+      "ar": "الطلاء",
+      "en": "Coating"
+     },
+     "value": {
+      "ar": "زنك مضاد للصدأ",
+      "en": "Anti-rust zinc"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "land-cruiser",
+     "yearFrom": 2016,
+     "yearTo": 2025,
+     "source": "catalog"
+    }
+   ],
+   "art": "rotor",
+   "keywords": [
+    "rotor",
+    "disc",
+    "slotted",
+    "هوب",
+    "قرص",
+    "فرامل"
+   ],
+   "rating": {
+    "average": 4.4,
+    "count": 61,
+    "verifiedShare": 0.85,
+    "distribution": [
+     23,
+     31,
+     6,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "p-tahoe-pads-rear",
+   "name": {
+    "ar": "فحمات فرامل خلفية — تاهو / يوكن",
+    "en": "Rear brake pads — Tahoe / Yukon"
+   },
+   "categoryId": "brakes",
+   "brand": "Torvik",
+   "origin": "aftermarket",
+   "partNumber": "TRV-D1707",
+   "oemReferences": [
+    "84X-1707"
+   ],
+   "description": {
+    "ar": "فحمات خلفية عالية التحمل للمركبات الكبيرة.",
+    "en": "Heavy-duty rear pads for full-size SUVs."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "الموضع",
+      "en": "Position"
+     },
+     "value": {
+      "ar": "خلفي",
+      "en": "Rear"
+     }
+    },
+    {
+     "label": {
+      "ar": "المادة",
+      "en": "Compound"
+     },
+     "value": {
+      "ar": "سيراميك",
+      "en": "Ceramic"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "tahoe",
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "source": "catalog"
+    },
+    {
+     "modelId": "yukon",
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "source": "catalog"
+    }
+   ],
+   "art": "pads",
+   "keywords": [
+    "brake",
+    "pads",
+    "فحمات",
+    "فرامل",
+    "tahoe",
+    "yukon"
+   ],
+   "rating": {
+    "average": 4.3,
+    "count": 74,
+    "verifiedShare": 0.85,
+    "distribution": [
+     22,
+     42,
+     8,
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "id": "p-toyota-oil-filter",
+   "name": {
+    "ar": "فلتر زيت — تويوتا",
+    "en": "Oil filter — Toyota"
+   },
+   "categoryId": "filters",
+   "brand": "Toyota Genuine",
+   "origin": "oem",
+   "partNumber": "90915-X0020",
+   "oemReferences": [
+    "90915-X0020"
+   ],
+   "description": {
+    "ar": "فلتر زيت أصلي بصمام منع الارتداد يحمي المحرك عند التشغيل البارد.",
+    "en": "Genuine oil filter with an anti-drainback valve that protects on cold starts."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "النوع",
+      "en": "Type"
+     },
+     "value": {
+      "ar": "علبة ملولبة",
+      "en": "Spin-on"
+     }
+    },
+    {
+     "label": {
+      "ar": "الارتفاع",
+      "en": "Height"
+     },
+     "value": "86 mm"
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "camry",
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "source": "catalog"
+    },
+    {
+     "modelId": "corolla",
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "source": "catalog"
+    },
+    {
+     "modelId": "hilux",
+     "yearFrom": 2016,
+     "yearTo": 2025,
+     "source": "catalog",
+     "engines": [
+      "2.7L I4"
+     ]
+    }
+   ],
+   "art": "oilFilter",
+   "keywords": [
+    "oil filter",
+    "filter",
+    "فلتر",
+    "زيت",
+    "فلتر زيت"
+   ],
+   "rating": {
+    "average": 4.9,
+    "count": 1040,
+    "verifiedShare": 0.85,
+    "distribution": [
+     771,
+     215,
+     43,
+     9,
+     2
+    ]
+   }
+  },
+  {
+   "id": "p-oil-filter-kanzen",
+   "name": {
+    "ar": "فلتر زيت عالي الكفاءة",
+    "en": "High-efficiency oil filter"
+   },
+   "categoryId": "filters",
+   "brand": "Kanzen",
+   "origin": "aftermarket",
+   "partNumber": "KZ-OF120",
+   "oemReferences": [
+    "90915-X0020"
+   ],
+   "description": {
+    "ar": "وسط ترشيح صناعي بكفاءة 99% وعمر خدمة حتى 10,000 كم.",
+    "en": "Synthetic media with 99% efficiency and up to 10,000 km service life."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "النوع",
+      "en": "Type"
+     },
+     "value": {
+      "ar": "علبة ملولبة",
+      "en": "Spin-on"
+     }
+    },
+    {
+     "label": {
+      "ar": "وسط الترشيح",
+      "en": "Media"
+     },
+     "value": {
+      "ar": "صناعي",
+      "en": "Synthetic"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "camry",
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "source": "catalog"
+    },
+    {
+     "modelId": "corolla",
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "source": "catalog"
+    },
+    {
+     "modelId": "lx",
+     "yearFrom": 2016,
+     "yearTo": 2025,
+     "source": "seller"
+    }
+   ],
+   "art": "oilFilter",
+   "keywords": [
+    "oil filter",
+    "filter",
+    "فلتر",
+    "زيت"
+   ],
+   "rating": {
+    "average": 4.4,
+    "count": 420,
+    "verifiedShare": 0.85,
+    "distribution": [
+     154,
+     212,
+     43,
+     9,
+     2
+    ]
+   }
+  },
+  {
+   "id": "p-camry-air-filter",
+   "name": {
+    "ar": "فلتر هواء المحرك — كامري",
+    "en": "Engine air filter — Camry"
+   },
+   "categoryId": "filters",
+   "brand": "Toyota Genuine",
+   "origin": "oem",
+   "partNumber": "17801-X0V02",
+   "oemReferences": [
+    "17801-X0V02"
+   ],
+   "description": {
+    "ar": "فلتر هواء أصلي يحافظ على تدفق الهواء واستهلاك الوقود.",
+    "en": "Genuine air filter that maintains airflow and fuel economy."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "النوع",
+      "en": "Type"
+     },
+     "value": {
+      "ar": "لوحي",
+      "en": "Panel"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "camry",
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "source": "catalog"
+    }
+   ],
+   "art": "airFilter",
+   "keywords": [
+    "air filter",
+    "فلتر هواء",
+    "فلتر",
+    "هواء"
+   ],
+   "rating": {
+    "average": 4.7,
+    "count": 205,
+    "verifiedShare": 0.85,
+    "distribution": [
+     123,
+     65,
+     13,
+     3,
+     1
+    ]
+   }
+  },
+  {
+   "id": "p-cabin-filter-hk",
+   "name": {
+    "ar": "فلتر مكيف كربوني",
+    "en": "Activated-carbon cabin filter"
+   },
+   "categoryId": "filters",
+   "brand": "Sahara",
+   "origin": "aftermarket",
+   "partNumber": "SH-CF2201",
+   "oemReferences": [
+    "97133-XF000"
+   ],
+   "description": {
+    "ar": "فلتر مكيف بطبقة كربون نشط يقلل الغبار والروائح — مثالي لأجواء المملكة.",
+    "en": "Cabin filter with an activated-carbon layer to reduce dust and odours."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "الطبقات",
+      "en": "Layers"
+     },
+     "value": {
+      "ar": "كربون نشط + ألياف",
+      "en": "Activated carbon + fibre"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "elantra",
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "source": "catalog"
+    },
+    {
+     "modelId": "tucson",
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "source": "catalog"
+    },
+    {
+     "modelId": "sportage",
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "source": "catalog"
+    },
+    {
+     "modelId": "k5",
+     "yearFrom": 2021,
+     "yearTo": 2025,
+     "source": "catalog"
+    }
+   ],
+   "art": "airFilter",
+   "keywords": [
+    "cabin filter",
+    "ac filter",
+    "فلتر مكيف",
+    "فلتر"
+   ],
+   "rating": {
+    "average": 4.6,
+    "count": 530,
+    "verifiedShare": 0.85,
+    "distribution": [
+     277,
+     202,
+     41,
+     8,
+     2
+    ]
+   }
+  },
+  {
+   "id": "p-patrol-air-filter",
+   "name": {
+    "ar": "فلتر هواء — باترول",
+    "en": "Air filter — Patrol"
+   },
+   "categoryId": "filters",
+   "brand": "Sahara",
+   "origin": "aftermarket",
+   "partNumber": "SH-AF5600",
+   "oemReferences": [
+    "16546-X1M0A"
+   ],
+   "description": {
+    "ar": "فلتر هواء بطبقة مقاومة للغبار الكثيف للطرق الصحراوية.",
+    "en": "Air filter with a heavy-dust layer for desert driving."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "النوع",
+      "en": "Type"
+     },
+     "value": {
+      "ar": "لوحي",
+      "en": "Panel"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "patrol",
+     "yearFrom": 2016,
+     "yearTo": 2025,
+     "source": "catalog"
+    }
+   ],
+   "art": "airFilter",
+   "keywords": [
+    "air filter",
+    "فلتر هواء",
+    "فلتر",
+    "patrol"
+   ],
+   "rating": {
+    "average": 4.5,
+    "count": 140,
+    "verifiedShare": 0.85,
+    "distribution": [
+     61,
+     62,
+     13,
+     3,
+     1
+    ]
+   }
+  },
+  {
+   "id": "p-oil-5w30",
+   "name": {
+    "ar": "زيت محرك صناعي ⁦5W-30⁩ — 5 لتر",
+    "en": "Full-synthetic engine oil 5W-30 — 5 L"
+   },
+   "categoryId": "oils",
+   "brand": "Meridian",
+   "origin": "aftermarket",
+   "partNumber": "MRD-5W30-5L",
+   "oemReferences": [],
+   "description": {
+    "ar": "زيت صناعي بالكامل بمعيار API SP لحماية المحرك في الحرارة العالية.",
+    "en": "Full-synthetic API SP oil for engine protection in extreme heat."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "اللزوجة",
+      "en": "Viscosity"
+     },
+     "value": "5W-30"
+    },
+    {
+     "label": {
+      "ar": "المعيار",
+      "en": "Standard"
+     },
+     "value": "API SP / ILSAC GF-6A"
+    },
+    {
+     "label": {
+      "ar": "السعة",
+      "en": "Volume"
+     },
+     "value": {
+      "ar": "5 لتر",
+      "en": "5 L"
+     }
+    }
+   ],
+   "universal": {
+    "note": {
+     "ar": "يناسب المحركات التي تتطلب ⁦5W-30⁩ — راجع دليل سيارتك.",
+     "en": "For engines specifying 5W-30 — check your owner’s manual."
+    }
+   },
+   "fitment": [],
+   "art": "oil",
+   "keywords": [
+    "oil",
+    "engine oil",
+    "زيت",
+    "زيت محرك",
+    "5w30",
+    "5w-30"
+   ],
+   "rating": {
+    "average": 4.7,
+    "count": 1880,
+    "verifiedShare": 0.85,
+    "distribution": [
+     1133,
+     597,
+     121,
+     24,
+     5
+    ]
+   }
+  },
+  {
+   "id": "p-oil-0w20-oem",
+   "name": {
+    "ar": "زيت تويوتا الأصلي ⁦0W-20⁩ — 4 لتر",
+    "en": "Toyota Genuine oil 0W-20 — 4 L"
+   },
+   "categoryId": "oils",
+   "brand": "Toyota Genuine",
+   "origin": "oem",
+   "partNumber": "08880-X0205",
+   "oemReferences": [
+    "08880-X0205"
+   ],
+   "description": {
+    "ar": "زيت أصلي منخفض اللزوجة لمحركات تويوتا الحديثة.",
+    "en": "Genuine low-viscosity oil for modern Toyota engines."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "اللزوجة",
+      "en": "Viscosity"
+     },
+     "value": "0W-20"
+    },
+    {
+     "label": {
+      "ar": "السعة",
+      "en": "Volume"
+     },
+     "value": {
+      "ar": "4 لتر",
+      "en": "4 L"
+     }
+    }
+   ],
+   "universal": {
+    "note": {
+     "ar": "يناسب المحركات التي تتطلب ⁦0W-20⁩ — راجع دليل سيارتك.",
+     "en": "For engines specifying 0W-20 — check your owner’s manual."
+    }
+   },
+   "fitment": [],
+   "art": "oil",
+   "keywords": [
+    "oil",
+    "زيت",
+    "0w20",
+    "0w-20",
+    "toyota"
+   ],
+   "rating": {
+    "average": 4.8,
+    "count": 760,
+    "verifiedShare": 0.85,
+    "distribution": [
+     513,
+     197,
+     40,
+     8,
+     2
+    ]
+   }
+  },
+  {
+   "id": "p-coolant",
+   "name": {
+    "ar": "سائل تبريد طويل العمر — 4 لتر",
+    "en": "Long-life coolant — 4 L"
+   },
+   "categoryId": "cooling",
+   "brand": "Polarflow",
+   "origin": "aftermarket",
+   "partNumber": "PF-LLC4",
+   "oemReferences": [],
+   "description": {
+    "ar": "سائل تبريد جاهز للاستخدام بتقنية OAT يحمي حتى 129° م.",
+    "en": "Ready-to-use OAT coolant, boil protection up to 129°C."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "التقنية",
+      "en": "Technology"
+     },
+     "value": "OAT"
+    },
+    {
+     "label": {
+      "ar": "اللون",
+      "en": "Colour"
+     },
+     "value": {
+      "ar": "وردي",
+      "en": "Pink"
+     }
+    }
+   ],
+   "universal": {
+    "note": {
+     "ar": "تأكد من نوع سائل التبريد المعتمد لسيارتك قبل الخلط.",
+     "en": "Confirm your vehicle’s approved coolant type before mixing."
+    }
+   },
+   "fitment": [],
+   "art": "oil",
+   "keywords": [
+    "coolant",
+    "antifreeze",
+    "ماء رديتر",
+    "سائل تبريد",
+    "تبريد"
+   ],
+   "rating": {
+    "average": 4.5,
+    "count": 390,
+    "verifiedShare": 0.85,
+    "distribution": [
+     174,
+     173,
+     35,
+     7,
+     1
+    ]
+   }
+  },
+  {
+   "id": "p-spark-iridium",
+   "name": {
+    "ar": "بواجي إيريديوم — طقم 4",
+    "en": "Iridium spark plugs — set of 4"
+   },
+   "categoryId": "engine",
+   "brand": "Kanzen",
+   "origin": "aftermarket",
+   "partNumber": "KZ-IR4-PLUG",
+   "oemReferences": [
+    "90919-X1253"
+   ],
+   "description": {
+    "ar": "بواجي إيريديوم بطرف دقيق لاشتعال أقوى وعمر حتى 100,000 كم.",
+    "en": "Fine-tip iridium plugs for stronger ignition and up to 100,000 km life."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "المادة",
+      "en": "Material"
+     },
+     "value": {
+      "ar": "إيريديوم",
+      "en": "Iridium"
+     }
+    },
+    {
+     "label": {
+      "ar": "العدد",
+      "en": "Quantity"
+     },
+     "value": "4"
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "camry",
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "source": "catalog",
+     "engines": [
+      "2.5L I4"
+     ]
+    },
+    {
+     "modelId": "corolla",
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "source": "catalog"
+    },
+    {
+     "modelId": "elantra",
+     "yearFrom": 2019,
+     "yearTo": 2025,
+     "source": "seller"
+    },
+    {
+     "modelId": "accent",
+     "yearFrom": 2018,
+     "yearTo": 2024,
+     "source": "seller"
+    }
+   ],
+   "art": "sparkPlug",
+   "keywords": [
+    "spark plug",
+    "plugs",
+    "بواجي",
+    "شمعات",
+    "بوجي"
+   ],
+   "rating": {
+    "average": 4.6,
+    "count": 640,
+    "verifiedShare": 0.85,
+    "distribution": [
+     335,
+     244,
+     49,
+     10,
+     2
+    ]
+   }
+  },
+  {
+   "id": "p-f150-belt",
+   "name": {
+    "ar": "سير المحرك — إف-150",
+    "en": "Serpentine belt — F-150"
+   },
+   "categoryId": "engine",
+   "brand": "Strada",
+   "origin": "aftermarket",
+   "partNumber": "STR-8PK2410",
+   "oemReferences": [
+    "XL3Z-8620-X"
+   ],
+   "description": {
+    "ar": "سير متعدد الأخاديد من مطاط EPDM مقاوم للحرارة والتشقق.",
+    "en": "EPDM multi-rib belt resistant to heat and cracking."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "المقاس",
+      "en": "Size"
+     },
+     "value": "8PK2410"
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "f150",
+     "yearFrom": 2018,
+     "yearTo": 2025,
+     "source": "catalog",
+     "engines": [
+      "3.5L EcoBoost"
+     ]
+    }
+   ],
+   "art": "belt",
+   "keywords": [
+    "belt",
+    "serpentine",
+    "سير",
+    "سير مكينة"
+   ],
+   "rating": {
+    "average": 4.4,
+    "count": 58,
+    "verifiedShare": 0.85,
+    "distribution": [
+     22,
+     29,
+     6,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "p-accent-water-pump",
+   "name": {
+    "ar": "طرمبة ماء — أكسنت / إلنترا",
+    "en": "Water pump — Accent / Elantra"
+   },
+   "categoryId": "cooling",
+   "brand": "Strada",
+   "origin": "aftermarket",
+   "partNumber": "STR-WP2B100",
+   "oemReferences": [
+    "25100-X2B00"
+   ],
+   "description": {
+    "ar": "طرمبة ماء بمروحة معدنية وحشوة محكمة.",
+    "en": "Water pump with a metal impeller and sealed gasket."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "المروحة",
+      "en": "Impeller"
+     },
+     "value": {
+      "ar": "معدن",
+      "en": "Metal"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "accent",
+     "yearFrom": 2018,
+     "yearTo": 2024,
+     "source": "catalog"
+    },
+    {
+     "modelId": "elantra",
+     "yearFrom": 2019,
+     "yearTo": 2022,
+     "source": "catalog",
+     "engines": [
+      "1.6L I4"
+     ]
+    }
+   ],
+   "art": "pump",
+   "keywords": [
+    "water pump",
+    "طرمبة ماء",
+    "مضخة ماء"
+   ],
+   "rating": {
+    "average": 4.2,
+    "count": 47,
+    "verifiedShare": 0.85,
+    "distribution": [
+     11,
+     29,
+     6,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "p-patrol-radiator",
+   "name": {
+    "ar": "رديتر — باترول V8",
+    "en": "Radiator — Patrol V8"
+   },
+   "categoryId": "cooling",
+   "brand": "Nissan Genuine",
+   "origin": "oem",
+   "partNumber": "21410-X1LB0",
+   "oemReferences": [
+    "21410-X1LB0"
+   ],
+   "description": {
+    "ar": "رديتر ألمنيوم أصلي بسعة تبريد عالية لمحرك 5.6 لتر.",
+    "en": "Genuine high-capacity aluminium radiator for the 5.6 L engine."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "المادة",
+      "en": "Material"
+     },
+     "value": {
+      "ar": "ألمنيوم",
+      "en": "Aluminium"
+     }
+    },
+    {
+     "label": {
+      "ar": "الحجم",
+      "en": "Size"
+     },
+     "value": {
+      "ar": "كبير — شحن خاص",
+      "en": "Large — freight"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "patrol",
+     "yearFrom": 2016,
+     "yearTo": 2025,
+     "source": "catalog",
+     "engines": [
+      "5.6L V8"
+     ]
+    }
+   ],
+   "art": "radiator",
+   "keywords": [
+    "radiator",
+    "رديتر",
+    "ردياتير",
+    "تبريد",
+    "patrol"
+   ],
+   "rating": {
+    "average": 4.8,
+    "count": 33,
+    "verifiedShare": 0.85,
+    "distribution": [
+     22,
+     9,
+     2,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "id": "p-battery-70",
+   "name": {
+    "ar": "بطارية 70 أمبير — مقاس H6",
+    "en": "Battery 70 Ah — group H6"
+   },
+   "categoryId": "electrical",
+   "brand": "Voltek",
+   "origin": "aftermarket",
+   "partNumber": "VT-H6-70",
+   "oemReferences": [],
+   "description": {
+    "ar": "بطارية AGM مصممة للحرارة العالية مع ضمان استبدال.",
+    "en": "AGM battery built for high heat, with replacement warranty."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "السعة",
+      "en": "Capacity"
+     },
+     "value": "70 Ah"
+    },
+    {
+     "label": {
+      "ar": "تيار التشغيل",
+      "en": "Cold cranking"
+     },
+     "value": "760 CCA"
+    },
+    {
+     "label": {
+      "ar": "التقنية",
+      "en": "Technology"
+     },
+     "value": "AGM"
+    }
+   ],
+   "universal": {
+    "note": {
+     "ar": "تُختار البطارية حسب المقاس (H6) والقطبية — طابقها مع بطاريتك الحالية.",
+     "en": "Batteries fit by group size (H6) and polarity — match your current battery."
+    }
+   },
+   "fitment": [],
+   "art": "battery",
+   "keywords": [
+    "battery",
+    "بطارية",
+    "h6",
+    "70"
+   ],
+   "rating": {
+    "average": 4.5,
+    "count": 870,
+    "verifiedShare": 0.85,
+    "distribution": [
+     386,
+     387,
+     78,
+     16,
+     3
+    ]
+   }
+  },
+  {
+   "id": "p-battery-100",
+   "name": {
+    "ar": "بطارية 100 أمبير — للمركبات الكبيرة",
+    "en": "Battery 100 Ah — large vehicles"
+   },
+   "categoryId": "electrical",
+   "brand": "Voltek",
+   "origin": "aftermarket",
+   "partNumber": "VT-H8-100",
+   "oemReferences": [],
+   "description": {
+    "ar": "بطارية عالية السعة للمركبات ذات المحركات الكبيرة والأحمال الكهربائية.",
+    "en": "High-capacity battery for large engines and heavy electrical loads."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "السعة",
+      "en": "Capacity"
+     },
+     "value": "100 Ah"
+    },
+    {
+     "label": {
+      "ar": "تيار التشغيل",
+      "en": "Cold cranking"
+     },
+     "value": "900 CCA"
+    }
+   ],
+   "universal": {
+    "note": {
+     "ar": "تُختار البطارية حسب المقاس (H8) والقطبية — طابقها مع بطاريتك الحالية.",
+     "en": "Batteries fit by group size (H8) and polarity — match your current battery."
+    }
+   },
+   "fitment": [],
+   "art": "battery",
+   "keywords": [
+    "battery",
+    "بطارية",
+    "h8",
+    "100"
+   ],
+   "rating": {
+    "average": 4.6,
+    "count": 410,
+    "verifiedShare": 0.85,
+    "distribution": [
+     216,
+     156,
+     31,
+     6,
+     1
+    ]
+   }
+  },
+  {
+   "id": "p-lc-alternator",
+   "name": {
+    "ar": "دينامو — لاند كروزر",
+    "en": "Alternator — Land Cruiser"
+   },
+   "categoryId": "electrical",
+   "brand": "Toyota Genuine",
+   "origin": "oem",
+   "partNumber": "27060-X0380",
+   "oemReferences": [
+    "27060-X0380"
+   ],
+   "description": {
+    "ar": "دينامو أصلي 150 أمبير. متوفر جديد أو مجدد أو مستعمل من بائعين مختلفين.",
+    "en": "Genuine 150 A alternator. Available new, refurbished or used from different sellers."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "الخرج",
+      "en": "Output"
+     },
+     "value": "150 A"
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "land-cruiser",
+     "yearFrom": 2016,
+     "yearTo": 2021,
+     "source": "catalog",
+     "engines": [
+      "4.6L V8",
+      "4.0L V6"
+     ]
+    }
+   ],
+   "art": "alternator",
+   "keywords": [
+    "alternator",
+    "دينامو",
+    "دينمو",
+    "land cruiser"
+   ],
+   "rating": {
+    "average": 4.6,
+    "count": 52,
+    "verifiedShare": 0.85,
+    "distribution": [
+     27,
+     20,
+     4,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "p-camry-headlight",
+   "name": {
+    "ar": "شمعة أمامية LED — كامري",
+    "en": "LED headlight assembly — Camry"
+   },
+   "categoryId": "lighting",
+   "brand": "Lumora",
+   "origin": "aftermarket",
+   "partNumber": "LM-CM21-L",
+   "oemReferences": [
+    "81150-X3B40"
+   ],
+   "description": {
+    "ar": "شمعة أمامية يسار بإضاءة LED وإطار نهاري، جاهزة للتركيب.",
+    "en": "Left LED headlight with daytime running light, plug-and-play."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "الجهة",
+      "en": "Side"
+     },
+     "value": {
+      "ar": "يسار (السائق)",
+      "en": "Left (driver)"
+     }
+    },
+    {
+     "label": {
+      "ar": "التقنية",
+      "en": "Technology"
+     },
+     "value": "LED"
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "camry",
+     "yearFrom": 2021,
+     "yearTo": 2024,
+     "source": "catalog"
+    }
+   ],
+   "art": "headlight",
+   "keywords": [
+    "headlight",
+    "شمعة",
+    "اسطب",
+    "كشاف",
+    "led"
+   ],
+   "rating": {
+    "average": 4.1,
+    "count": 39,
+    "verifiedShare": 0.85,
+    "distribution": [
+     7,
+     26,
+     5,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "p-h11-led",
+   "name": {
+    "ar": "لمبات LED مقاس H11 — زوج",
+    "en": "H11 LED bulbs — pair"
+   },
+   "categoryId": "lighting",
+   "brand": "Lumora",
+   "origin": "aftermarket",
+   "partNumber": "LM-H11-PR",
+   "oemReferences": [],
+   "description": {
+    "ar": "لمبات LED بإضاءة 6000K بيضاء مع مروحة تبريد مدمجة.",
+    "en": "6000K white LED bulbs with an integrated cooling fan."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "المقاس",
+      "en": "Fitting"
+     },
+     "value": "H11"
+    },
+    {
+     "label": {
+      "ar": "حرارة اللون",
+      "en": "Colour temperature"
+     },
+     "value": "6000K"
+    }
+   ],
+   "universal": {
+    "note": {
+     "ar": "تُختار حسب مقاس القاعدة (H11) — راجع دليل سيارتك.",
+     "en": "Fits by base type (H11) — check your owner’s manual."
+    }
+   },
+   "fitment": [],
+   "art": "headlight",
+   "keywords": [
+    "bulb",
+    "h11",
+    "لمبة",
+    "لمبات",
+    "led"
+   ],
+   "rating": {
+    "average": 4,
+    "count": 260,
+    "verifiedShare": 0.85,
+    "distribution": [
+     37,
+     179,
+     36,
+     7,
+     1
+    ]
+   }
+  },
+  {
+   "id": "p-hilux-shock",
+   "name": {
+    "ar": "مساعد أمامي — هايلكس",
+    "en": "Front shock absorber — Hilux"
+   },
+   "categoryId": "suspension",
+   "brand": "Strada",
+   "origin": "aftermarket",
+   "partNumber": "STR-SA4850",
+   "oemReferences": [
+    "48510-X0K50"
+   ],
+   "description": {
+    "ar": "مساعد غازي ثنائي الأنبوب للحمولات والطرق الوعرة.",
+    "en": "Twin-tube gas shock for loads and rough roads."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "الموضع",
+      "en": "Position"
+     },
+     "value": {
+      "ar": "أمامي",
+      "en": "Front"
+     }
+    },
+    {
+     "label": {
+      "ar": "النوع",
+      "en": "Type"
+     },
+     "value": {
+      "ar": "غاز ثنائي الأنبوب",
+      "en": "Twin-tube gas"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "hilux",
+     "yearFrom": 2016,
+     "yearTo": 2025,
+     "source": "catalog"
+    }
+   ],
+   "art": "shock",
+   "keywords": [
+    "shock",
+    "absorber",
+    "مساعد",
+    "مساعدات",
+    "تعليق",
+    "hilux"
+   ],
+   "rating": {
+    "average": 4.3,
+    "count": 112,
+    "verifiedShare": 0.85,
+    "distribution": [
+     32,
+     63,
+     13,
+     3,
+     1
+    ]
+   }
+  },
+  {
+   "id": "p-elantra-strut-oem",
+   "name": {
+    "ar": "مساعد أمامي كامل — إلنترا",
+    "en": "Front strut assembly — Elantra"
+   },
+   "categoryId": "suspension",
+   "brand": "Hyundai Mobis",
+   "origin": "oem",
+   "partNumber": "54650-XAA00",
+   "oemReferences": [
+    "54650-XAA00"
+   ],
+   "description": {
+    "ar": "مساعد أصلي مع الزنبرك والقاعدة جاهز للتركيب.",
+    "en": "Genuine strut complete with spring and mount, ready to fit."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "الموضع",
+      "en": "Position"
+     },
+     "value": {
+      "ar": "أمامي يمين",
+      "en": "Front right"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "elantra",
+     "yearFrom": 2019,
+     "yearTo": 2023,
+     "source": "catalog"
+    }
+   ],
+   "art": "shock",
+   "keywords": [
+    "strut",
+    "مساعد",
+    "تعليق",
+    "elantra"
+   ],
+   "rating": {
+    "average": 4.7,
+    "count": 44,
+    "verifiedShare": 0.85,
+    "distribution": [
+     26,
+     14,
+     3,
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "id": "p-sonata-mirror",
+   "name": {
+    "ar": "مرآة جانبية يسار — سوناتا",
+    "en": "Left side mirror — Sonata"
+   },
+   "categoryId": "body",
+   "brand": "Hyundai Mobis",
+   "origin": "oem",
+   "partNumber": "87610-XL000",
+   "oemReferences": [
+    "87610-XL000"
+   ],
+   "description": {
+    "ar": "مرآة أصلية كهربائية مع إشارة. تتوفر بحالات مختلفة من البائعين.",
+    "en": "Genuine power mirror with indicator. Offered in different conditions by sellers."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "الجهة",
+      "en": "Side"
+     },
+     "value": {
+      "ar": "يسار",
+      "en": "Left"
+     }
+    },
+    {
+     "label": {
+      "ar": "المزايا",
+      "en": "Features"
+     },
+     "value": {
+      "ar": "كهربائية، إشارة، تدفئة",
+      "en": "Power, indicator, heated"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "sonata",
+     "yearFrom": 2020,
+     "yearTo": 2025,
+     "source": "catalog"
+    }
+   ],
+   "art": "mirror",
+   "keywords": [
+    "mirror",
+    "مرآة",
+    "مراية",
+    "sonata"
+   ],
+   "rating": {
+    "average": 4.4,
+    "count": 21,
+    "verifiedShare": 0.85,
+    "distribution": [
+     8,
+     11,
+     2,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "id": "p-hilux-bumper",
+   "name": {
+    "ar": "صدام أمامي — هايلكس",
+    "en": "Front bumper — Hilux"
+   },
+   "categoryId": "body",
+   "brand": "Toyota Genuine",
+   "origin": "oem",
+   "partNumber": "52119-X0K90",
+   "oemReferences": [
+    "52119-X0K90"
+   ],
+   "description": {
+    "ar": "صدام أمامي أصلي غير مطلي، يحتاج دهان بلون السيارة.",
+    "en": "Genuine unpainted front bumper; requires colour-matched paint."
+   },
+   "specs": [
+    {
+     "label": {
+      "ar": "التشطيب",
+      "en": "Finish"
+     },
+     "value": {
+      "ar": "غير مطلي",
+      "en": "Unpainted primer"
+     }
+    },
+    {
+     "label": {
+      "ar": "الحجم",
+      "en": "Size"
+     },
+     "value": {
+      "ar": "كبير — شحن خاص",
+      "en": "Large — freight"
+     }
+    }
+   ],
+   "fitment": [
+    {
+     "modelId": "hilux",
+     "yearFrom": 2021,
+     "yearTo": 2025,
+     "source": "catalog"
+    }
+   ],
+   "art": "bumper",
+   "keywords": [
+    "bumper",
+    "صدام",
+    "hilux"
+   ],
+   "rating": null
+  }
+ ],
+ "sellers": [
+  {
+   "id": "s-riyadh-center",
+   "name": {
+    "ar": "مركز الرياض لقطع الغيار",
+    "en": "Riyadh Parts Center"
+   },
+   "city": "riyadh",
+   "verifiedBusiness": true,
+   "joinedYear": 2021,
+   "responseHours": 1,
+   "supportsWorkshopDelivery": true,
+   "freeShippingOver": 400,
+   "specialty": {
+    "ar": "قطع أصلية لتويوتا ولكزس",
+    "en": "Genuine Toyota & Lexus parts"
+   }
+  },
+  {
+   "id": "s-eastern",
+   "name": {
+    "ar": "قطع الشرقية",
+    "en": "Eastern Parts Co."
+   },
+   "city": "dammam",
+   "verifiedBusiness": true,
+   "joinedYear": 2022,
+   "responseHours": 3,
+   "supportsWorkshopDelivery": true,
+   "specialty": {
+    "ar": "قطع بديلة لجميع الماركات",
+    "en": "Aftermarket parts, all makes"
+   }
+  },
+  {
+   "id": "s-brake-house",
+   "name": {
+    "ar": "بيت الفرامل",
+    "en": "Brake House"
+   },
+   "city": "jeddah",
+   "verifiedBusiness": true,
+   "joinedYear": 2022,
+   "responseHours": 2,
+   "supportsWorkshopDelivery": true,
+   "freeShippingOver": 300,
+   "specialty": {
+    "ar": "متخصصون في أنظمة الفرامل والتعليق",
+    "en": "Brake & suspension specialists"
+   }
+  },
+  {
+   "id": "s-salvage",
+   "name": {
+    "ar": "سوق التشليح المعتمد",
+    "en": "Certified Salvage Market"
+   },
+   "city": "riyadh",
+   "verifiedBusiness": true,
+   "joinedYear": 2023,
+   "responseHours": 5,
+   "supportsWorkshopDelivery": false,
+   "specialty": {
+    "ar": "قطع مستعملة ومجددة مفحوصة",
+    "en": "Inspected used & refurbished parts"
+   }
+  },
+  {
+   "id": "s-elite-oils",
+   "name": {
+    "ar": "النخبة للزيوت والفلاتر",
+    "en": "Elite Oils & Filters"
+   },
+   "city": "khobar",
+   "verifiedBusiness": true,
+   "joinedYear": 2021,
+   "responseHours": 2,
+   "supportsWorkshopDelivery": true,
+   "freeShippingOver": 250,
+   "specialty": {
+    "ar": "زيوت وفلاتر ومستلزمات الصيانة الدورية",
+    "en": "Oils, filters & routine service"
+   }
+  },
+  {
+   "id": "s-quickfix",
+   "name": {
+    "ar": "متجر الصيانة السريعة",
+    "en": "QuickFix Store"
+   },
+   "city": "madinah",
+   "verifiedBusiness": false,
+   "joinedYear": 2026,
+   "responseHours": 6,
+   "supportsWorkshopDelivery": true,
+   "specialty": {
+    "ar": "كهرباء وإضاءة",
+    "en": "Electrical & lighting"
+   }
+  }
+ ],
+ "offers": [
+  {
+   "id": "o-001",
+   "productId": "p-camry-pads-oem",
+   "sellerId": "s-riyadh-center",
+   "price": 389,
+   "stock": 14,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-002",
+   "productId": "p-camry-pads-oem",
+   "sellerId": "s-brake-house",
+   "price": 365,
+   "compareAtPrice": 410,
+   "stock": 3,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-003",
+   "productId": "p-camry-pads-oem",
+   "sellerId": "s-eastern",
+   "price": 372,
+   "stock": 8,
+   "condition": "new",
+   "warrantyMonths": 6,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express"
+   ]
+  },
+  {
+   "id": "o-004",
+   "productId": "p-camry-pads-ceramic",
+   "sellerId": "s-brake-house",
+   "price": 219,
+   "stock": 22,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-005",
+   "productId": "p-camry-pads-ceramic",
+   "sellerId": "s-eastern",
+   "price": 205,
+   "stock": 6,
+   "condition": "new",
+   "warrantyMonths": 6,
+   "dispatchDays": [
+    1,
+    3
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-006",
+   "productId": "p-camry-pads-ceramic",
+   "sellerId": "s-quickfix",
+   "price": 189,
+   "stock": 2,
+   "condition": "new",
+   "warrantyMonths": 3,
+   "dispatchDays": [
+    2,
+    3
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-007",
+   "productId": "p-lc-rotor-oem",
+   "sellerId": "s-riyadh-center",
+   "price": 745,
+   "stock": 5,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-008",
+   "productId": "p-lc-rotor-oem",
+   "sellerId": "s-salvage",
+   "price": 380,
+   "stock": 1,
+   "condition": "used",
+   "warrantyMonths": 1,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard",
+    "sameDay"
+   ],
+   "note": {
+    "ar": "مفحوص — سماكة ضمن الحد المسموح",
+    "en": "Inspected — thickness within spec"
+   }
+  },
+  {
+   "id": "o-009",
+   "productId": "p-lc-rotor-slotted",
+   "sellerId": "s-brake-house",
+   "price": 520,
+   "compareAtPrice": 590,
+   "stock": 9,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-010",
+   "productId": "p-lc-rotor-slotted",
+   "sellerId": "s-eastern",
+   "price": 498,
+   "stock": 0,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    2,
+    4
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-011",
+   "productId": "p-tahoe-pads-rear",
+   "sellerId": "s-brake-house",
+   "price": 265,
+   "stock": 11,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-012",
+   "productId": "p-tahoe-pads-rear",
+   "sellerId": "s-eastern",
+   "price": 249,
+   "stock": 4,
+   "condition": "new",
+   "warrantyMonths": 6,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express"
+   ]
+  },
+  {
+   "id": "o-013",
+   "productId": "p-toyota-oil-filter",
+   "sellerId": "s-riyadh-center",
+   "price": 38,
+   "stock": 120,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-014",
+   "productId": "p-toyota-oil-filter",
+   "sellerId": "s-elite-oils",
+   "price": 34,
+   "stock": 300,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-015",
+   "productId": "p-toyota-oil-filter",
+   "sellerId": "s-eastern",
+   "price": 36,
+   "stock": 45,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-016",
+   "productId": "p-oil-filter-kanzen",
+   "sellerId": "s-elite-oils",
+   "price": 27,
+   "stock": 180,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-017",
+   "productId": "p-oil-filter-kanzen",
+   "sellerId": "s-quickfix",
+   "price": 24,
+   "stock": 12,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    1,
+    3
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-018",
+   "productId": "p-camry-air-filter",
+   "sellerId": "s-riyadh-center",
+   "price": 79,
+   "stock": 40,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-019",
+   "productId": "p-camry-air-filter",
+   "sellerId": "s-elite-oils",
+   "price": 72,
+   "stock": 65,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-020",
+   "productId": "p-cabin-filter-hk",
+   "sellerId": "s-elite-oils",
+   "price": 59,
+   "compareAtPrice": 75,
+   "stock": 90,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-021",
+   "productId": "p-cabin-filter-hk",
+   "sellerId": "s-eastern",
+   "price": 55,
+   "stock": 30,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-022",
+   "productId": "p-cabin-filter-hk",
+   "sellerId": "s-quickfix",
+   "price": 49,
+   "stock": 7,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    2,
+    3
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-023",
+   "productId": "p-patrol-air-filter",
+   "sellerId": "s-elite-oils",
+   "price": 95,
+   "stock": 25,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-024",
+   "productId": "p-patrol-air-filter",
+   "sellerId": "s-eastern",
+   "price": 89,
+   "stock": 10,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-025",
+   "productId": "p-oil-5w30",
+   "sellerId": "s-elite-oils",
+   "price": 149,
+   "compareAtPrice": 175,
+   "stock": 220,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-026",
+   "productId": "p-oil-5w30",
+   "sellerId": "s-eastern",
+   "price": 155,
+   "stock": 60,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-027",
+   "productId": "p-oil-5w30",
+   "sellerId": "s-riyadh-center",
+   "price": 159,
+   "stock": 34,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-028",
+   "productId": "p-oil-0w20-oem",
+   "sellerId": "s-riyadh-center",
+   "price": 135,
+   "stock": 80,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-029",
+   "productId": "p-oil-0w20-oem",
+   "sellerId": "s-elite-oils",
+   "price": 129,
+   "stock": 140,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-030",
+   "productId": "p-coolant",
+   "sellerId": "s-elite-oils",
+   "price": 45,
+   "stock": 150,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-031",
+   "productId": "p-coolant",
+   "sellerId": "s-quickfix",
+   "price": 42,
+   "stock": 18,
+   "condition": "new",
+   "warrantyMonths": 0,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-032",
+   "productId": "p-spark-iridium",
+   "sellerId": "s-eastern",
+   "price": 168,
+   "stock": 26,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-033",
+   "productId": "p-spark-iridium",
+   "sellerId": "s-elite-oils",
+   "price": 175,
+   "stock": 40,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-034",
+   "productId": "p-spark-iridium",
+   "sellerId": "s-quickfix",
+   "price": 152,
+   "stock": 5,
+   "condition": "new",
+   "warrantyMonths": 6,
+   "dispatchDays": [
+    2,
+    3
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-035",
+   "productId": "p-f150-belt",
+   "sellerId": "s-eastern",
+   "price": 139,
+   "stock": 7,
+   "condition": "new",
+   "warrantyMonths": 6,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-036",
+   "productId": "p-accent-water-pump",
+   "sellerId": "s-eastern",
+   "price": 215,
+   "stock": 9,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-037",
+   "productId": "p-accent-water-pump",
+   "sellerId": "s-salvage",
+   "price": 95,
+   "stock": 2,
+   "condition": "used",
+   "warrantyMonths": 1,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-038",
+   "productId": "p-patrol-radiator",
+   "sellerId": "s-riyadh-center",
+   "price": 1890,
+   "stock": 2,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    1,
+    3
+   ],
+   "deliveryOptions": [
+    "freight"
+   ]
+  },
+  {
+   "id": "o-039",
+   "productId": "p-patrol-radiator",
+   "sellerId": "s-salvage",
+   "price": 890,
+   "stock": 1,
+   "condition": "refurbished",
+   "warrantyMonths": 3,
+   "dispatchDays": [
+    2,
+    4
+   ],
+   "deliveryOptions": [
+    "freight"
+   ],
+   "note": {
+    "ar": "مجدد — تم اختبار الضغط",
+    "en": "Refurbished — pressure tested"
+   }
+  },
+  {
+   "id": "o-040",
+   "productId": "p-battery-70",
+   "sellerId": "s-quickfix",
+   "price": 435,
+   "stock": 6,
+   "condition": "new",
+   "warrantyMonths": 18,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-041",
+   "productId": "p-battery-70",
+   "sellerId": "s-eastern",
+   "price": 459,
+   "stock": 20,
+   "condition": "new",
+   "warrantyMonths": 24,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-042",
+   "productId": "p-battery-70",
+   "sellerId": "s-elite-oils",
+   "price": 449,
+   "stock": 15,
+   "condition": "new",
+   "warrantyMonths": 18,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-043",
+   "productId": "p-battery-100",
+   "sellerId": "s-eastern",
+   "price": 649,
+   "stock": 8,
+   "condition": "new",
+   "warrantyMonths": 24,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-044",
+   "productId": "p-battery-100",
+   "sellerId": "s-quickfix",
+   "price": 615,
+   "stock": 2,
+   "condition": "new",
+   "warrantyMonths": 18,
+   "dispatchDays": [
+    1,
+    3
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-045",
+   "productId": "p-lc-alternator",
+   "sellerId": "s-riyadh-center",
+   "price": 2450,
+   "stock": 2,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-046",
+   "productId": "p-lc-alternator",
+   "sellerId": "s-salvage",
+   "price": 1150,
+   "stock": 1,
+   "condition": "refurbished",
+   "warrantyMonths": 6,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-047",
+   "productId": "p-lc-alternator",
+   "sellerId": "s-salvage",
+   "price": 690,
+   "stock": 1,
+   "condition": "used",
+   "warrantyMonths": 1,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard"
+   ],
+   "note": {
+    "ar": "مستعمل — مسافة تقريبية 90 ألف كم",
+    "en": "Used — approx. 90,000 km"
+   }
+  },
+  {
+   "id": "o-048",
+   "productId": "p-camry-headlight",
+   "sellerId": "s-quickfix",
+   "price": 980,
+   "stock": 3,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    2,
+    4
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-049",
+   "productId": "p-camry-headlight",
+   "sellerId": "s-eastern",
+   "price": 1040,
+   "stock": 5,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-050",
+   "productId": "p-h11-led",
+   "sellerId": "s-quickfix",
+   "price": 119,
+   "stock": 30,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-051",
+   "productId": "p-h11-led",
+   "sellerId": "s-eastern",
+   "price": 129,
+   "stock": 14,
+   "condition": "new",
+   "warrantyMonths": 6,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-052",
+   "productId": "p-hilux-shock",
+   "sellerId": "s-brake-house",
+   "price": 329,
+   "stock": 12,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-053",
+   "productId": "p-hilux-shock",
+   "sellerId": "s-eastern",
+   "price": 309,
+   "stock": 4,
+   "condition": "new",
+   "warrantyMonths": 6,
+   "dispatchDays": [
+    1,
+    3
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-054",
+   "productId": "p-elantra-strut-oem",
+   "sellerId": "s-eastern",
+   "price": 690,
+   "stock": 3,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard",
+    "express",
+    "sameDay"
+   ]
+  },
+  {
+   "id": "o-055",
+   "productId": "p-elantra-strut-oem",
+   "sellerId": "s-salvage",
+   "price": 320,
+   "stock": 1,
+   "condition": "used",
+   "warrantyMonths": 1,
+   "dispatchDays": [
+    1,
+    2
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-056",
+   "productId": "p-sonata-mirror",
+   "sellerId": "s-salvage",
+   "price": 540,
+   "stock": 2,
+   "condition": "used",
+   "warrantyMonths": 1,
+   "dispatchDays": [
+    0,
+    1
+   ],
+   "deliveryOptions": [
+    "standard",
+    "sameDay"
+   ],
+   "note": {
+    "ar": "خدوش بسيطة على الغطاء",
+    "en": "Minor scuffs on the cover"
+   }
+  },
+  {
+   "id": "o-057",
+   "productId": "p-sonata-mirror",
+   "sellerId": "s-eastern",
+   "price": 1180,
+   "stock": 2,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    2,
+    4
+   ],
+   "deliveryOptions": [
+    "standard"
+   ]
+  },
+  {
+   "id": "o-058",
+   "productId": "p-hilux-bumper",
+   "sellerId": "s-riyadh-center",
+   "price": 1320,
+   "stock": 1,
+   "condition": "new",
+   "warrantyMonths": 12,
+   "dispatchDays": [
+    1,
+    3
+   ],
+   "deliveryOptions": [
+    "freight"
+   ]
+  }
+ ]
+}

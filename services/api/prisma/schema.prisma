@@ -1,0 +1,1049 @@
+// Qitah marketplace — single source of truth.
+// Money is always integer SAR halalas (minor units). Prices are VAT-inclusive.
+// Additional CHECK constraints live in migrations (see *_constraints/migration.sql).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────────────────────── identity & access
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum PlatformRole {
+  OPS_AGENT
+  OPS_ADMIN
+  FINANCE
+}
+
+enum MerchantRole {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum MemberStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id           String     @id @default(cuid())
+  phone        String?    @unique
+  email        String?    @unique
+  name         String?
+  passwordHash String?
+  cognitoSub   String?    @unique
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  platformRoles PlatformRoleAssignment[]
+  memberships   MerchantMember[]
+  sessions      AuthSession[]
+  vehicles      GarageVehicle[]
+  addresses     Address[]
+  cart          Cart?
+  orders        Order[]
+  returnCases   ReturnCase[]
+  notifications Notification[]
+}
+
+model PlatformRoleAssignment {
+  id        String       @id @default(cuid())
+  userId    String
+  role      PlatformRole
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+model AuthSession {
+  id               String    @id @default(cuid())
+  userId           String
+  refreshTokenHash String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  userAgent        String?
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+// ───────────────────────────────────────────── vehicles
+
+model VehicleMake {
+  id     String         @id
+  nameAr String
+  nameEn String
+  models VehicleModel[]
+}
+
+model VehicleModel {
+  id       String           @id
+  makeId   String
+  nameAr   String
+  nameEn   String
+  yearFrom Int
+  yearTo   Int
+  trims    String[]
+  engines  String[]
+  make     VehicleMake      @relation(fields: [makeId], references: [id])
+  fitments ProductFitment[]
+  garage   GarageVehicle[]
+
+  @@index([makeId])
+}
+
+model GarageVehicle {
+  id        String       @id @default(cuid())
+  userId    String
+  modelId   String
+  year      Int
+  trim      String
+  engine    String
+  vin       String?
+  createdAt DateTime     @default(now())
+  deletedAt DateTime?
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  model     VehicleModel @relation(fields: [modelId], references: [id])
+
+  @@index([userId, deletedAt])
+}
+
+// ───────────────────────────────────────────── catalog
+
+enum PartOrigin {
+  OEM
+  AFTERMARKET
+}
+
+enum Handling {
+  STANDARD
+  FRAGILE
+  OVERSIZED
+  HAZMAT
+}
+
+enum ProductStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+}
+
+enum IdentifierType {
+  MPN
+  OEM
+  EAN
+}
+
+enum FitmentSource {
+  CATALOG
+  SELLER
+}
+
+model Category {
+  id       String    @id
+  nameAr   String
+  nameEn   String
+  art      String
+  sort     Int       @default(0)
+  products Product[]
+}
+
+model Product {
+  id                  String        @id @default(cuid())
+  nameAr              String
+  nameEn              String
+  descriptionAr       String        @default("")
+  descriptionEn       String        @default("")
+  categoryId          String
+  brand               String
+  origin              PartOrigin
+  partNumber          String
+  art                 String        @default("pump")
+  keywords            String[]
+  /// Normalised Arabic/Latin text (names, brand, keywords, part numbers) for search.
+  searchText          String        @default("")
+  specs               Json          @default("[]")
+  universalNoteAr     String?
+  universalNoteEn     String?
+  weightGrams         Int
+  lengthCm            Int
+  widthCm             Int
+  heightCm            Int
+  handling            Handling      @default(STANDARD)
+  status              ProductStatus @default(ACTIVE)
+  createdByMerchantId String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  category    Category            @relation(fields: [categoryId], references: [id])
+  identifiers ProductIdentifier[]
+  fitments    ProductFitment[]
+  offers      Offer[]
+
+  @@index([categoryId, status])
+  @@index([partNumber])
+}
+
+model ProductIdentifier {
+  id         String         @id @default(cuid())
+  productId  String
+  type       IdentifierType
+  value      String
+  normalized String
+  brand      String?
+  product    Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, type, normalized])
+  @@index([normalized])
+}
+
+model ProductFitment {
+  id                  String        @id @default(cuid())
+  productId           String
+  modelId             String
+  yearFrom            Int
+  yearTo              Int
+  engines             String[]
+  source              FitmentSource
+  createdByMerchantId String?
+  createdAt           DateTime      @default(now())
+  product             Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  model               VehicleModel  @relation(fields: [modelId], references: [id])
+
+  @@index([productId])
+  @@index([modelId, yearFrom, yearTo])
+}
+
+// ───────────────────────────────────────────── merchants
+
+enum MerchantStatus {
+  APPLIED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Merchant {
+  id                       String         @id @default(cuid())
+  legalName                String
+  displayNameAr            String
+  displayNameEn            String
+  crNumber                 String         @unique
+  vatNumber                String?
+  city                     String
+  specialtyAr              String         @default("")
+  specialtyEn              String         @default("")
+  contactEmail             String
+  contactPhone             String
+  status                   MerchantStatus @default(APPLIED)
+  commissionBps            Int            @default(1000)
+  supportsWorkshopDelivery Boolean        @default(true)
+  slaAcceptMinutes         Int            @default(240)
+  slaReadyMinutes          Int            @default(1440)
+  statusReason             String?
+  approvedAt               DateTime?
+  approvedById             String?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  verifications  MerchantVerification[]
+  members        MerchantMember[]
+  locations      PickupLocation[]
+  offers         Offer[]
+  merchantOrders MerchantOrder[]
+  settlements    Settlement[]
+  ledgerEntries  LedgerEntry[]
+  returnCases    ReturnCase[]
+
+  @@index([status])
+}
+
+model MerchantVerification {
+  id           String             @id @default(cuid())
+  merchantId   String
+  status       VerificationStatus @default(PENDING)
+  documents    Json               @default("[]")
+  notes        String?
+  reviewNote   String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime           @default(now())
+  merchant     Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+}
+
+model MerchantMember {
+  id         String       @id @default(cuid())
+  merchantId String
+  userId     String
+  role       MerchantRole
+  status     MemberStatus @default(ACTIVE)
+  createdAt  DateTime     @default(now())
+  merchant   Merchant     @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, userId])
+  @@index([userId])
+}
+
+model PickupLocation {
+  id           String          @id @default(cuid())
+  merchantId   String
+  name         String
+  city         String
+  district     String
+  street       String
+  contactPhone String
+  latitude     Float?
+  longitude    Float?
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  merchant     Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  offers       Offer[]
+  groups       FulfillmentGroup[]
+  shipments    Shipment[]
+
+  @@index([merchantId])
+}
+
+// ───────────────────────────────────────────── offers & inventory
+
+enum Condition {
+  NEW
+  USED
+  REFURBISHED
+}
+
+enum OfferStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum ReservationStatus {
+  ACTIVE
+  COMMITTED
+  RELEASED
+}
+
+enum AdjustmentReason {
+  INITIAL
+  RESTOCK
+  CORRECTION
+  DAMAGE
+  SALE
+  CANCELLATION_RESTOCK
+  RETURN_RESTOCK
+  IMPORT
+}
+
+model Offer {
+  id               String      @id @default(cuid())
+  merchantId       String
+  productId        String
+  locationId       String
+  sku              String
+  condition        Condition   @default(NEW)
+  priceHalalas     Int
+  compareAtHalalas Int?
+  warrantyMonths   Int         @default(0)
+  dispatchDaysMin  Int         @default(0)
+  dispatchDaysMax  Int         @default(1)
+  noteAr           String?
+  noteEn           String?
+  status           OfferStatus @default(ACTIVE)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  merchant     Merchant               @relation(fields: [merchantId], references: [id])
+  product      Product                @relation(fields: [productId], references: [id])
+  location     PickupLocation         @relation(fields: [locationId], references: [id])
+  inventory    InventoryLevel?
+  reservations InventoryReservation[]
+  adjustments  InventoryAdjustment[]
+  orderItems   OrderItem[]
+  cartItems    CartItem[]
+
+  @@unique([merchantId, sku])
+  @@index([productId, status])
+  @@index([merchantId, status])
+}
+
+/// available = onHand - reserved. Both guarded by CHECK constraints.
+model InventoryLevel {
+  offerId   String   @id
+  onHand    Int      @default(0)
+  reserved  Int      @default(0)
+  updatedAt DateTime @updatedAt
+  offer     Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+}
+
+model InventoryReservation {
+  id          String            @id @default(cuid())
+  offerId     String
+  orderId     String
+  orderItemId String            @unique
+  quantity    Int
+  status      ReservationStatus @default(ACTIVE)
+  expiresAt   DateTime
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  offer       Offer             @relation(fields: [offerId], references: [id])
+  order       Order             @relation(fields: [orderId], references: [id])
+
+  @@index([status, expiresAt])
+  @@index([orderId])
+}
+
+model InventoryAdjustment {
+  id          String           @id @default(cuid())
+  offerId     String
+  delta       Int
+  onHandAfter Int
+  reason      AdjustmentReason
+  note        String?
+  refType     String?
+  refId       String?
+  actorUserId String?
+  createdAt   DateTime         @default(now())
+  offer       Offer            @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@index([offerId, createdAt])
+}
+
+// ───────────────────────────────────────────── customers
+
+enum AddressKind {
+  HOME
+  WORKSHOP
+}
+
+model Address {
+  id           String      @id @default(cuid())
+  userId       String
+  kind         AddressKind
+  label        String
+  city         String
+  district     String
+  street       String
+  details      String?
+  contactName  String
+  phone        String
+  workshopName String?
+  createdAt    DateTime    @default(now())
+  deletedAt    DateTime?
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deletedAt])
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+}
+
+model CartItem {
+  id       String @id @default(cuid())
+  cartId   String
+  offerId  String
+  quantity Int
+  cart     Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  offer    Offer  @relation(fields: [offerId], references: [id])
+
+  @@unique([cartId, offerId])
+}
+
+// ───────────────────────────────────────────── checkout & shipping quotes
+
+/// Server-computed, priced checkout option. Checkout must reference an unexpired plan.
+model CheckoutPlan {
+  id             String   @id @default(cuid())
+  userId         String
+  addressId      String
+  strategy       String
+  plan           Json
+  itemsHalalas   Int
+  shippingHalalas Int
+  totalHalalas   Int
+  sandboxRates   Boolean
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model ShippingQuote {
+  id               String   @id @default(cuid())
+  carrierCode      String
+  serviceCode      String
+  originLocationId String
+  destinationCity  String
+  weightGrams      Int
+  parcels          Json
+  amountHalalas    Int
+  etaDaysMin       Int
+  etaDaysMax       Int
+  sandbox          Boolean
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+}
+
+// ───────────────────────────────────────────── orders
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  IN_FULFILLMENT
+  PARTIALLY_SHIPPED
+  SHIPPED
+  PARTIALLY_DELIVERED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  PAYMENT_FAILED
+  EXPIRED
+}
+
+enum MerchantOrderStatus {
+  PENDING_PAYMENT
+  NEW
+  ACCEPTED
+  PACKING
+  READY_FOR_PICKUP
+  HANDED_OVER
+  DELIVERED
+  REJECTED
+  CANCELLED
+}
+
+enum OrderItemStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model Order {
+  id               String      @id @default(cuid())
+  number           String      @unique
+  customerId       String
+  status           OrderStatus @default(PENDING_PAYMENT)
+  idempotencyKey   String
+  checkoutPlanId   String?     @unique
+  addressSnapshot  Json
+  vehicleSnapshot  Json?
+  paymentMethod    String
+  itemsHalalas     Int
+  shippingHalalas  Int
+  discountHalalas  Int         @default(0)
+  totalHalalas     Int
+  vatHalalas       Int
+  refundedHalalas  Int         @default(0)
+  currency         String      @default("SAR")
+  sandbox          Boolean     @default(true)
+  paymentExpiresAt DateTime
+  paidAt           DateTime?
+  cancelledAt      DateTime?
+  cancelReason     String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  customer       User                   @relation(fields: [customerId], references: [id])
+  merchantOrders MerchantOrder[]
+  items          OrderItem[]
+  groups         FulfillmentGroup[]
+  shipments      Shipment[]
+  payments       Payment[]
+  refunds        Refund[]
+  returnCases    ReturnCase[]
+  reservations   InventoryReservation[]
+  ledgerEntries  LedgerEntry[]
+
+  @@unique([customerId, idempotencyKey])
+  @@index([status, createdAt])
+  @@index([customerId, createdAt])
+}
+
+model MerchantOrder {
+  id                String              @id @default(cuid())
+  number            String              @unique
+  orderId           String
+  merchantId        String
+  status            MerchantOrderStatus @default(PENDING_PAYMENT)
+  itemsHalalas      Int
+  shippingHalalas   Int
+  commissionBps     Int
+  commissionHalalas Int
+  acceptBy          DateTime?
+  readyBy           DateTime?
+  acceptedAt        DateTime?
+  readyAt           DateTime?
+  handedOverAt      DateTime?
+  deliveredAt       DateTime?
+  rejectedReason    String?
+  slaBreached       Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  order          Order              @relation(fields: [orderId], references: [id])
+  merchant       Merchant           @relation(fields: [merchantId], references: [id])
+  items          OrderItem[]
+  groups         FulfillmentGroup[]
+  shipments      Shipment[]
+  returnCases    ReturnCase[]
+  settlementLine SettlementLine?
+
+  @@index([merchantId, status, createdAt])
+  @@index([orderId])
+}
+
+model OrderItem {
+  id                 String          @id @default(cuid())
+  orderId            String
+  merchantOrderId    String
+  fulfillmentGroupId String
+  offerId            String
+  productId          String
+  quantity           Int
+  unitPriceHalalas   Int
+  lineTotalHalalas   Int
+  productNameAr      String
+  productNameEn      String
+  partNumber         String
+  condition          Condition
+  art                String
+  status             OrderItemStatus @default(ACTIVE)
+  createdAt          DateTime        @default(now())
+
+  order         Order            @relation(fields: [orderId], references: [id])
+  merchantOrder MerchantOrder    @relation(fields: [merchantOrderId], references: [id])
+  group         FulfillmentGroup @relation(fields: [fulfillmentGroupId], references: [id])
+  offer         Offer            @relation(fields: [offerId], references: [id])
+  returnItems   ReturnItem[]
+
+  @@index([orderId])
+  @@index([merchantOrderId])
+}
+
+/// A shipping group: items from ONE pickup location to ONE destination that can travel together.
+model FulfillmentGroup {
+  id               String   @id @default(cuid())
+  orderId          String
+  merchantOrderId  String
+  originLocationId String
+  carrierCode      String
+  serviceCode      String
+  quoteId          String?
+  quotedHalalas    Int
+  etaDaysMin       Int
+  etaDaysMax       Int
+  weightGrams      Int
+  handling         Handling
+  createdAt        DateTime @default(now())
+
+  order          Order          @relation(fields: [orderId], references: [id])
+  merchantOrder  MerchantOrder  @relation(fields: [merchantOrderId], references: [id])
+  originLocation PickupLocation @relation(fields: [originLocationId], references: [id])
+  items          OrderItem[]
+  shipments      Shipment[]
+
+  @@index([orderId])
+}
+
+// ───────────────────────────────────────────── shipping
+
+enum ShipmentDirection {
+  OUTBOUND
+  RETURN
+}
+
+enum ShipmentStatus {
+  PENDING
+  LABEL_CREATED
+  PICKUP_SCHEDULED
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  PICKUP_FAILED
+  DELIVERY_FAILED
+  EXCEPTION
+  CANCELLED
+  RETURNED_TO_SENDER
+}
+
+enum EventSource {
+  CARRIER
+  OPS
+  MERCHANT
+  SYSTEM
+}
+
+model Shipment {
+  id                 String            @id @default(cuid())
+  orderId            String
+  merchantOrderId    String
+  fulfillmentGroupId String?
+  returnCaseId       String?
+  originLocationId   String
+  direction          ShipmentDirection @default(OUTBOUND)
+  carrierCode        String
+  serviceCode        String
+  sandbox            Boolean
+  status             ShipmentStatus    @default(PENDING)
+  trackingNumber     String?           @unique
+  carrierShipmentId  String?
+  labelUrl           String?
+  pickupWindowStart  DateTime?
+  pickupWindowEnd    DateTime?
+  weightGrams        Int
+  costHalalas        Int
+  exceptionReason    String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  order          Order             @relation(fields: [orderId], references: [id])
+  merchantOrder  MerchantOrder     @relation(fields: [merchantOrderId], references: [id])
+  group          FulfillmentGroup? @relation(fields: [fulfillmentGroupId], references: [id])
+  returnCase     ReturnCase?       @relation(fields: [returnCaseId], references: [id])
+  originLocation PickupLocation    @relation(fields: [originLocationId], references: [id])
+  events         ShipmentEvent[]
+
+  @@index([status, updatedAt])
+  @@index([orderId])
+  @@index([merchantOrderId])
+}
+
+model ShipmentEvent {
+  id              String         @id @default(cuid())
+  shipmentId      String
+  status          ShipmentStatus
+  description     String
+  location        String?
+  source          EventSource
+  externalEventId String?        @unique
+  actorUserId     String?
+  occurredAt      DateTime
+  createdAt       DateTime       @default(now())
+  shipment        Shipment       @relation(fields: [shipmentId], references: [id])
+
+  @@index([shipmentId, occurredAt])
+}
+
+// ───────────────────────────────────────────── payments
+
+enum PaymentStatus {
+  INITIATED
+  CAPTURED
+  FAILED
+  CANCELLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+enum RefundStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  orderId           String
+  provider          String
+  providerPaymentId String?
+  status            PaymentStatus @default(INITIATED)
+  method            String
+  amountHalalas     Int
+  capturedHalalas   Int           @default(0)
+  refundedHalalas   Int           @default(0)
+  sandbox           Boolean
+  redirectUrl       String?
+  failureReason     String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  order   Order          @relation(fields: [orderId], references: [id])
+  events  PaymentEvent[]
+  refunds Refund[]
+
+  @@unique([provider, providerPaymentId])
+  @@index([orderId])
+}
+
+model PaymentEvent {
+  id              String   @id @default(cuid())
+  provider        String
+  providerEventId String
+  paymentId       String?
+  type            String
+  payload         Json
+  outcome         String
+  createdAt       DateTime @default(now())
+  payment         Payment? @relation(fields: [paymentId], references: [id])
+
+  @@unique([provider, providerEventId])
+}
+
+model Refund {
+  id               String       @id @default(cuid())
+  paymentId        String
+  orderId          String
+  returnCaseId     String?
+  amountHalalas    Int
+  reason           String
+  status           RefundStatus @default(PENDING)
+  providerRefundId String?
+  /// Per-merchant split used for ledger postings: [{merchantId, merchantOrderId, items, commission, shipping}]
+  allocation       Json         @default("[]")
+  failureReason    String?
+  idempotencyKey   String       @unique
+  createdById      String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  payment    Payment     @relation(fields: [paymentId], references: [id])
+  order      Order       @relation(fields: [orderId], references: [id])
+  returnCase ReturnCase? @relation(fields: [returnCaseId], references: [id])
+
+  @@index([orderId])
+}
+
+// ───────────────────────────────────────────── returns
+
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  IN_TRANSIT
+  RECEIVED
+  REFUNDED
+  CLOSED
+}
+
+model ReturnCase {
+  id              String       @id @default(cuid())
+  number          String       @unique
+  orderId         String
+  merchantOrderId String
+  merchantId      String
+  customerId      String
+  status          ReturnStatus @default(REQUESTED)
+  reason          String
+  customerNote    String?
+  decisionNote    String?
+  inspectionNote  String?
+  restock         Boolean      @default(false)
+  refundHalalas   Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  order         Order         @relation(fields: [orderId], references: [id])
+  merchantOrder MerchantOrder @relation(fields: [merchantOrderId], references: [id])
+  merchant      Merchant      @relation(fields: [merchantId], references: [id])
+  customer      User          @relation(fields: [customerId], references: [id])
+  items         ReturnItem[]
+  shipments     Shipment[]
+  refunds       Refund[]
+
+  @@index([merchantId, status])
+  @@index([orderId])
+}
+
+model ReturnItem {
+  id           String     @id @default(cuid())
+  returnCaseId String
+  orderItemId  String
+  quantity     Int
+  returnCase   ReturnCase @relation(fields: [returnCaseId], references: [id], onDelete: Cascade)
+  orderItem    OrderItem  @relation(fields: [orderItemId], references: [id])
+
+  @@unique([returnCaseId, orderItemId])
+}
+
+// ───────────────────────────────────────────── finance
+
+enum LedgerAccount {
+  CUSTOMER_CLEARING
+  MERCHANT_PAYABLE
+  PLATFORM_COMMISSION
+  SHIPPING_PAYABLE
+  PAYOUTS
+  SUSPENSE
+}
+
+enum SettlementStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+/// Immutable double-entry ledger: every posting's lines sum to zero.
+model LedgerEntry {
+  id              String        @id @default(cuid())
+  postingId       String
+  postingType     String
+  account         LedgerAccount
+  amountHalalas   Int
+  orderId         String?
+  merchantId      String?
+  merchantOrderId String?
+  refType         String
+  refId           String
+  createdAt       DateTime      @default(now())
+
+  order    Order?    @relation(fields: [orderId], references: [id])
+  merchant Merchant? @relation(fields: [merchantId], references: [id])
+
+  @@index([postingId])
+  @@index([merchantId, account])
+  @@index([orderId])
+}
+
+/// Guards posting idempotency: one posting per (type, ref).
+model LedgerPosting {
+  id        String   @id @default(cuid())
+  type      String
+  refId     String
+  createdAt DateTime @default(now())
+
+  @@unique([type, refId])
+}
+
+model Settlement {
+  id                String           @id @default(cuid())
+  merchantId        String
+  status            SettlementStatus @default(DRAFT)
+  grossHalalas      Int
+  commissionHalalas Int
+  refundsHalalas    Int
+  netHalalas        Int
+  payoutReference   String?
+  approvedById      String?
+  approvedAt        DateTime?
+  paidAt            DateTime?
+  createdAt         DateTime         @default(now())
+
+  merchant Merchant         @relation(fields: [merchantId], references: [id])
+  lines    SettlementLine[]
+
+  @@index([merchantId, status])
+}
+
+model SettlementLine {
+  id                String        @id @default(cuid())
+  settlementId      String
+  merchantOrderId   String        @unique
+  grossHalalas      Int
+  commissionHalalas Int
+  refundsHalalas    Int
+  netHalalas        Int
+  settlement        Settlement    @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  merchantOrder     MerchantOrder @relation(fields: [merchantOrderId], references: [id])
+}
+
+// ───────────────────────────────────────────── notifications, audit, events
+
+enum Audience {
+  CUSTOMER
+  MERCHANT
+  OPS
+}
+
+model Notification {
+  id         String    @id @default(cuid())
+  audience   Audience
+  userId     String?
+  merchantId String?
+  type       String
+  title      String
+  body       String
+  data       Json      @default("{}")
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([merchantId, createdAt])
+  @@index([audience, createdAt])
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actorType   String
+  merchantId  String?
+  action      String
+  entityType  String
+  entityId    String
+  data        Json?
+  requestId   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([merchantId, createdAt])
+  @@index([createdAt])
+}
+
+enum OutboxStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+/// Transactional outbox. Written in the same transaction as the state change; drives
+/// background jobs (worker / SQS) and realtime streams (SSE).
+model DomainEvent {
+  id          BigInt       @id @default(autoincrement())
+  type        String
+  entityType  String
+  entityId    String
+  orderId     String?
+  customerId  String?
+  merchantIds String[]
+  payload     Json         @default("{}")
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  availableAt DateTime     @default(now())
+  lockedUntil DateTime?
+  lastError   String?
+  createdAt   DateTime     @default(now())
+
+  @@index([status, availableAt])
+  @@index([createdAt])
+}
