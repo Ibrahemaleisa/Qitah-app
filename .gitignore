@@ -48,3 +48,6 @@ example
 
 # test output
 e2e/shots/
+
+# Claude Code agent worktrees
+.claude/worktrees/
