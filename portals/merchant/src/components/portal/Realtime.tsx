@@ -6,7 +6,7 @@ import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api";
 import { ORDER_STATUS_AR } from "@/lib/labels";
 import type { DomainEvent } from "@/lib/types";
-import { publish } from "@/lib/useApi";
+import { isRecentLocalAction, publish } from "@/lib/useApi";
 
 import { useMerchant } from "./MerchantContext";
 
@@ -40,7 +40,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       publish({ type: e.type, entityId: e.entityId, payload: e.payload });
       if (e.type === "order.paid") {
         toast({ tone: "info", title: "طلب جديد", body: "وصل طلب مدفوع بانتظار قبولك.", href: "/orders?status=NEW" });
-      } else if (e.type === "merchant_order.updated") {
+      } else if (e.type === "merchant_order.updated" && !isRecentLocalAction(e.entityId)) {
         const to = typeof e.payload?.to === "string" ? e.payload.to : undefined;
         toast({
           tone: to === "CANCELLED" ? "error" : "info",

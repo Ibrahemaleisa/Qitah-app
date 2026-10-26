@@ -5,7 +5,7 @@ import { useState, type FormEvent } from "react";
 import { useMerchant } from "@/components/portal/MerchantContext";
 import { ErrorNote, Field, LoadState } from "@/components/ui/bits";
 import { api, ApiError } from "@/lib/api";
-import { parseWhole } from "@/lib/format";
+import { parseWhole, range } from "@/lib/format";
 import type { CatalogProduct, Reference } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
@@ -254,7 +254,7 @@ export function ProductForm({ initialPartNumber, onCreated, onCancel }: { initia
                       <option value="">اختر…</option>
                       {make?.models.map((md) => (
                         <option key={md.id} value={md.id}>
-                          {md.name.ar} ({md.yearFrom}–{md.yearTo})
+                          {`${md.name.ar} (${range(md.yearFrom, md.yearTo)})`}
                         </option>
                       ))}
                     </select>

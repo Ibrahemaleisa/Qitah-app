@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/Toast";
 import { api, errorText } from "@/lib/api";
 import { REJECT_REASONS } from "@/lib/labels";
 import type { MerchantOrder } from "@/lib/types";
+import { markLocalAction } from "@/lib/useApi";
 
 type Action = "accept" | "pack" | "ready";
 
@@ -34,6 +35,7 @@ export function OrderActions({ order, onDone, size = "md" }: { order: Pick<Merch
 
   async function run(action: Action, doneText: string) {
     setBusy(action);
+    markLocalAction(order.id);
     try {
       await api(`${m.base}/orders/${order.id}/${action}`, { method: "POST", body: {} });
       toast({ tone: "success", title: doneText, body: order.number });
@@ -49,6 +51,7 @@ export function OrderActions({ order, onDone, size = "md" }: { order: Pick<Merch
   async function reject() {
     setBusy("reject");
     setRejectError(null);
+    markLocalAction(order.id);
     try {
       await api(`${m.base}/orders/${order.id}/reject`, { method: "POST", body: { reason, ...(note.trim() ? { note: note.trim() } : {}) } });
       toast({ tone: "success", title: "تم رفض الطلب وإبلاغ العميل", body: order.number });

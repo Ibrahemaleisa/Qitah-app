@@ -148,6 +148,7 @@ function Frame({ children }: { children: ReactNode }) {
 
       {menuOpen && (
         <div id="mobile-nav" className="border-b border-line bg-white p-3 lg:hidden">
+          <p className="mb-2 px-3 text-sm font-semibold text-slate sm:hidden">{m.displayName}</p>
           {nav}
         </div>
       )}

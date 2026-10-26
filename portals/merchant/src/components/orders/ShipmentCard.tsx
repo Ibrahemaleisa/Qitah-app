@@ -33,9 +33,15 @@ export function ShipmentCard({ s }: { s: Shipment }) {
       <dl className="mt-3 grid gap-1.5 text-sm">
         <div className="flex justify-between gap-3">
           <dt className="text-slate">رقم التتبع</dt>
-          <dd className="ltr font-mono font-semibold" data-testid="tracking-number">
-            {s.trackingNumber ?? "لم يصدر بعد"}
-          </dd>
+          {s.trackingNumber ? (
+            <dd className="ltr font-mono font-semibold" data-testid="tracking-number">
+              {s.trackingNumber}
+            </dd>
+          ) : (
+            <dd className="text-slate" data-testid="tracking-number">
+              لم يصدر بعد
+            </dd>
+          )}
         </div>
         {s.pickupWindowStart && (
           <div className="flex justify-between gap-3">

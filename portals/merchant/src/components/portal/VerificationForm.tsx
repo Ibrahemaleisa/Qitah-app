@@ -37,7 +37,12 @@ export function VerificationForm({ onSubmitted }: { onSubmitted: () => void }) {
     try {
       res = await fetch(target.uploadUrl, { method: target.method, headers: target.headers, body: file });
     } catch {
-      throw new ApiError(0, "UPLOAD_FAILED", "Upload failed (network/CORS)");
+      // Direct PUT blocked (e.g. the API's local upload target has no CORS for PUT): relay via our server.
+      try {
+        res = await fetch("/api/upload", { method: "POST", headers: { "content-type": file.type, "x-upload-url": target.uploadUrl }, body: file, credentials: "same-origin" });
+      } catch {
+        throw new ApiError(0, "UPLOAD_FAILED", "Upload failed (network)");
+      }
     }
     if (!res.ok) throw new ApiError(res.status, "UPLOAD_FAILED", `Upload failed (${res.status})`);
     return target.key;

@@ -209,7 +209,7 @@ export function Pager({ offset, total, pageSize = 50, onChange }: { offset: numb
         السابق
       </button>
       <span className="text-slate">
-        {from}–{to} من {total}
+        {`⁦${from}–${to}⁩`} من {total}
       </span>
       <button type="button" className="btn btn-secondary btn-sm" disabled={to >= total} onClick={() => onChange(offset + pageSize)}>
         التالي

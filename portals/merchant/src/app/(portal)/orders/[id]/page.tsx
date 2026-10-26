@@ -7,7 +7,7 @@ import { OrderActions } from "@/components/orders/OrderActions";
 import { ShipmentCard } from "@/components/orders/ShipmentCard";
 import { useMerchant } from "@/components/portal/MerchantContext";
 import { Badge, LoadState, StatusBadge } from "@/components/ui/bits";
-import { formatDateTime, formatDue, formatSar } from "@/lib/format";
+import { formatDateTime, formatDue, formatSar, range } from "@/lib/format";
 import { cityAr, CONDITION_AR, label, ORDER_STATUS_AR, REJECT_REASONS, RETURN_STATUS_AR } from "@/lib/labels";
 import type { MerchantOrder } from "@/lib/types";
 import { useApi, useNow } from "@/lib/useApi";
@@ -97,7 +97,7 @@ function OrderView({ o, now, reload }: { o: MerchantOrder; now: number; reload: 
                     <p className="font-medium">{i.productNameAr}</p>
                     {i.status === "CANCELLED" && <Badge>ملغى</Badge>}
                   </td>
-                  <td className="ltr text-start text-sm">{i.partNumber}</td>
+                  <td className="ltr whitespace-nowrap text-start text-sm">{i.partNumber}</td>
                   <td className="text-sm">{label(CONDITION_AR, i.condition)}</td>
                   <td className="text-lg font-bold" data-testid="item-qty">
                     {i.quantity}
@@ -142,7 +142,7 @@ function OrderView({ o, now, reload }: { o: MerchantOrder; now: number; reload: 
                   {g.originLocation.name} — {cityAr(g.originLocation.city)}
                   <span className="text-slate">
                     {" "}
-                    · توصيل خلال {g.etaDaysMin}–{g.etaDaysMax} يوم
+                    · توصيل خلال {range(g.etaDaysMin, g.etaDaysMax)} يوم
                   </span>
                 </p>
               ))}

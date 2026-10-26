@@ -94,6 +94,11 @@ export function normalizeSaudiMobile(input: string): string | null {
   return m ? `+966${m[1]}` : null;
 }
 
+/** "2018–2025" kept in reading order inside Arabic text (wrapped in a left-to-right isolate). */
+export function range(a: number | string, b: number | string): string {
+  return `⁦${a}–${b}⁩`;
+}
+
 export function percent(ratio: number | null | undefined): string {
   if (ratio === null || ratio === undefined) return "—";
   return `${(ratio * 100).toFixed(1)}%`;

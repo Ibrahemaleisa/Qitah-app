@@ -10,9 +10,12 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // This app has its own lockfile inside the (Expo) repo: pin the workspace root to this folder.
+  outputFileTracingRoot: __dirname,
   // The portal is an authenticated, per-user app: every page is rendered on demand and the data is
   // fetched through the BFF proxy, so Cache Components / partial prerendering add nothing here.
   turbopack: {
+    root: __dirname,
     rules: {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],

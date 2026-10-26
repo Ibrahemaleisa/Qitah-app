@@ -12,6 +12,20 @@ export function publish(event: BusEvent) {
   window.dispatchEvent(new CustomEvent<BusEvent>(EVENT_NAME, { detail: event }));
 }
 
+/**
+ * Entities this tab just changed itself. The realtime echo of our own action still refreshes the
+ * views, but does not raise a second "something changed" toast.
+ */
+const localActions = new Map<string, number>();
+export function markLocalAction(entityId: string) {
+  localActions.set(entityId, Date.now());
+}
+export function isRecentLocalAction(entityId: string | undefined, withinMs = 15_000) {
+  if (!entityId) return false;
+  const at = localActions.get(entityId);
+  return at !== undefined && Date.now() - at < withinMs;
+}
+
 export function useBus(handler: (e: BusEvent) => void, types: string[] | undefined) {
   const key = types?.join(",") ?? "";
   useEffect(() => {

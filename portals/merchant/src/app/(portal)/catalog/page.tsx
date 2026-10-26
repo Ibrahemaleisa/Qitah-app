@@ -123,7 +123,7 @@ export default function CatalogPage() {
                       </p>
                       <p className="text-xs text-slate">{label(CONDITION_AR, o.condition)}</p>
                     </td>
-                    <td className="ltr text-start text-sm">{o.sku}</td>
+                    <td className="ltr whitespace-nowrap text-start text-sm">{o.sku}</td>
                     <td className="text-sm">{o.location.name}</td>
                     <td className="whitespace-nowrap">
                       <p className="font-semibold">{formatSar(o.priceHalalas)}</p>
