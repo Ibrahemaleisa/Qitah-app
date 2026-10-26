@@ -1,0 +1,135 @@
+name: Deploy production
+
+# Manual promotion of an image that staging already built and tested. The GitHub environment
+# `production` must have required reviewers; the job pauses until a reviewer approves.
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Git SHA (40 hex chars) of a commit on main that was deployed to staging
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  deploy:
+    name: Promote to production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment:
+      name: production
+      url: ${{ steps.urls.outputs.api_url }}
+    permissions:
+      contents: read
+      id-token: write # GitHub OIDC -> AWS (no long-lived keys)
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      # e.g. 111111111111.dkr.ecr.eu-central-1.amazonaws.com/qitah/staging/api
+      PROMOTE_FROM_REPOSITORY_URI: ${{ vars.PROMOTE_FROM_REPOSITORY_URI }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      STAGE: Qitah-production
+      DEPLOY_HOSTING: ${{ vars.DEPLOY_HOSTING || 'false' }}
+      # Optional: overrides monitoring.alarmEmails in infra/config (comma-separated).
+      ALARM_EMAIL: ${{ vars.ALARM_EMAIL || '' }}
+    steps:
+      - name: Validate input
+        run: |
+          if ! [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::image_tag must be a full 40-character git SHA"; exit 1
+          fi
+
+      # Deploy the infrastructure code of the SAME commit as the image (migrations match the code).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.image_tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require the commit to be on main
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$IMAGE_TAG" origin/main || { echo "::error::${IMAGE_TAG} is not on main"; exit 1; }
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Install CDK app
+        working-directory: infra
+        run: npm ci
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gh-production-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: CDK context (written to infra/cdk.context.json, read by every cdk command)
+        run: |
+          jq -n --arg a "$AWS_ACCOUNT_ID" --arg r "$AWS_REGION" --arg t "$IMAGE_TAG" --arg e "$ALARM_EMAIL" \
+            '{env: "production", productionAccount: $a, productionRegion: $r, imageTag: $t} + (if $e == "" then {} else {productionAlarmEmail: $e} end)' \
+            > infra/cdk.context.json
+          cat infra/cdk.context.json
+          echo "REPO_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/qitah/production/api" >> "$GITHUB_ENV"
+
+      - name: Ensure ECR repository and cluster (Platform stack)
+        working-directory: infra
+        run: npx cdk deploy "$STAGE/Platform" --require-approval never --progress events
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Promote image from staging ECR (no rebuild)
+        run: |
+          if aws ecr describe-images --repository-name qitah/production/api --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "Image already present in production ECR."; exit 0
+          fi
+          if [ -z "$PROMOTE_FROM_REPOSITORY_URI" ]; then
+            echo "::error::Set the PROMOTE_FROM_REPOSITORY_URI environment variable (staging ECR repository URI)"; exit 1
+          fi
+          token="$(aws ecr get-login-password --region "$AWS_REGION")"
+          echo "$token" | docker login --username AWS --password-stdin "${REPO_URI%%/*}"
+          src_registry="${PROMOTE_FROM_REPOSITORY_URI%%/*}"
+          src_region="$(cut -d. -f4 <<<"$src_registry")"
+          aws ecr get-login-password --region "$src_region" | docker login --username AWS --password-stdin "$src_registry"
+          # Copies the manifest and layers registry-to-registry; the digest is unchanged.
+          docker buildx imagetools create --tag "${REPO_URI}:${IMAGE_TAG}" "${PROMOTE_FROM_REPOSITORY_URI}:${IMAGE_TAG}"
+          docker buildx imagetools inspect "${REPO_URI}:${IMAGE_TAG}"
+
+      - name: Show infrastructure changes
+        working-directory: infra
+        run: npx cdk diff "$STAGE/Api" "$STAGE/Monitoring" || true
+
+      - name: Deploy migration task definition (and its dependencies)
+        working-directory: infra
+        run: npx cdk deploy "$STAGE/Migrations" --require-approval never --progress events --outputs-file cdk-outputs.json
+
+      - name: Run database migrations (fail the deploy otherwise)
+        run: bash infra/scripts/run-migration.sh infra/cdk-outputs.json "$STAGE-Migrations"
+
+      - name: Deploy application stacks
+        working-directory: infra
+        run: |
+          stacks=("$STAGE/Api" "$STAGE/Monitoring")
+          if [ "$DEPLOY_HOSTING" = "true" ]; then stacks+=("$STAGE/Hosting"); fi
+          npx cdk deploy "${stacks[@]}" --require-approval never --progress events --outputs-file cdk-outputs.json
+
+      - name: Read outputs
+        id: urls
+        run: |
+          echo "api_url=$(jq -er --arg s "$STAGE-Api" '.[$s].ApiBaseUrl' infra/cdk-outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "ALB_DNS=$(jq -er --arg s "$STAGE-Api" '.[$s].AlbDnsName' infra/cdk-outputs.json)" >> "$GITHUB_ENV"
+
+      - name: Wait for ECS services to become stable
+        run: aws ecs wait services-stable --cluster qitah-production --services qitah-production-api qitah-production-worker
+
+      - name: Smoke test via CloudFront
+        run: bash infra/scripts/smoke-test.sh "${{ steps.urls.outputs.api_url }}"
