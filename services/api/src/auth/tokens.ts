@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, jwtVerify, SignJWT, type JWTPayload } from 'jose';
+import { createRemoteJWKSet, decodeJwt, jwtVerify, SignJWT, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 
 import type { Config } from '../config.js';
 
@@ -12,13 +12,16 @@ export type VerifiedToken = {
   phone?: string;
 };
 
-export function createTokenService(config: Config) {
+export function cognitoIssuers(config: Config): string[] {
+  const ids = (config.COGNITO_USER_POOL_IDS || config.COGNITO_USER_POOL_ID || '').split(',').map((x) => x.trim()).filter(Boolean);
+  return ids.map((id) => `https://cognito-idp.${config.COGNITO_REGION}.amazonaws.com/${id}`);
+}
+
+/** `jwksFor` is injectable for tests; production fetches each pool's JWKS (cached by jose). */
+export function createTokenService(config: Config, jwksFor: (issuer: string) => JWTVerifyGetKey = (iss) => createRemoteJWKSet(new URL(`${iss}/.well-known/jwks.json`))) {
   const secret = config.JWT_SECRET ? new TextEncoder().encode(config.JWT_SECRET) : undefined;
-  const cognitoIssuer =
-    config.AUTH_MODE === 'cognito'
-      ? `https://cognito-idp.${config.COGNITO_REGION}.amazonaws.com/${config.COGNITO_USER_POOL_ID}`
-      : undefined;
-  const jwks = cognitoIssuer ? createRemoteJWKSet(new URL(`${cognitoIssuer}/.well-known/jwks.json`)) : undefined;
+  const issuers = config.AUTH_MODE === 'cognito' ? cognitoIssuers(config) : [];
+  const jwks = new Map(issuers.map((iss) => [iss, jwksFor(iss)]));
   const clientIds = (config.COGNITO_CLIENT_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
   async function signAccessToken(userId: string): Promise<string> {
@@ -38,7 +41,11 @@ export function createTokenService(config: Config) {
       const { payload } = await jwtVerify(token, secret!, { issuer: 'qitah-local', audience: 'qitah-api', algorithms: ['HS256'] });
       return { issuer: 'local', subject: payload.sub! };
     }
-    const { payload } = await jwtVerify(token, jwks!, { issuer: cognitoIssuer, algorithms: ['RS256'] });
+    // Pick the pool from the (unverified) issuer, then verify signature + issuer against that pool only.
+    const iss = decodeJwt(token).iss;
+    const keys = iss ? jwks.get(iss) : undefined;
+    if (!keys) throw new Error('Token issuer is not a Qitah user pool');
+    const { payload } = await jwtVerify(token, keys, { issuer: iss, algorithms: ['RS256'] });
     assertCognitoClient(payload, clientIds);
     return {
       issuer: 'cognito',

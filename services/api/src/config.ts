@@ -12,6 +12,8 @@ const schema = z.object({
   JWT_SECRET: z.string().min(32).optional(),
   COGNITO_REGION: z.string().optional(),
   COGNITO_USER_POOL_ID: z.string().optional(),
+  /** Comma-separated pool ids (customer pool + staff/merchant pool). Takes precedence over COGNITO_USER_POOL_ID. */
+  COGNITO_USER_POOL_IDS: z.string().optional(),
   COGNITO_CLIENT_IDS: z.string().optional(),
   PAYMENT_PROVIDER: z.enum(['sandbox']).default('sandbox'),
   PAYMENT_WEBHOOK_SECRET: z.string().min(16),
@@ -43,8 +45,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error('Refusing to start: AUTH_MODE=local is not allowed in production (use cognito)');
   }
   if (parsed.NODE_ENV === 'production' && !parsed.UPLOADS_BUCKET) throw new Error('UPLOADS_BUCKET is required in production');
-  if (parsed.AUTH_MODE === 'cognito' && !(parsed.COGNITO_REGION && parsed.COGNITO_USER_POOL_ID && parsed.COGNITO_CLIENT_IDS)) {
-    throw new Error('COGNITO_REGION, COGNITO_USER_POOL_ID and COGNITO_CLIENT_IDS are required for AUTH_MODE=cognito');
+  if (parsed.AUTH_MODE === 'cognito' && !(parsed.COGNITO_REGION && (parsed.COGNITO_USER_POOL_IDS || parsed.COGNITO_USER_POOL_ID) && parsed.COGNITO_CLIENT_IDS)) {
+    throw new Error('COGNITO_REGION, COGNITO_USER_POOL_IDS (or COGNITO_USER_POOL_ID) and COGNITO_CLIENT_IDS are required for AUTH_MODE=cognito');
   }
   return { ...parsed, sandbox };
 }
