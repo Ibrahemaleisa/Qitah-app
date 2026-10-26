@@ -319,7 +319,7 @@ export async function opsRoutes(app: FastifyInstance, deps: Deps) {
       prisma.shipment.findMany({ where: { status: 'PICKUP_SCHEDULED', pickupWindowEnd: { lt: now } }, include: { merchantOrder: { select: { number: true, merchant: { select: { displayNameAr: true } } } } } }),
       prisma.merchantOrder.findMany({ where: { slaBreached: true, status: { in: ['NEW', 'ACCEPTED', 'PACKING', 'READY_FOR_PICKUP'] } }, include: { merchant: { select: { displayNameAr: true } } } }),
       prisma.refund.findMany({ where: { status: 'FAILED' }, include: { order: { select: { number: true } } } }),
-      prisma.paymentEvent.findMany({ where: { outcome: { startsWith: 'flagged' } }, orderBy: { createdAt: 'desc' }, take: 50 }),
+      prisma.paymentEvent.findMany({ where: { outcome: { startsWith: 'flagged' } }, include: { payment: { select: { orderId: true, order: { select: { number: true } } } } }, orderBy: { createdAt: 'desc' }, take: 50 }),
     ]);
     return { shipments, delayedPickups, slaBreaches, failedRefunds, flaggedPayments };
   });
@@ -415,6 +415,16 @@ export async function opsRoutes(app: FastifyInstance, deps: Deps) {
   app.get('/v1/ops/notifications', async (req) => {
     await ops(req);
     return { notifications: await prisma.notification.findMany({ where: { audience: 'OPS' }, orderBy: { createdAt: 'desc' }, take: 100 }) };
+  });
+
+  app.get('/v1/ops/staff', async (req) => {
+    await ops(req, ['OPS_ADMIN']);
+    const users = await prisma.user.findMany({
+      where: { platformRoles: { some: {} } },
+      select: { id: true, name: true, email: true, status: true, createdAt: true, platformRoles: { select: { role: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return { staff: users.map((u) => ({ ...u, roles: u.platformRoles.map((r) => r.role), platformRoles: undefined })) };
   });
 
   app.post('/v1/ops/staff', async (req) => {

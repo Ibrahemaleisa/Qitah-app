@@ -37,6 +37,9 @@ export function presentCustomerOrder(o: OrderFull) {
       merchant: { id: m.merchant.id, nameAr: m.merchant.displayNameAr, nameEn: m.merchant.displayNameEn, city: m.merchant.city },
       itemsHalalas: m.itemsHalalas,
       shippingHalalas: m.shippingHalalas,
+      acceptedAt: m.acceptedAt?.toISOString() ?? null,
+      readyAt: m.readyAt?.toISOString() ?? null,
+      handedOverAt: m.handedOverAt?.toISOString() ?? null,
       deliveredAt: m.deliveredAt?.toISOString() ?? null,
     })),
     items: o.items.map((i) => ({

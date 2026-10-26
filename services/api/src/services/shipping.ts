@@ -87,14 +87,14 @@ export async function schedulePickup(ctx: Ctx, actor: Actor, shipmentId: string,
   if (windowEnd <= windowStart) throw conflict('INVALID_WINDOW', 'Pickup window end must be after start');
   const s = await prisma.shipment.findUnique({ where: { id: shipmentId } });
   if (!s) throw notFound('Shipment');
-  if (!['LABEL_CREATED', 'PICKUP_FAILED'].includes(s.status) || !s.carrierShipmentId) throw conflict('INVALID_TRANSITION', `Shipment is ${s.status}`);
+  if (!['LABEL_CREATED', 'PICKUP_FAILED', 'PICKUP_SCHEDULED'].includes(s.status) || !s.carrierShipmentId) throw conflict('INVALID_TRANSITION', `Shipment is ${s.status}`);
   const res = await ctx.carrier.schedulePickup({ carrierShipmentId: s.carrierShipmentId, windowStart, windowEnd });
   return withTx(async (tx) => {
     const locked = await lockShipment(tx, shipmentId);
-    if (!['LABEL_CREATED', 'PICKUP_FAILED'].includes(locked.status)) throw conflict('INVALID_TRANSITION', `Shipment is ${locked.status}`);
+    if (!['LABEL_CREATED', 'PICKUP_FAILED', 'PICKUP_SCHEDULED'].includes(locked.status)) throw conflict('INVALID_TRANSITION', `Shipment is ${locked.status}`);
     await tx.shipment.update({ where: { id: shipmentId }, data: { status: 'PICKUP_SCHEDULED', pickupWindowStart: windowStart, pickupWindowEnd: windowEnd, exceptionReason: null } });
     await tx.shipmentEvent.create({
-      data: { shipmentId, status: 'PICKUP_SCHEDULED', description: `Pickup booked (${res.confirmationId})`, source: 'OPS', actorUserId: actor.userId, occurredAt: new Date() },
+      data: { shipmentId, status: 'PICKUP_SCHEDULED', description: `${locked.status === 'PICKUP_SCHEDULED' ? 'Pickup rebooked' : 'Pickup booked'} (${res.confirmationId})`, source: 'OPS', actorUserId: actor.userId, occurredAt: new Date() },
     });
     await notify(tx, {
       audience: 'MERCHANT',

@@ -35,7 +35,8 @@ export async function sandboxRoutes(app: FastifyInstance, deps: Deps) {
 <div class="amount">${sar(payment.amountHalalas)} ر.س</div>
 ${
   done
-    ? `<p>حالة الدفع: <b>${esc(payment.status)}</b></p><p><a href="qitah://checkout/return?order=${esc(payment.orderId)}">العودة إلى تطبيق قطعة</a></p>`
+    ? `<p>حالة الدفع: <b>${esc(payment.status)}</b></p><p><a id="back" href="qitah://checkout/return?order=${esc(payment.orderId)}">العودة إلى تطبيق قطعة</a></p>
+<script>setTimeout(function(){location.href=document.getElementById('back').href},1200)</script>`
     : `<form method="post"><input type="hidden" name="outcome" value="success"><button class="pay">ادفع (محاكاة نجاح)</button></form>
 <form method="post"><input type="hidden" name="outcome" value="fail"><button class="fail">رفض البطاقة (محاكاة فشل)</button></form>`
 }`,
@@ -75,8 +76,12 @@ ${
         'Sandbox label',
         `<div class="banner">SANDBOX LABEL — NOT VALID FOR SHIPPING · بوليصة تجريبية غير صالحة للشحن</div>
 <div class="label"><div class="muted">${esc(s.carrierCode)} · ${esc(s.serviceCode)} · ${s.direction}</div><div class="big">${esc(s.trackingNumber)}</div>
-<p><b>من:</b> ${esc(s.merchantOrder.merchant.displayNameAr)} — ${esc(s.originLocation.name)}، ${esc(s.originLocation.district)}، ${esc(s.originLocation.city)}</p>
-<p><b>إلى:</b> ${esc(a.contactName)} — ${esc(a.district)}، ${esc(a.city)}</p>
+${(() => {
+  const merchant = `${esc(s.merchantOrder.merchant.displayNameAr)} — ${esc(s.originLocation.name)}، ${esc(s.originLocation.district)}، ${esc(s.originLocation.city)}`;
+  const customer = `${esc(a.contactName)} — ${esc(a.district)}، ${esc(a.city)}`;
+  const [from, to] = s.direction === 'RETURN' ? [customer, merchant] : [merchant, customer];
+  return `<p><b>من:</b> ${from}</p><p><b>إلى:</b> ${to}</p>`;
+})()}
 <p class="muted">مرجع: ${esc(s.merchantOrder.number)} · الوزن ${(s.weightGrams / 1000).toFixed(1)} كجم</p></div>`,
       ),
     );

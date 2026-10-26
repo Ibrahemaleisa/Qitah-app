@@ -2,7 +2,8 @@ import { createRemoteJWKSet, decodeJwt, jwtVerify, SignJWT, type JWTPayload, typ
 
 import type { Config } from '../config.js';
 
-export const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
+/** Short-lived so logout/disable takes effect quickly; clients refresh transparently. */
+export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const REFRESH_TOKEN_TTL_DAYS = 30;
 
 export type VerifiedToken = {

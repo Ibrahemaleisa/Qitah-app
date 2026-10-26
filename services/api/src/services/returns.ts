@@ -109,6 +109,12 @@ export async function markReturnReceived(actor: Actor, id: string, merchantId?: 
     const rc = await lockReturn(tx, id, merchantId);
     assertTransition(RETURN_TRANSITIONS, rc.status, 'RECEIVED', 'Return');
     await tx.returnCase.update({ where: { id }, data: { status: 'RECEIVED' } });
+    // Received by hand (e.g. customer drop-off): any reverse shipment not yet collected is no longer needed.
+    const open = await tx.shipment.findMany({ where: { returnCaseId: id, status: { in: ['PENDING', 'LABEL_CREATED', 'PICKUP_SCHEDULED', 'PICKUP_FAILED'] } } });
+    for (const s of open) {
+      await tx.shipment.update({ where: { id: s.id }, data: { status: 'CANCELLED' } });
+      await tx.shipmentEvent.create({ data: { shipmentId: s.id, status: 'CANCELLED', description: 'Return received without carrier', source: 'SYSTEM', actorUserId: actor.userId, occurredAt: new Date() } });
+    }
     await audit(tx, actor, { action: 'return.received', entityType: 'return_case', entityId: id, merchantId: rc.merchantId });
     await emit(tx, { type: 'return.updated', entityType: 'return_case', entityId: id, orderId: rc.orderId, customerId: rc.customerId, merchantIds: [rc.merchantId], payload: { status: 'RECEIVED' } });
     return tx.returnCase.findUniqueOrThrow({ where: { id } });

@@ -54,3 +54,11 @@ test('invalid status filters are ignored rather than crashing', async () => {
   assert.equal((await ops.get('/v1/ops/orders?status=NOPE,PAID')).status, 200);
   assert.equal((await ops.get('/v1/ops/returns?status=bad')).status, 200);
 });
+
+test('ops staff list is admin-only', async () => {
+  const admin = await login(app, 'ops.admin@qitah.test');
+  const list = await admin.ok<any>('GET', '/v1/ops/staff');
+  assert.ok(list.staff.some((s: any) => s.email === 'finance@qitah.test' && s.roles.includes('FINANCE')));
+  const agent = await login(app, 'ops.agent@qitah.test');
+  assert.equal((await agent.get('/v1/ops/staff')).status, 403);
+});
