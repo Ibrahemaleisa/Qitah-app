@@ -1,9 +1,12 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import staticPlugin from "@fastify/static";
+import {fileURLToPath} from "node:url";
+import {dirname,resolve} from "node:path";
 import {PrismaClient} from "@prisma/client";
 import {z} from "zod";
 import {optimizeCart,assertTransition,SUBORDER_TRANSITIONS,SHIPMENT_TRANSITIONS} from "./domain.js";
-const db=new PrismaClient();const app=Fastify({logger:true});await app.register(cors,{origin:false});
+const db=new PrismaClient();const app=Fastify({logger:true});await app.register(cors,{origin:false});await app.register(staticPlugin,{root:resolve(dirname(fileURLToPath(import.meta.url)),"../portal"),prefix:"/portal/"});
 const fail=(code:number,message:string)=>({statusCode:code,error:message});
 app.get("/health",async()=>({ok:true,service:"qitah-operations",mode:"sandbox"}));
 app.get("/api/merchants",async()=>db.merchant.findMany({include:{locations:true,_count:{select:{offers:true}}},orderBy:{createdAt:"desc"}}));
