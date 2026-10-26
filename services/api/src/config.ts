@@ -23,6 +23,8 @@ const schema = z.object({
   AWS_REGION: z.string().default('me-central-1'),
   RESERVATION_MINUTES: z.coerce.number().int().positive().default(30),
   RETURN_WINDOW_DAYS: z.coerce.number().int().positive().default(7),
+  /** Multiplies per-route rate limits (tests/load tests raise it; never lower than 1 in production). */
+  RATE_LIMIT_SCALE: z.coerce.number().int().min(1).max(10_000).default(1),
 });
 
 export type Config = z.infer<typeof schema> & { sandbox: boolean };

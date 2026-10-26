@@ -6,7 +6,7 @@ import { hashPassword, randomToken, sha256, verifyPassword } from '../auth/crypt
 import { ACCESS_TOKEN_TTL_SECONDS, REFRESH_TOKEN_TTL_DAYS } from '../auth/tokens.js';
 import { prisma } from '../db.js';
 import { AppError, badRequest, notFound, unauthorized } from '../lib/errors.js';
-import { parse, saudiPhone } from '../lib/http.js';
+import { parse, rateLimit, saudiPhone } from '../lib/http.js';
 import { randomInt } from 'node:crypto';
 
 const OTP_TTL_MS = 5 * 60_000;
@@ -25,14 +25,14 @@ export async function authRoutes(app: FastifyInstance, deps: Deps) {
   const localOnly = () => {
     if (config.AUTH_MODE !== 'local') throw new AppError(404, 'NOT_FOUND', 'Use Amazon Cognito to sign in');
   };
-  const limited = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
+  const limited = rateLimit(config.RATE_LIMIT_SCALE, 10, '1 minute');
 
   /** Phone OTP. No SMS provider is connected yet: in non-production the code is returned as `sandboxCode`. */
   app.post('/v1/auth/otp/request', limited, async (req) => {
     localOnly();
     const { phone } = parse(z.object({ phone: saudiPhone }), req.body);
     const recent = await prisma.otpChallenge.count({ where: { phone, createdAt: { gt: new Date(Date.now() - 10 * 60_000) } } });
-    if (recent >= 5) throw new AppError(429, 'RATE_LIMITED', 'Too many codes requested; try again later');
+    if (recent >= 5 * config.RATE_LIMIT_SCALE) throw new AppError(429, 'RATE_LIMITED', 'Too many codes requested; try again later');
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     await prisma.otpChallenge.create({ data: { phone, codeHash: sha256(`${phone}:${code}`), expiresAt: new Date(Date.now() + OTP_TTL_MS) } });
     return { sent: false, channel: 'sandbox', expiresInSeconds: OTP_TTL_MS / 1000, ...(config.NODE_ENV !== 'production' ? { sandboxCode: code } : {}) };

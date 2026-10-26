@@ -58,7 +58,10 @@
     },
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/e2e/"
+      "/e2e/",
+      "/services/",
+      "/portals/",
+      "/infra/"
     ]
   }
 }

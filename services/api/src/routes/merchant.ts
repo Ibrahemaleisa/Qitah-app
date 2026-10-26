@@ -6,7 +6,7 @@ import type { Deps } from '../app.js';
 import { hashPassword } from '../auth/crypto.js';
 import { prisma, withTx } from '../db.js';
 import { badRequest, conflict, forbidden, notFound, unauthorized } from '../lib/errors.js';
-import { cityId, pageQuery, parse, saudiPhone } from '../lib/http.js';
+import { cityId, pageQuery, parse, rateLimit, saudiPhone } from '../lib/http.js';
 import { normalizePartNumber, normalizeText } from '../lib/text.js';
 import { refreshSearchText } from '../services/catalog.js';
 import { audit, emit, type Actor } from '../services/events.js';
@@ -113,7 +113,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
   }
 
   // ── onboarding (public)
-  app.post('/v1/merchant-applications', { config: { rateLimit: { max: 5, timeWindow: '10 minutes' } } }, async (req) => {
+  app.post('/v1/merchant-applications', rateLimit(ctx.config.RATE_LIMIT_SCALE, 5, '10 minutes'), async (req) => {
     const body = parse(
       z.object({
         business: z.object({

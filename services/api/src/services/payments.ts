@@ -70,7 +70,9 @@ async function applyEvent(ctx: Ctx, tx: Tx, event: PaymentWebhookEvent): Promise
   const actor: Actor = { type: 'payment_provider' };
 
   if (event.type === 'payment.captured') {
-    if (payment.status !== 'INITIATED') return { outcome: 'ignored', detail: `PAYMENT_${payment.status}`, paymentId: payment.id };
+    // Already captured → nothing to do. CANCELLED/FAILED payments that the provider nevertheless captured
+    // must still be recorded (money moved), so they fall through to the late-payment path below.
+    if (['CAPTURED', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(payment.status)) return { outcome: 'ignored', detail: `PAYMENT_${payment.status}`, paymentId: payment.id };
     if (event.amountHalalas !== payment.amountHalalas) {
       await notify(tx, { audience: 'OPS', type: 'payment.mismatch', title: 'مبلغ دفع غير مطابق', body: `الطلب ${order.number}`, data: { orderId: order.id } });
       return { outcome: 'flagged', detail: 'AMOUNT_MISMATCH', paymentId: payment.id };

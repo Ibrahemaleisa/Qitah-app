@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { Deps } from '../app.js';
 import { prisma } from '../db.js';
 import { badRequest, notFound } from '../lib/errors.js';
-import { cityId, parse } from '../lib/http.js';
+import { cityId, parse, rateLimit } from '../lib/http.js';
 import { checkout, PAYMENT_METHODS, planCheckout } from '../services/checkout.js';
 import { cancelOrderByCustomer } from '../services/fulfillment.js';
 import { loadOrder, orderInclude, presentCustomerOrder } from '../services/orderView.js';
@@ -141,7 +141,7 @@ export async function customerRoutes(app: FastifyInstance, deps: Deps) {
     return planCheckout(ctx, p.userId, body);
   });
 
-  app.post('/v1/checkout', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req) => {
+  app.post('/v1/checkout', rateLimit(ctx.config.RATE_LIMIT_SCALE, 20, '1 minute'), async (req) => {
     const p = await requireUser(req);
     const body = parse(
       z.object({

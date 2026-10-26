@@ -20,3 +20,6 @@ export const pageQuery = z.object({
 export const halalas = z.number().int().nonnegative().max(100_000_000);
 export const cityId = z.enum(['riyadh', 'jeddah', 'makkah', 'madinah', 'dammam', 'khobar']);
 export const saudiPhone = z.string().regex(/^\+9665\d{8}$/, 'Saudi mobile in +9665XXXXXXXX format');
+
+/** Per-route rate limit config, scaled by RATE_LIMIT_SCALE. */
+export const rateLimit = (scale: number, max: number, timeWindow: string) => ({ config: { rateLimit: { max: max * scale, timeWindow } } });
