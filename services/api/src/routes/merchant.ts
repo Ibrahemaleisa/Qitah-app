@@ -592,8 +592,8 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
   action('pack', (a, id, m) => startPacking(ctx, a, id, m));
   action('ready', (a, id, m) => markReady(ctx, a, id, m));
   action('reject', (a, id, m, body) => {
-    const { reason } = parse(z.object({ reason: z.enum(['OUT_OF_STOCK', 'PRICE_ERROR', 'DAMAGED', 'CANNOT_FULFIL_IN_TIME', 'OTHER']), note: z.string().max(300).optional() }), body);
-    return rejectMerchantOrder(ctx, a, id, reason, m);
+    const { reason, note } = parse(z.object({ reason: z.enum(['OUT_OF_STOCK', 'PRICE_ERROR', 'DAMAGED', 'CANNOT_FULFIL_IN_TIME', 'OTHER']), note: z.string().max(300).optional() }), body);
+    return rejectMerchantOrder(ctx, a, id, note ? `${reason}: ${note}` : reason, m);
   });
 
   // ── returns
