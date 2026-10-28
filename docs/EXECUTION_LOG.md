@@ -2,6 +2,61 @@
 
 Concise log so work can resume without re-discovery. Newest first.
 
+## 2026-10-28: Evaluation committee + waves 1–2
+**Committee** (5 independent members, reports in `docs/strategy/committee/`, synthesis in `docs/strategy/COMMITTEE_REPORT.md`).
+- "60% of all market sales" isn't measurable or achievable in 3–5 years: online is about 5% of a $5–7B parts market.
+- Redefined target: 60% of digital maintenance-parts demand in Riyadh for the top 15 models within 24 months, with workshops as the primary channel.
+- Customer value pillars: fit guarantee, part requests (RFQ), colloquial search, delivered price and same-day delivery, mechanic as partner, verified authenticity, maintenance, fair returns.
+
+**Wave 1** (`a8d8f9f`): integrity fixes from the technical review.
+- Capture-vs-expiry lock order.
+- Order-number collisions.
+- Double restock on inspection.
+- Parallel over-refunds.
+- Atomic OTP checks.
+- Double carrier labels.
+- Trusted proxy hops.
+- Indexes and retention.
+- Each fix has a regression test; the label test was verified to fail without its fix.
+
+**Wave 2** (merged into `bf5017e`, built by 4 parallel agents, then merged and verified together):
+- **A. Part requests → merchant quotes → private offers.** App screens, merchant inbox, ops monitor, time-to-first-quote metric.
+- **B. Colloquial, vehicle-aware search.** Shared lexicon (server + app, byte-identical), `/v1/catalog/search` with pg_trgm ranking and keyset paging, "fits my car" on by default, the not-carried concept for tires etc.
+- **C. Fit guarantee.**
+  - Server-side `fitSnapshot`.
+  - Auto-approved wrongPart returns with platform-paid return shipping (`GUARANTEE_EXPENSE`).
+  - Delivered price and same-day estimates with per-branch cutoff.
+  - Per-reason returns; damaged requires a photo.
+- **D. Send to my mechanic.**
+  - Signed public page, no PII.
+  - Offline partial VIN decode.
+  - Garage without the trim step, plus an odometer.
+  - Maintenance status, kits and reminders.
+
+**Integration fixes during merge**:
+- One `/v1/me/uploads` for return and part-request photos, in hashed per-customer folders.
+- The `DomainEvent` GIN index is now declared in the schema.
+- The test env forces `PUBLIC_BASE_URL`.
+- `e2e/remote-journey.cjs` updated to the new add-vehicle flow and return rules.
+
+**Verification on one fresh DB, all clients at once**:
+- API: 82/82.
+- App jest: 237/237 (24 suites).
+- Both portals build, typecheck and lint.
+- Ops smoke: 24/24.
+- Merchant smoke: 14/14.
+- Customer remote journey: PASSED.
+- RFQ journey (app + merchant portal): PASSED.
+
+**Local env note**: the container restarted. My Postgres now runs on **port 5433** (trust auth, data in `/var/lib/qitahpg`). The system cluster on 5432 requires a password.
+
+**Next (wave 3, per committee)**:
+- Workshop accounts: organisation, trade prices, credit via partner, quotes to the workshop's customers.
+- Tiered commission and faster settlement.
+- Offer freshness and availability confirmation.
+- Server-side catalog read model, replacing the full snapshot.
+- Device testing of native payment return and photo picker (expo-image-picker needs a development build).
+
 ## 2026-10-26 (later): Integration complete
 **Merged** the merchant portal, ops portal, app integration and AWS infra worktrees into `claude/busy-cori-5iz32w`.
 

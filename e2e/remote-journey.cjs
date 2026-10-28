@@ -104,14 +104,14 @@ function assert(cond, msg) {
     await page.getByRole('tab', { name: 'الرئيسية' }).click();
     await page.waitForTimeout(700);
     await tap('أضف سيارتك', { wait: 900 });
+    // VIN-first flow: choose manual entry. Trim is no longer asked (fitment does not use it).
+    await tap('اختر يدوياً');
     await tap('تويوتا');
     await tap('كامري');
     await visible(page.getByText('2022', { exact: true })).click();
     await page.waitForTimeout(400);
-    await visible(page.getByText('GLE', { exact: true })).click();
-    await page.waitForTimeout(400);
     await tap('2.5L I4');
-    await tap('تخطي وحفظ', { wait: 1500 });
+    await tap('حفظ السيارة', { wait: 1500 });
     await shot('home-with-vehicle');
     const { vehicles } = await api('GET', '/v1/me/vehicles', null, tokens.accessToken);
     assert(vehicles.length === 1 && vehicles[0].modelId === 'camry' && vehicles[0].year === 2022, 'vehicle saved to /v1/me/vehicles');
@@ -244,14 +244,15 @@ function assert(cond, msg) {
     // ── 7. Request a return
     await tap('طلب إرجاع', { wait: 1200 });
     await shot('return-sheet');
-    await visible(page.getByRole('radio', { name: 'وصلت تالفة' })).click();
+    // 'damaged' now requires a photo (covered by API tests); use 'not as described' here.
+    await visible(page.getByRole('radio', { name: 'مختلفة عن الوصف' })).click();
     await visible(page.getByLabel(/ملاحظة للبائع/)).fill('العلبة وصلت مكسورة');
     await tap('إرسال طلب الإرجاع', { wait: 1500 });
     await waitText('المرتجعات', 15_000);
     await visible(page.getByText('المرتجعات')).scrollIntoViewIfNeeded();
     await shot('order-detail-return');
     full = await api('GET', `/v1/orders/${orderId}`, null, tokens.accessToken);
-    assert(full.returns.length === 1 && full.returns[0].status === 'REQUESTED' && full.returns[0].reason === 'damaged', 'return case REQUESTED on the server');
+    assert(full.returns.length === 1 && full.returns[0].status === 'REQUESTED' && full.returns[0].reason === 'notAsDescribed', 'return case REQUESTED on the server');
 
     // ── 8. Orders list + notifications
     await page.getByRole('tab', { name: 'الطلبات' }).click().catch(() => page.goto(`${APP}/orders`));
