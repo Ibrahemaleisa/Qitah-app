@@ -2,6 +2,13 @@
 
 Concise log so work can resume without re-discovery. Newest first.
 
+## 2026-10-28: Wave 3, catalog at scale (committee risks 3/4)
+- **Read model** `ProductListing` (`*_catalog_read_model`, delimited block at the end of `schema.prisma`, `services/listings.ts`): derived only via `publicOfferWhere` (incl. freshness hide cutoff, private offers excluded). Refreshed in the same transaction on every offer/stock/reservation/commit/release/restock/confirmation/merchant/location write (rows locked before reading). Worker: `nextChangeAt` re-derivation (offers turning stale/hidden by time) + rolling safety-net slice. `npm run db:backfill-listings` (idempotent; 200k in ~45–75 s).
+- **Search** scans only the read model (searchText copy, fit keys GIN, window counts in one statement, JIT off per statement, `<%` fuzzy fallback). Semantics unchanged (all search tests green); a product whose only offers were private no longer appears with zero offers.
+- **Endpoints**: `reference` (ETag/304, 1 h), `products/:id` + `products?ids|offerIds` (ETag, 30/60 s), `home` starter pack, `changes` deltas, snapshot capped at 2,000 + `Deprecation`/`Sunset`/`Link`. CloudFront `/v1/catalog/*` behaviour (path + query + Origin, no Authorization, default TTL 0); RDS `jit=0`.
+- **App**: snapshot gone. `ProductCache` (LRU ≤500, cart/favorites pinned, one AsyncStorage row per product + index + sellers), hydrated from reference + home + products?ids + search pages + seller pages; `/changes` on foreground; `useProduct`/`useProducts`/`useHomePack`/`useSellerProducts` with skeletons. Demo mode unchanged.
+- **Load test** (200k products / 508k offers / 303k fitments, 4 vCPU): search p95 120–171 ms (part number 12 ms); detail 8 ms, batch(50) 31 ms, home 58 ms, changes 7 ms. Target p95 < 150 ms met for colloquial, close for vehicle-filtered (153–159) and category browse (171); fallback paths (no exact hit → relaxed) ~320 ms.
+
 ## 2026-10-28: Wave 3, "قطعة للورش" (workshop accounts, B2B channel)
 Goal (committee): ≥40% of GMV from workshop accounts. Before this, "workshop" was only an address kind.
 - **Schema** (`*_organizations`, one section at the end of `schema.prisma`): `Organization` (WORKSHOP|FLEET, APPLIED→APPROVED/REJECTED/SUSPENDED), `OrganizationMember` (OWNER > BUYER > TECHNICIAN; phone invites are INVITED rows), `OrganizationCredit` (Qitah internal sandbox credit, `provider = 'qitah-internal-sandbox'`, no financing partner), `OrganizationRepayment`, `WorkshopQuote`. `Order` gains `buyerOrgId`, `workOrderRef`, `workshopQuoteId` (unique, attribution) and `creditDueAt`. Ledger account `CUSTOMER_RECEIVABLE`; `CREDIT_EXPOSURE` not needed (exposure = receivable balance).

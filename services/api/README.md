@@ -47,7 +47,7 @@ Seeded logins (sandbox only) share the password `Qitah-Sandbox-2026!` (override 
 | Part requests (RFQ) | `src/services/partRequests.ts`, `routes/partRequests.ts` — customer requests (photos via signed URLs), one quote per merchant, accepting creates a PRIVATE offer (buyer-only, expires with the quote) that reuses checkout → payments → fulfilment → returns → settlements; DRAFT product for free-text quotes; expiry job; ops metrics (share answered within 15 min) |
 
 ## API surface (all JSON; money in halalas)
-- Public: `GET /health`, `GET /ready`, `GET /v1/catalog/{reference,snapshot,search,products,products/:id,offers,sellers/:id}`, `POST /v1/merchant-applications`
+- Public: `GET /health`, `GET /ready`, `GET /v1/catalog/{reference,home,changes,search,products,products/:id,offers,sellers/:id,snapshot (deprecated)}`, `POST /v1/merchant-applications`
 
 ### `GET /v1/catalog/search`
 Understands colloquial part names (كفرات، قربة، هوبات، بوجيهات…) and vehicles typed in the query ("فلتر زيت كامري 2022").
@@ -68,7 +68,24 @@ Response: `{ items, nextCursor, total, counts: { fits, other, hidden }, interpre
 - Ranking: exact MPN > exact OEM reference > part-number prefix > contained; then fits before not-confirmed (when a vehicle is known); concept matches; trigram similarity; fitment tier catalog > seller > by-spec.
 
 `GET /v1/catalog/products` keeps its `{ total, items }` + `limit/offset` contract and delegates to the same search.
-After changing `src/search/lexicon.ts`, copy it to the app and run `npm run db:backfill-search` to rebuild `Product.searchText`.
+After changing `src/search/lexicon.ts`, copy it to the app and run `npm run db:backfill-search` to rebuild `Product.searchText` (it also refreshes the listings' copy).
+
+### Catalog at scale (on-demand hydration, read model, CDN)
+| Endpoint | Purpose | Cache-Control |
+| --- | --- | --- |
+| `GET /v1/catalog/reference` | categories + makes/models; strong `ETag`, `304` on `If-None-Match` | `public, max-age=3600, stale-while-revalidate=86400` |
+| `GET /v1/catalog/products/:id` | `{ product, sellers }`; `ETag`/304 | `public, max-age=30, s-maxage=60, stale-while-revalidate=300` |
+| `GET /v1/catalog/products?ids=a,b&offerIds=x` | batch (≤100) for favorites / recent / cart → `{ products, sellers, missing }`; `ETag`/304 | same as detail |
+| `GET /v1/catalog/home?modelId=&year=&engine=` | starter pack ≤24: `recommended` (catalog-verified fit, in stock, ≤3 per category) + `featured` (top per category; universal only when a vehicle is given) | `public, max-age=60, s-maxage=300, stale-while-revalidate=600` |
+| `GET /v1/catalog/changes?since=<iso>&ids=` | deltas for ≤100 cached ids: changed products in full, `removed`, `serverTime` (next `since`) | `no-store` |
+| `GET /v1/catalog/search` | as above | `public, max-age=15, s-maxage=30, stale-while-revalidate=60` |
+| `GET /v1/catalog/snapshot` | **deprecated**, capped at 2,000 products (`truncated`), headers `Deprecation: true`, `Sunset`, `Link: </v1/catalog/home>; rel="successor-version"` | `public, max-age=30` |
+
+Offers in every product payload keep the detail ordering (in stock, fresh, price, quality score). CloudFront caches `/v1/catalog/*` by path + query string (+ `Origin`), never with `Authorization`, and only what these headers allow (default TTL 0).
+
+**`ProductListing` read model** (`*_catalog_read_model`, `services/listings.ts`): one row per product derived only from offers passing `publicOfferWhere` (visibility PUBLIC, ACTIVE, approved merchant, active location, confirmed within `FRESHNESS_HIDE_DAYS`): price/stock aggregates, conditions, merchant ids, origin cities, per-offer summary, exploded fitment keys (GIN), a copy of `searchText` (GIN trigram) and `nextChangeAt` (next freshness boundary). Search scans only this table. It is refreshed in the same transaction by every offer / stock / reservation / commit / release / restock / confirmation / merchant-status / location write (`refreshListing(s)`, rows locked before reading so concurrent writers cannot leave a stale aggregate); the worker re-derives listings whose `nextChangeAt` passed plus a rolling safety-net slice. After deploying: `npm run db:backfill-listings` (idempotent; the migration already populates rows with the default freshness cutoff).
+
+**Load test** (`scripts/loadtest/`): `npm run loadtest:generate -- --products=200000` (synthetic Arabic catalog, scratch DBs only, nothing committed) then `npm run loadtest:bench` (p50/p95/p99 + EXPLAIN plans).
 - Auth: `POST /v1/auth/{otp/request,otp/verify,login,refresh,logout}`, `GET|PATCH /v1/me`
 - Customer: `/v1/me/{vehicles,addresses,cart,notifications}`, `POST /v1/checkout/plan`, `POST /v1/checkout`, `GET /v1/orders[/:id]`, `POST /v1/orders/:id/{payment,cancel,returns}`
 - Merchant (`/v1/merchants/:merchantId/...`): profile, verification, dashboard, locations, staff, catalog/products, offers (+stock, adjustments, CSV import), orders (+accept/pack/ready/reject), returns (+approve/reject/receive/inspect), settlements, notifications, activity

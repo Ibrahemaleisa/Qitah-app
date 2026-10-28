@@ -52,6 +52,12 @@ function assert(cond, msg) {
     if (m.type() === 'error') errors.push(`[console] ${m.text()}`);
   });
   page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
+  // The app hydrates the catalog on demand (reference, home, products?ids, changes): never the full snapshot.
+  const catalogCalls = [];
+  page.on('request', (r) => {
+    const u = new URL(r.url());
+    if (u.pathname.startsWith('/v1/catalog/')) catalogCalls.push(u.pathname);
+  });
   let n = 0;
   const shot = async (name, target = page) => {
     await target.waitForTimeout(500);
@@ -262,6 +268,11 @@ function assert(cond, msg) {
     await waitText('آخر الإشعارات', 20_000);
     await page.waitForTimeout(1500);
     await shot('notifications');
+
+    // ── 9. Catalog traffic: bounded, on-demand endpoints only
+    assert(!catalogCalls.includes('/v1/catalog/snapshot'), 'the app never downloaded the full catalog snapshot');
+    assert(catalogCalls.includes('/v1/catalog/reference') && catalogCalls.includes('/v1/catalog/home'), 'reference + home starter pack hydrated the catalog');
+    console.log(`  catalog requests: ${Object.entries(catalogCalls.reduce((m, p) => ({ ...m, [p.replace(/\/products\/[^/]+$/, '/products/:id')]: (m[p.replace(/\/products\/[^/]+$/, '/products/:id')] ?? 0) + 1 }), {})).map(([p, c]) => `${p}×${c}`).join(', ')}`);
   } catch (e) {
     failed = true;
     console.log('REMOTE JOURNEY FAILED:', e.message.split('\n')[0]);
