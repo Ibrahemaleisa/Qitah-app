@@ -60,6 +60,7 @@ export default function LocationsPage() {
             </p>
             <p className="text-sm text-slate">{cityAr(l.city)}</p>
             <p className="ltr mt-1 text-start text-sm text-slate">{l.contactPhone}</p>
+            <p className="mt-1 text-sm text-slate">آخر موعد لطلبات «يصلك اليوم»: <span className="ltr">{toHhmm(l.sameDayCutoffMinutes ?? 840)}</span></p>
             <div className="mt-3 flex gap-2">
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(l)}>
                 تعديل
@@ -85,6 +86,7 @@ function LocationDialog({ location, onClose, onSaved }: { location: Location | n
     district: location?.district ?? "",
     street: location?.street ?? "",
     contactPhone: location?.contactPhone ?? "",
+    cutoff: toHhmm(location?.sameDayCutoffMinutes ?? 840),
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<unknown>(null);
@@ -99,11 +101,13 @@ function LocationDialog({ location, onClose, onSaved }: { location: Location | n
     if (f.street.trim().length < 2) errs.street = "أدخل الشارع";
     const phone = normalizeSaudiMobile(f.contactPhone);
     if (!phone) errs.contactPhone = "رقم جوال سعودي مثل 05XXXXXXXX";
+    const cutoff = fromHhmm(f.cutoff);
+    if (cutoff === null) errs.cutoff = "وقت بصيغة 14:00";
     setErrors(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
     setServerError(null);
-    const body = { name: f.name.trim(), city: f.city, district: f.district.trim(), street: f.street.trim(), contactPhone: phone };
+    const body = { name: f.name.trim(), city: f.city, district: f.district.trim(), street: f.street.trim(), contactPhone: phone, sameDayCutoffMinutes: cutoff ?? 840 };
     try {
       if (location) await api(`${m.base}/locations/${location.id}`, { method: "PATCH", body });
       else await api(`${m.base}/locations`, { method: "POST", body });
@@ -143,6 +147,9 @@ function LocationDialog({ location, onClose, onSaved }: { location: Location | n
           <Field label="جوال الفرع" required hint="05XXXXXXXX" error={errors.contactPhone}>
             {(p) => <input {...p} name="contactPhone" className="input ltr text-start" inputMode="tel" value={f.contactPhone} onChange={set("contactPhone")} />}
           </Field>
+          <Field label="آخر موعد لطلبات «يصلك اليوم» (بتوقيت الرياض)" hint="الطلبات قبل هذا الوقت من هذا الفرع تُعرض للعميل كـ«يصلك اليوم» إن كان تجهيزك في نفس اليوم" error={errors.cutoff}>
+            {(p) => <input {...p} name="cutoff" type="time" className="input ltr text-start" value={f.cutoff} onChange={set("cutoff")} />}
+          </Field>
         </div>
         <ErrorNote error={serverError} />
         <div className="flex justify-end gap-2">
@@ -156,4 +163,14 @@ function LocationDialog({ location, onClose, onSaved }: { location: Location | n
       </form>
     </Dialog>
   );
+}
+
+const toHhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+
+function fromHhmm(v: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mm = Number(m[2]);
+  return h <= 23 && mm <= 59 ? h * 60 + mm : null;
 }

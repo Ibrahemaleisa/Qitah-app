@@ -22,6 +22,8 @@ export type Location = {
   contactPhone: string;
   latitude: number | null;
   longitude: number | null;
+  /** Same-day cutoff, minutes after midnight Riyadh time (default 840 = 14:00). */
+  sameDayCutoffMinutes?: number;
   active: boolean;
   createdAt: string;
 };
@@ -91,7 +93,17 @@ export type OrderItem = {
   partNumber: string;
   condition: "NEW" | "USED" | "REFURBISHED";
   status: "ACTIVE" | "CANCELLED";
+  /** Server-computed at checkout (never the customer's claim). */
+  fit?: FitInfo | null;
+  /** Seller-reported or unknown fit: double-check before packing. */
+  fitNeedsConfirmation?: boolean;
 };
+
+export type FitStatus = "catalogMatch" | "sellerReported" | "bySpecification" | "noData";
+
+export type OrderVehicle = { garageVehicleId: string; modelId: string; year: number; trim: string; engine: string; vin: string | null; label: string; labelAr: string; labelEn: string };
+
+export type FitInfo = { status: FitStatus; guaranteed: boolean; vehicle: OrderVehicle | null; vin: string | null };
 
 export type ShipmentEvent = { id: string; status: string; description: string; location: string | null; source: string; occurredAt: string };
 
@@ -107,6 +119,9 @@ export type Shipment = {
   pickupWindowStart: string | null;
   pickupWindowEnd: string | null;
   weightGrams: number;
+  costHalalas?: number;
+  /** Who bears the carrier cost (return shipments: Qitah under the fit guarantee, the merchant, or the customer). */
+  paidBy?: "CUSTOMER" | "PLATFORM" | "MERCHANT";
   exceptionReason: string | null;
   createdAt: string;
   events: ShipmentEvent[];
@@ -147,6 +162,9 @@ export type MerchantOrder = {
   groups: { id: string; carrierCode: string; serviceCode: string; etaDaysMin: number; etaDaysMax: number; originLocation: { id: string; name: string; city: string } }[];
   shipments: Shipment[];
   returnCases: { id: string; number: string; status: string }[];
+  /** The customer's vehicle (with VIN) chosen at checkout. */
+  vehicle?: OrderVehicle | null;
+  fitNeedsConfirmation?: boolean;
 };
 
 export type Paged<T> = { total: number; items: T[] };
@@ -215,9 +233,15 @@ export type ReturnCase = {
   refundHalalas: number;
   createdAt: string;
   merchantOrder: { number: string };
-  items: { id: string; quantity: number; orderItem: OrderItem }[];
+  items: { id: string; quantity: number; orderItem: OrderItem; fit?: FitInfo | null }[];
   shipments: Shipment[];
   refunds: { id: string; amountHalalas: number; status: string }[];
+  /** ضمان قطعة: wrong-part claim on guaranteed lines — auto-approved, Qitah pays return shipping. */
+  guaranteed?: boolean;
+  unopened?: boolean;
+  /** Signed, short-lived photo URLs (damaged claims). */
+  photos?: { key: string; url: string }[];
+  returnShipping?: { id: string; status: string; costHalalas: number; paidBy: "CUSTOMER" | "PLATFORM" | "MERCHANT" }[];
 };
 
 export type Settlement = {
