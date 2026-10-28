@@ -61,6 +61,26 @@ Built in one worktree. Schema changes are in a single migration, `*_merchant_eco
 - Map `buyerOrgId` → B2B in `orderChannel`.
 - `search.ts` does not apply the freshness hide filter (min price/offer count in search results can include hidden offers). The owner of search and the read model should add `lastConfirmedAt >= now − FRESHNESS_HIDE_DAYS`.
 
+## 2026-10-28 (late): Wave 3 merged and verified together
+- **Merged:** wave 3 (workshop accounts + NET_TERMS, merchant economics, catalog at scale) is in `claude/busy-cori-5iz32w` (`4f7da0a`).
+- **Merge glue:**
+  - `confirmPaidOrder` applies the same-day accept SLA.
+  - `orderChannel()` maps `buyerOrgId` to B2B commission.
+  - `reconcileOrder` handles credit orders and payment fees together.
+  - A cross-feature test covers it.
+- **Verification on one fresh DB (`qitah_integration3`):**
+  - API 111/111.
+  - App jest 252/252.
+  - Infra 83/83 plus synth.
+  - Both portals build, tsc and lint clean.
+  - Ops smoke 24/24, merchant smoke 14/14.
+  - Customer remote journey PASSED, with no catalog snapshot download.
+  - RFQ journey PASSED.
+- **Load test at 200k products (in-process, 4 vCPU):**
+  - search p95: colloquial 119 ms, part number 12 ms, vehicle-filtered 153–171 ms (slightly over the 150 ms target).
+  - detail 8 ms, home 58 ms.
+- **Deploy note:** run `npm run db:backfill-listings` after migrating.
+
 ## 2026-10-28: Evaluation committee + waves 1–2
 **Committee** (5 independent members, reports in `docs/strategy/committee/`, synthesis in `docs/strategy/COMMITTEE_REPORT.md`).
 - "60% of all market sales" isn't measurable or achievable in 3–5 years: online is about 5% of a $5–7B parts market.
