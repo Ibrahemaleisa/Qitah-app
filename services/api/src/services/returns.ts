@@ -6,7 +6,8 @@ import { readFitSnapshot } from '../domain/fit.js';
 import { assertTransition, RETURN_TRANSITIONS } from '../domain/states.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { returnNumber } from '../lib/ids.js';
-import { applyBps } from '../lib/money.js';
+import { splitRefundByLine } from '../domain/commission.js';
+import { priorLineReversals } from './commission.js';
 import { audit, emit, notify, type Actor } from './events.js';
 import { restock } from './inventory.js';
 import { customerUploadPrefix } from './uploads.js';
@@ -216,12 +217,19 @@ export async function computeReturnRefund(
   const deduction = rc.shipments.filter((s) => s.direction === 'RETURN' && s.paidBy === 'CUSTOMER' && s.trackingNumber).reduce((s, x) => s + x.costHalalas, 0);
   const amount = items + platformShipping - deduction;
   if (amount <= 0) throw conflict('REFUND_NOT_POSITIVE', 'Return shipping exceeds the refundable value; reject the return instead');
+  // Commission is reversed at each returned LINE's own rate (lines of one suborder can carry different rates).
+  const split = splitRefundByLine(
+    rc.items.map((i) => ({ orderItemId: i.orderItemId, valueHalalas: i.orderItem.unitPriceHalalas * i.quantity, commissionBps: i.orderItem.commissionBps, commissionHalalas: i.orderItem.commissionHalalas })),
+    items,
+    await priorLineReversals(tx, rc.orderId),
+  );
   const allocation: Allocation = [
     {
       merchantId: rc.merchantId,
       merchantOrderId: rc.merchantOrderId,
       items,
-      commission: applyBps(items, rc.merchantOrder.commissionBps),
+      commission: split.commission,
+      lines: split.lines,
       // Negative: the retained return-shipping charge becomes owed to the carrier.
       shipping: -deduction,
       ...(platformShipping ? { platformShipping } : {}),

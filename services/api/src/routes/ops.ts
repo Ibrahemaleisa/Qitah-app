@@ -7,9 +7,13 @@ import { hashPassword } from '../auth/crypto.js';
 import { prisma, withTx } from '../db.js';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors.js';
 import { pageQuery, parse } from '../lib/http.js';
-import { applyBps } from '../lib/money.js';
+import { splitRefundByLine } from '../domain/commission.js';
+import { priorLineReversals } from '../services/commission.js';
 import { audit, emit, notify, type Actor } from '../services/events.js';
 import * as finance from '../services/finance.js';
+import { createRule, listRules, previewRate, updateRule } from '../services/commission.js';
+import { economicsJobs } from '../jobs.js';
+import { allScorecards, merchantScorecard } from '../services/scorecard.js';
 import { acceptMerchantOrder, markReady, rejectMerchantOrder, startPacking } from '../services/fulfillment.js';
 import { orderInclude } from '../services/orderView.js';
 import { createRefund, submitPendingRefunds } from '../services/payments.js';
@@ -62,6 +66,81 @@ export async function opsRoutes(app: FastifyInstance, deps: Deps) {
       prisma.merchant.findMany({ where, include: { _count: { select: { offers: true, locations: true, merchantOrders: true } } }, orderBy: { createdAt: 'desc' }, take: q.limit, skip: q.offset }),
     ]);
     return { total, items };
+  });
+
+  // ── merchant economics: performance, commission rules, settlement settings
+  app.get('/v1/ops/merchants/performance', async (req) => {
+    await ops(req);
+    return { items: await allScorecards() };
+  });
+
+  app.get('/v1/ops/merchants/:id/scorecard', async (req) => {
+    await ops(req);
+    const id = idOf(req);
+    if (!(await prisma.merchant.findUnique({ where: { id }, select: { id: true } }))) throw notFound('Merchant');
+    return merchantScorecard(id);
+  });
+
+  /** Negotiated rate (null = use the commission tiers), settlement cadence and early-payout trust. */
+  app.patch('/v1/ops/merchants/:id/economics', async (req) => {
+    const { actor } = await ops(req, ['OPS_ADMIN', 'FINANCE']);
+    const id = idOf(req);
+    const body = parse(
+      z.object({
+        commissionBps: z.number().int().min(0).max(5000).nullable().optional(),
+        settlementCadence: z.enum(['WEEKLY', 'DAILY']).optional(),
+        trustedForEarlyPayout: z.boolean().optional(),
+      }),
+      req.body,
+    );
+    return withTx(async (tx) => {
+      const m = await tx.merchant.findUnique({ where: { id } });
+      if (!m) throw notFound('Merchant');
+      const updated = await tx.merchant.update({ where: { id }, data: body });
+      await audit(tx, actor, { action: 'merchant.economics_updated', entityType: 'merchant', entityId: id, merchantId: id, data: { before: { commissionBps: m.commissionBps, settlementCadence: m.settlementCadence, trustedForEarlyPayout: m.trustedForEarlyPayout }, after: body } });
+      return updated;
+    });
+  });
+
+  const ruleBody = z.object({
+    name: z.string().min(2).max(120),
+    merchantId: z.string().max(64).nullable().optional(),
+    categoryId: z.string().max(40).nullable().optional(),
+    origin: z.enum(['OEM', 'AFTERMARKET']).nullable().optional(),
+    condition: z.enum(['NEW', 'USED', 'REFURBISHED']).nullable().optional(),
+    channel: z.enum(['B2C', 'B2B', 'ANY']).default('ANY'),
+    bps: z.number().int().min(0).max(5000),
+    priority: z.number().int().min(-100).max(100).default(0),
+    active: z.boolean().default(true),
+    validFrom: z.coerce.date().nullable().optional(),
+    validTo: z.coerce.date().nullable().optional(),
+    note: z.string().max(500).nullable().optional(),
+  });
+
+  app.get('/v1/ops/commission-rules', async (req) => {
+    await ops(req);
+    return { rules: await listRules(), defaultBps: ctx.config.COMMISSION_DEFAULT_BPS };
+  });
+
+  app.post('/v1/ops/commission-rules', async (req) => {
+    const { actor } = await ops(req, ['OPS_ADMIN', 'FINANCE']);
+    return createRule(actor, parse(ruleBody, req.body));
+  });
+
+  app.patch('/v1/ops/commission-rules/:id', async (req) => {
+    const { actor } = await ops(req, ['OPS_ADMIN', 'FINANCE']);
+    const body = parse(ruleBody.partial().extend({ channel: z.enum(['B2C', 'B2B', 'ANY']).optional(), priority: z.number().int().min(-100).max(100).optional(), active: z.boolean().optional() }), req.body);
+    return updateRule(actor, idOf(req), body);
+  });
+
+  /** "Which rate applies?" for a merchant + category + origin + condition + channel. */
+  app.get('/v1/ops/commission-rules/preview', async (req) => {
+    await ops(req);
+    const q = parse(
+      z.object({ merchantId: z.string().max(64), categoryId: z.string().max(40), origin: z.enum(['OEM', 'AFTERMARKET']), condition: z.enum(['NEW', 'USED', 'REFURBISHED']).default('NEW'), channel: z.enum(['B2C', 'B2B']).default('B2C') }),
+      req.query,
+    );
+    return previewRate(ctx.config.COMMISSION_DEFAULT_BPS, q);
   });
 
   app.get('/v1/ops/uploads', async (req) => {
@@ -186,18 +265,24 @@ export async function opsRoutes(app: FastifyInstance, deps: Deps) {
     const id = idOf(req);
     const body = parse(z.object({ merchantOrderId: z.string(), amountHalalas: z.number().int().positive(), reason: z.string().min(3).max(300), idempotencyKey: z.string().min(8).max(100) }), req.body);
     await withTx(async (tx) => {
-      const mo = await tx.merchantOrder.findFirst({ where: { id: body.merchantOrderId, orderId: id } });
+      const mo = await tx.merchantOrder.findFirst({ where: { id: body.merchantOrderId, orderId: id }, include: { items: true } });
       if (!mo) throw notFound('Merchant order');
       const payment = await tx.payment.findFirst({ where: { orderId: id, status: { in: ['CAPTURED', 'PARTIALLY_REFUNDED'] } } });
       if (!payment) throw conflict('NOT_REFUNDABLE', 'No captured payment');
       const alreadyRefunded = await tx.refund.findMany({ where: { orderId: id, status: { in: ['PENDING', 'SUCCEEDED'] } } });
       const moRefunded = alreadyRefunded.flatMap((r) => r.allocation as { merchantOrderId: string; items: number }[]).filter((a) => a.merchantOrderId === mo.id).reduce((s, a) => s + a.items, 0);
       if (body.amountHalalas > mo.itemsHalalas - moRefunded) throw conflict('REFUND_EXCEEDS_ITEMS', `At most ${mo.itemsHalalas - moRefunded} halalas refundable for this suborder`);
+      // Goodwill is spread over the suborder's active lines by value; each share reverses commission at its line's rate.
+      const split = splitRefundByLine(
+        mo.items.filter((i) => i.status === 'ACTIVE').map((i) => ({ orderItemId: i.id, valueHalalas: i.lineTotalHalalas, commissionBps: i.commissionBps, commissionHalalas: i.commissionHalalas })),
+        body.amountHalalas,
+        await priorLineReversals(tx, id),
+      );
       await createRefund(tx, {
         payment,
         amountHalalas: body.amountHalalas,
         reason: `OPS:${body.reason}`,
-        allocation: [{ merchantId: mo.merchantId, merchantOrderId: mo.id, items: body.amountHalalas, commission: applyBps(body.amountHalalas, mo.commissionBps), shipping: 0 }],
+        allocation: [{ merchantId: mo.merchantId, merchantOrderId: mo.id, items: body.amountHalalas, shipping: 0, ...split }],
         idempotencyKey: `ops:${body.idempotencyKey}`,
         actor,
       });
@@ -353,11 +438,20 @@ export async function opsRoutes(app: FastifyInstance, deps: Deps) {
   app.get('/v1/ops/settlements', async (req) => {
     await ops(req, ['FINANCE']);
     const settlements = await prisma.settlement.findMany({ include: { merchant: { select: { displayNameAr: true } }, lines: true }, orderBy: { createdAt: 'desc' }, take: 100 });
-    const merchants = await prisma.merchant.findMany({ where: { status: { in: ['APPROVED', 'SUSPENDED'] } }, select: { id: true, displayNameAr: true } });
+    const merchants = await prisma.merchant.findMany({ where: { status: { in: ['APPROVED', 'SUSPENDED'] } }, select: { id: true, displayNameAr: true, settlementCadence: true, trustedForEarlyPayout: true } });
     const eligibility = await Promise.all(
       merchants.map(async (m) => {
         const lines = await finance.eligibleMerchantOrders(ctx, m.id);
-        return { merchantId: m.id, displayNameAr: m.displayNameAr, eligibleOrders: lines.length, eligibleNetHalalas: lines.reduce((s, l) => s + l.netHalalas, 0), balance: await finance.merchantBalance(m.id) };
+        return {
+          merchantId: m.id,
+          displayNameAr: m.displayNameAr,
+          settlementCadence: m.settlementCadence,
+          trustedForEarlyPayout: m.trustedForEarlyPayout,
+          eligibleOrders: lines.length,
+          eligibleNetHalalas: lines.reduce((s, l) => s + l.netHalalas, 0),
+          eligibleReserveHalalas: lines.filter((l) => l.kind === 'SALE').reduce((s, l) => s + l.reserveHalalas, 0),
+          balance: await finance.merchantBalance(m.id),
+        };
       }),
     );
     return { settlements, eligibility };
@@ -368,6 +462,24 @@ export async function opsRoutes(app: FastifyInstance, deps: Deps) {
     const body = parse(z.object({ merchantId: z.string(), asOf: z.coerce.date().optional() }), req.body);
     if (body.asOf && !ctx.config.sandbox) throw forbidden('asOf is only available in sandbox environments');
     return finance.generateSettlement(ctx, actor, body.merchantId, body.asOf);
+  });
+
+  /**
+   * Runs the automatic settlement jobs now (reserve release → period DRAFTs → stale-offer reminders). Idempotent:
+   * a period that already ran is skipped. `asOf` (sandbox only) simulates a later date.
+   */
+  app.post('/v1/ops/settlements/run', async (req) => {
+    await ops(req, ['FINANCE']);
+    const body = parse(z.object({ asOf: z.coerce.date().optional() }), req.body ?? {});
+    if (body.asOf && !ctx.config.sandbox) throw forbidden('asOf is only available in sandbox environments');
+    return economicsJobs(ctx, body.asOf ?? new Date());
+  });
+
+  /** Contribution margin per paid order: commission + shipping margin − payment fees − guarantee expense. */
+  app.get('/v1/ops/finance/margins', async (req) => {
+    await ops(req, ['FINANCE', 'OPS_ADMIN']);
+    const q = parse(pageQuery.extend({ from: z.coerce.date().optional(), to: z.coerce.date().optional() }), req.query);
+    return finance.orderMargins(q);
   });
 
   app.post('/v1/ops/settlements/:id/approve', async (req) => {

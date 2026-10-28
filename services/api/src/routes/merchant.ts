@@ -8,7 +8,11 @@ import { prisma, withTx } from '../db.js';
 import { badRequest, conflict, forbidden, notFound, unauthorized } from '../lib/errors.js';
 import { cityId, pageQuery, parse, rateLimit, saudiPhone } from '../lib/http.js';
 import { normalizePartNumber, normalizeText } from '../lib/text.js';
+import { offerFreshness } from '../domain/freshness.js';
 import { refreshSearchText } from '../services/catalog.js';
+import { effectiveRates } from '../services/commission.js';
+import { confirmOffers, freshnessSummary } from '../services/freshness.js';
+import { merchantScorecard } from '../services/scorecard.js';
 import { audit, emit, type Actor } from '../services/events.js';
 import * as finance from '../services/finance.js';
 import { acceptMerchantOrder, markReady, rejectMerchantOrder, startPacking } from '../services/fulfillment.js';
@@ -409,7 +413,23 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
       prisma.offer.count({ where }),
       prisma.offer.findMany({ where, include: { product: { select: { id: true, nameAr: true, nameEn: true, partNumber: true, brand: true, categoryId: true } }, inventory: true, location: { select: { id: true, name: true, city: true } } }, orderBy: { updatedAt: 'desc' }, take: q.limit, skip: q.offset }),
     ]);
-    return { total, items };
+    const now = new Date();
+    return { total, items: items.map((o) => ({ ...o, freshness: offerFreshness(o.lastConfirmedAt, now) })) };
+  });
+
+  /** Offer freshness summary (fresh / stale / hidden) for the "confirm your stock" banner. */
+  app.get('/v1/merchants/:merchantId/offers/freshness', async (req) => {
+    const merchantId = mid(req);
+    await requireMerchant(req, merchantId);
+    return freshnessSummary(merchantId);
+  });
+
+  /** One-click "all my stock is accurate" (or a selection): reconfirms offers so they stay visible and ranked. */
+  app.post('/v1/merchants/:merchantId/offers/confirm', async (req) => {
+    const merchantId = mid(req);
+    const { principal: p } = await requireMerchant(req, merchantId, 'STAFF');
+    const body = parse(z.object({ offerIds: z.array(z.string().max(64)).max(1000).optional() }), req.body ?? {});
+    return confirmOffers(merchantId, actorOf(p.userId), body.offerIds);
   });
 
   app.post('/v1/merchants/:merchantId/offers', async (req) => {
@@ -448,7 +468,9 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
       throw badRequest('INVALID_LOCATION', 'Choose one of your active pickup locations');
     }
     return withTx(async (tx) => {
-      const offer = await tx.offer.update({ where: { id }, data: body, include: { inventory: true } });
+      // A price change or (re)activation is a stock/price confirmation for the freshness policy.
+      const confirms = body.priceHalalas !== undefined || body.status === 'ACTIVE';
+      const offer = await tx.offer.update({ where: { id }, data: { ...body, ...(confirms ? { lastConfirmedAt: new Date() } : {}) }, include: { inventory: true } });
       await audit(tx, actorOf(p.userId), { action: 'offer.updated', entityType: 'offer', entityId: id, merchantId, data: { before: { priceHalalas: existing.priceHalalas, status: existing.status }, after: body } });
       await emit(tx, { type: 'offer.updated', entityType: 'offer', entityId: id, merchantIds: [merchantId] });
       return offer;
@@ -464,6 +486,8 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     if (!offer) throw notFound('Offer');
     return withTx(async (tx) => {
       const r = await setOnHand(tx, { offerId: id, onHand: body.onHand, reason: body.reason, note: body.note, actor: actorOf(p.userId) });
+      // Any stock update (even "same count") confirms the offer for the freshness policy.
+      await tx.offer.update({ where: { id }, data: { lastConfirmedAt: new Date() } });
       await audit(tx, actorOf(p.userId), { action: 'inventory.adjusted', entityType: 'offer', entityId: id, merchantId, data: body });
       await emit(tx, { type: 'offer.updated', entityType: 'offer', entityId: id, merchantIds: [merchantId], payload: { available: r.onHand - r.reserved } });
       return { offerId: id, onHand: r.onHand, reserved: r.reserved, available: r.onHand - r.reserved };
@@ -535,7 +559,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
         await withTx(async (tx) => {
           if (existing) {
             if (existing.productId !== product!.id) throw new Error('SKU already used for a different product');
-            await tx.offer.update({ where: { id: existing.id }, data: { priceHalalas: price, condition: condition as 'NEW', locationId: location.id } });
+            await tx.offer.update({ where: { id: existing.id }, data: { priceHalalas: price, condition: condition as 'NEW', locationId: location.id, lastConfirmedAt: new Date() } });
             await setOnHand(tx, { offerId: existing.id, onHand: stock, reason: 'CORRECTION', note: 'CSV import', actor: actorOf(p.userId) });
           } else {
             const o = await tx.offer.create({ data: { merchantId, productId: product!.id, locationId: location.id, sku: r.sku, condition: condition as 'NEW', priceHalalas: price, inventory: { create: { onHand: stock } } } });
@@ -662,12 +686,26 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
   app.get('/v1/merchants/:merchantId/settlements', async (req) => {
     const merchantId = mid(req);
     await requireMerchant(req, merchantId, 'MANAGER');
-    const [settlements, balance, eligible] = await Promise.all([
+    const merchant = await prisma.merchant.findUniqueOrThrow({ where: { id: merchantId } });
+    const [settlements, balance, payout] = await Promise.all([
       prisma.settlement.findMany({ where: { merchantId }, include: { lines: { include: { merchantOrder: { select: { number: true } } } } }, orderBy: { createdAt: 'desc' } }),
       finance.merchantBalance(merchantId),
-      finance.eligibleMerchantOrders(ctx, merchantId),
+      finance.payoutOverview(ctx, merchant),
     ]);
-    return { settlements, balance, eligibleNetHalalas: eligible.reduce((s, l) => s + l.netHalalas, 0), eligibleOrders: eligible.length };
+    return { settlements, balance, payout, eligibleNetHalalas: payout.eligibleNetHalalas, eligibleOrders: payout.eligibleOrders };
+  });
+
+  // ── merchant economics: effective commission rates and the scorecard
+  app.get('/v1/merchants/:merchantId/commission-rates', async (req) => {
+    const merchantId = mid(req);
+    await requireMerchant(req, merchantId);
+    return effectiveRates(merchantId, ctx.config.COMMISSION_DEFAULT_BPS);
+  });
+
+  app.get('/v1/merchants/:merchantId/scorecard', async (req) => {
+    const merchantId = mid(req);
+    await requireMerchant(req, merchantId);
+    return merchantScorecard(merchantId);
   });
 
   // ── notifications & activity
