@@ -2,6 +2,7 @@ import { toOffer, toProduct } from '@/api/adapters';
 import { catalogApi } from '@/api/endpoints';
 import type { ApiSearchInterpretation, SearchQuery, SearchResponse } from '@/api/types';
 import { allCategories } from '@/data/catalog';
+import { cacheApiProducts } from '@/services/remote/catalogSync';
 import type { CategoryId, Vehicle } from '@/domain/types';
 import type { ResolvedVehicle } from '@/lib/search/lexicon';
 import {
@@ -16,9 +17,8 @@ import {
 } from '@/services/catalog';
 
 /**
- * Remote-mode search: `GET /v1/catalog/search` replaces filtering the downloaded snapshot.
- * The snapshot itself still hydrates product detail, offers and the cart (see catalogSync.ts) —
- * it is intentionally left in place for now and will be replaced by per-product fetches later.
+ * Remote-mode search: `GET /v1/catalog/search` (there is no downloaded catalog to filter any more). Result
+ * products are added to the bounded on-demand product cache (catalogSync.ts) so detail opens instantly.
  */
 
 export const SEARCH_PAGE_SIZE = 20;
@@ -104,6 +104,9 @@ export function toSearchPage(res: SearchResponse, input: SearchInput): RemoteSea
 
 export async function remoteSearch(input: SearchInput, opts: { cursor?: string; limit?: number; signal?: AbortSignal } = {}): Promise<RemoteSearchPage> {
   const res = await catalogApi.search(toSearchQuery(input, opts.cursor, opts.limit), opts.signal);
+  // Results come with live offers: keep them in the bounded cache (no sellers yet → partial) so opening a
+  // product is instant; product detail then loads the sellers in the background.
+  cacheApiProducts(res.items ?? [], [], true);
   return toSearchPage(res, input);
 }
 

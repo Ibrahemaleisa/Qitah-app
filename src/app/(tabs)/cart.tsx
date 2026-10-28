@@ -22,6 +22,7 @@ import { Icon } from '@/ui/Icon';
 import { Notice } from '@/ui/Notice';
 import { Pressable } from '@/ui/Pressable';
 import { Screen, ScreenHeader, StickyFooter } from '@/ui/Screen';
+import { Skeleton } from '@/ui/Skeleton';
 import { Stepper } from '@/ui/Stepper';
 import { Text } from '@/ui/Text';
 import { Price } from '@/ui/Price';
@@ -98,7 +99,13 @@ export default function Cart() {
             </Pressable>
             {group.lines.map(({ line, offer }, i) => {
               const product = getProduct(offer.productId);
-              if (!product) return null;
+              // Remote: the line's product is still being fetched into the bounded cache.
+              if (!product)
+                return isRemote ? (
+                  <View key={offer.id} accessibilityRole="progressbar" style={{ padding: space.lg }}>
+                    <Skeleton width="100%" height={72} rounded={radius.sm} />
+                  </View>
+                ) : null;
               const issues = isRemote ? lineIssues(line, live.reduced) : [];
               const unavailable = issues.some((x) => x.kind === 'unavailable');
               return (

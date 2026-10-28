@@ -2,11 +2,27 @@ import { create } from 'zustand';
 
 import type { Category, Offer, Product, Seller, VehicleMake, VehicleModel } from '@/domain/types';
 
+import { ProductCache, type ChangesPayload, type ProductPayload } from './product-cache';
+
 /**
- * In-memory holder for the REMOTE catalog (remote mode only). Pure state, no I/O: the network
- * hydration lives in `services/remote/catalogSync.ts`. The data accessors in `src/data/*` read
- * from here when `isRemote`, so screens keep calling `getProduct`, `getOffer`, `getSeller`… unchanged.
+ * In-memory holder for the REMOTE catalog (remote mode only). No network I/O here: hydration lives in
+ * `services/remote/catalogSync.ts`. The data accessors in `src/data/*` read from here when `isRemote`, so
+ * screens keep calling `getProduct`, `getOffer`, `getSeller`… unchanged.
+ *
+ * Products/offers/sellers are no longer the whole catalog: they mirror a bounded LRU `productCache`
+ * (≤ 500 products, persisted per product) filled on demand (reference, home starter pack, products?ids,
+ * search pages, seller pages) and kept fresh with `/v1/catalog/changes`. Reference data (categories,
+ * makes/models) is held in full.
  */
+
+/** The one product cache (storage is attached by catalogSync in the app; tests use it in memory). */
+export const productCache = new ProductCache({ capacity: 500 });
+
+/** What screens need to know about products they asked for but the cache does not hold (yet). */
+export type FetchState = 'loading' | 'missing' | 'error';
+
+/** A home "starter pack" (ids into the cache) per vehicle key. */
+export type HomePack = { recommended: string[]; featured: string[]; fetchedAt: number };
 
 export type CatalogStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -34,6 +50,11 @@ type CatalogState = CatalogData & {
   fetchedAt: number;
   /** Bumped on every data change so screens can re-render / re-memo. */
   version: number;
+  /** Per product id: being fetched, or known not to exist / failed. Absent = cached or never asked. */
+  fetches: Record<string, FetchState>;
+  homePacks: Record<string, HomePack>;
+  /** Seller page product ids (remote `GET /v1/catalog/sellers/:id`). */
+  sellerPages: Record<string, string[]>;
 };
 
 export const emptyCatalog: CatalogData = { products: [], offers: [], sellers: [], makes: [], categories: [] };
@@ -47,7 +68,48 @@ export const useRemoteCatalog = create<CatalogState>()(() => ({
   error: null,
   fetchedAt: 0,
   version: 0,
+  fetches: {},
+  homePacks: {},
+  sellerPages: {},
 }));
+
+/** Copies the cache's current contents into the store (and bumps the version for re-renders). */
+export function publishCache(extra: Partial<CatalogState> = {}) {
+  const view = productCache.view();
+  useRemoteCatalog.setState((s) => ({ ...extra, products: view.products, offers: view.offers, sellers: view.sellers, version: s.version + 1 }));
+}
+
+/** Groups flat offers under their products for the cache. */
+export function toPayloads(products: Product[], offers: Offer[], partial = false): ProductPayload[] {
+  const byProduct = new Map<string, Offer[]>();
+  for (const o of offers) byProduct.set(o.productId, [...(byProduct.get(o.productId) ?? []), o]);
+  return products.map((product) => ({ product, offers: byProduct.get(product.id) ?? [], partial }));
+}
+
+/** Adds fetched products to the cache (cart offers are kept if they vanish) and clears their fetch state. */
+export function putProducts(payloads: ProductPayload[], sellers: Seller[], keepOfferIds: Iterable<string> = []) {
+  productCache.put(payloads, sellers, { keepOfferIds });
+  const done = new Set(payloads.map((p) => p.product.id));
+  const fetches = Object.fromEntries(Object.entries(useRemoteCatalog.getState().fetches).filter(([id]) => !done.has(id)));
+  publishCache({ fetches });
+}
+
+export function setFetchState(ids: string[], state: FetchState | null) {
+  if (!ids.length) return;
+  useRemoteCatalog.setState((s) => {
+    const fetches = { ...s.fetches };
+    for (const id of ids) {
+      if (state) fetches[id] = state;
+      else delete fetches[id];
+    }
+    return { fetches };
+  });
+}
+
+export function applyCatalogChanges(c: ChangesPayload, keepOfferIds: Iterable<string> = []) {
+  productCache.applyChanges(c, { keepOfferIds });
+  publishCache();
+}
 
 type Index = {
   version: number;
@@ -90,40 +152,36 @@ export function catalogIndex(): Index {
   return index;
 }
 
+/**
+ * Sets reference data (categories, makes) and/or adds products + offers + sellers to the product cache
+ * (merged, not replacing: the cache is bounded and on demand), then marks the catalog ready.
+ */
 export function setCatalogData(data: Partial<CatalogData>, meta: { fetchedAt?: number } = {}) {
-  useRemoteCatalog.setState((s) => ({
-    ...data,
-    status: 'ready',
-    error: null,
-    fetchedAt: meta.fetchedAt ?? s.fetchedAt,
-    version: s.version + 1,
-  }));
+  const { products, offers, sellers, ...reference } = data;
+  if (products?.length) productCache.put(toPayloads(products, offers ?? []), sellers ?? []);
+  else {
+    if (offers?.length) productCache.mergeOffers(offers);
+    if (sellers?.length) productCache.upsertSellers(sellers);
+  }
+  useRemoteCatalog.setState((s) => ({ ...reference, status: 'ready', error: null, fetchedAt: meta.fetchedAt ?? s.fetchedAt }));
+  publishCache();
 }
 
 /**
- * Merges live offers (price/stock from `GET /v1/catalog/offers`) into the catalog. Offers that are
- * no longer public (and so missing from the snapshot) are kept, flagged `unavailable`, so a cart line
- * can explain what happened instead of silently disappearing.
+ * Merges live offers (price/stock from `GET /v1/catalog/offers`) into the cache. Offers that are no
+ * longer public are kept, flagged `unavailable`, so a cart line can explain what happened.
  */
 export function mergeOffers(live: Offer[]) {
   if (!live.length) return;
-  useRemoteCatalog.setState((s) => {
-    const byId = new Map(live.map((o) => [o.id, o]));
-    const merged = s.offers.map((o) => byId.get(o.id) ?? o);
-    const known = new Set(s.offers.map((o) => o.id));
-    for (const o of live) if (!known.has(o.id)) merged.push(o);
-    return { offers: merged, version: s.version + 1 };
-  });
+  productCache.mergeOffers(live);
+  publishCache();
 }
 
 /** Marks offers that the server no longer returns at all (deleted) as unavailable. */
 export function markOffersMissing(ids: string[]) {
   if (!ids.length) return;
-  const missing = new Set(ids);
-  useRemoteCatalog.setState((s) => ({
-    offers: s.offers.map((o) => (missing.has(o.id) ? { ...o, stock: 0, unavailable: true } : o)),
-    version: s.version + 1,
-  }));
+  productCache.markOffersMissing(ids);
+  publishCache();
 }
 
 /** True when the offer is one of the customer's private (accepted-quote) offers. */

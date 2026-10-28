@@ -74,7 +74,17 @@ export type ApiSeller = {
   active?: boolean;
 };
 
+/** DEPRECATED (capped server-side); the app no longer calls it. */
 export type SnapshotResponse = { generatedAt: string; products: ApiProduct[]; sellers: ApiSeller[] };
+
+/** `GET /v1/catalog/products?ids=&offerIds=` (≤100) and `GET /v1/catalog/products/:id` share the product shape. */
+export type ProductsResponse = { products: ApiProduct[]; sellers: ApiSeller[]; missing: string[] };
+export type ProductDetailResponse = { product: ApiProduct; sellers: ApiSeller[] };
+/** `GET /v1/catalog/home?modelId=&year=&engine=`: per-vehicle starter pack (≤24 products). */
+export type HomeResponse = { vehicle: { modelId: string; year: number | null; engine: string | null } | null; recommended: string[]; featured: string[]; products: ApiProduct[]; sellers: ApiSeller[] };
+/** `GET /v1/catalog/changes?since=&ids=` (≤100 ids): changed products in full + removed ids. */
+export type ChangesResponse = { serverTime: string; since: string; products: ApiProduct[]; sellers: ApiSeller[]; removed: string[] };
+export type SellerPageResponse = { seller: ApiSeller; products: ApiProduct[] };
 
 /** `GET /v1/catalog/delivery-estimates` — estimates only; the checkout plan is binding. */
 export type ApiServiceEstimate = { service: string; amountHalalas: number; etaDaysMin: number; etaDaysMax: number; arrivesBy: string };

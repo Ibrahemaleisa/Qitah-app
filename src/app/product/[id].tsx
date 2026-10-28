@@ -7,12 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PartArt } from '@/brand/PartArt';
 import { useCatalogVersion } from '@/catalog/remote-catalog';
 import { isRemote } from '@/config/env';
-import { getCategory, getProduct } from '@/data/catalog';
+import { getCategory } from '@/data/catalog';
 import { reviewsForProduct } from '@/data/reviews';
 import { cityLabel } from '@/data/sellers';
 import { getMake, getModel } from '@/data/vehicles';
 import { OriginBadge, SampleBadge } from '@/features/badges';
 import { FitPanel } from '@/features/FitPanel';
+import { ProductSkeleton } from '@/features/remote/ProductSkeleton';
+import { useProduct } from '@/features/remote/useCatalog';
 import { ProductSummary } from '@/features/ProductSummary';
 import { OfferCard, offerHighlights } from '@/features/OfferCard';
 import { RatingSummaryCard, ReviewItem } from '@/features/Reviews';
@@ -45,7 +47,8 @@ export default function ProductScreen() {
   const { s, tx, lang } = useI18n();
   const insets = useSafeAreaInsets();
   const vehicle = useSelectedVehicle();
-  const product = getProduct(id ?? '');
+  // Remote: fetched on demand when not in the bounded cache (deep link, notification, old favorite).
+  const { product, status } = useProduct(id);
   const isFavorite = useAppStore((st) => (product ? st.favorites.includes(product.id) : false));
   const toggleFavorite = useAppStore((st) => st.toggleFavorite);
   const trackView = useAppStore((st) => st.trackView);
@@ -62,6 +65,7 @@ export default function ProductScreen() {
   // Remote: delivered price + arrival for the customer's default address city (estimates, "تقديري").
   const { city, estimates } = useDeliveryEstimates(listing?.offers.map((o) => o.id) ?? []);
 
+  if (!product && status === 'loading') return <ProductSkeleton />;
   if (!product || !listing) {
     return (
       <Screen safeTop header={<View style={{ padding: gutter }}><IconButton icon="chevron-left" label={s.common.back} onPress={() => router.back()} /></View>}>

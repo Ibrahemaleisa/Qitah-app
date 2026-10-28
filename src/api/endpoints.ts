@@ -11,18 +11,23 @@ import type {
   ApiUser,
   ApiVehicle,
   CheckoutPaymentMethod,
+  ChangesResponse,
   CheckoutResponse,
   DeliveryEstimatesResponse,
+  HomeResponse,
   UploadTarget,
   OtpRequestResponse,
   OtpVerifyResponse,
   PaymentInit,
   PlanResponse,
+  ProductDetailResponse,
+  ProductsResponse,
   ReferenceResponse,
   RemotePaymentMethod,
   ServiceRecordInput,
   SearchQuery,
   SearchResponse,
+  SellerPageResponse,
   SnapshotResponse,
   VinDecodeResponse,
 } from './types';
@@ -39,7 +44,15 @@ export const authApi = {
 
 export const catalogApi = {
   reference: () => api.get<ReferenceResponse>('/v1/catalog/reference'),
+  /** @deprecated capped server-side; kept for type compatibility only — the app hydrates on demand. */
   snapshot: () => api.get<SnapshotResponse>('/v1/catalog/snapshot', { timeoutMs: 20_000 }),
+  /** Batch lookup: products by id and/or the products behind public offer ids (≤100 each). */
+  products: (ids: string[], offerIds: string[] = []) =>
+    api.get<ProductsResponse>('/v1/catalog/products', { query: { ids: ids.length ? ids.slice(0, 100).join(',') : undefined, offerIds: offerIds.length ? offerIds.slice(0, 100).join(',') : undefined } }),
+  product: (id: string) => api.get<ProductDetailResponse>(`/v1/catalog/products/${encodeURIComponent(id)}`),
+  home: (v?: { modelId: string; year: number; engine?: string }) => api.get<HomeResponse>('/v1/catalog/home', { query: { modelId: v?.modelId, year: v?.year, engine: v?.engine || undefined } }),
+  changes: (since: string, ids: string[]) => api.get<ChangesResponse>('/v1/catalog/changes', { query: { since, ids: ids.slice(0, 100).join(',') } }),
+  seller: (id: string) => api.get<SellerPageResponse>(`/v1/catalog/sellers/${encodeURIComponent(id)}`),
   offers: (ids: string[]) => api.get<{ offers: ApiOffer[] }>('/v1/catalog/offers', { query: { ids: ids.slice(0, 50).join(',') } }),
   deliveryEstimates: (offerIds: string[], city: string) =>
     api.get<DeliveryEstimatesResponse>('/v1/catalog/delivery-estimates', { query: { offerIds: offerIds.slice(0, 50).join(','), city } }),

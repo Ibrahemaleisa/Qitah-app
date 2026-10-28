@@ -1,4 +1,4 @@
-import { catalogIndex, useRemoteCatalog } from '@/catalog/remote-catalog';
+import { catalogIndex, productCache, useRemoteCatalog } from '@/catalog/remote-catalog';
 import { isRemote } from '@/config/env';
 import type { Category, Fitment, FitmentSource, Product } from '@/domain/types';
 
@@ -502,7 +502,7 @@ export const products: Product[] = [
 
 const productIndex = new Map(products.map((p) => [p.id, p]));
 
-/** Products of the active catalog: the bundled SAMPLE data, or the live API catalog in remote mode. */
+/** Products of the active catalog: the bundled SAMPLE data, or (remote) the bounded on-demand cache — NOT the whole catalog. */
 export function allProducts(): Product[] {
   return isRemote ? useRemoteCatalog.getState().products : products;
 }
@@ -514,7 +514,10 @@ export function allCategories(): Category[] {
 }
 
 export function getProduct(id: string): Product | undefined {
-  return isRemote ? catalogIndex().products.get(id) : productIndex.get(id);
+  if (!isRemote) return productIndex.get(id);
+  // LRU: a product a screen reads stays cached (no re-render, no write until the next flush).
+  productCache.touch(id);
+  return catalogIndex().products.get(id);
 }
 
 export function getCategory(id: string): Category | undefined {

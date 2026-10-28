@@ -6,10 +6,11 @@ import Animated from 'react-native-reanimated';
 import { PartArt } from '@/brand/PartArt';
 import { useCatalogVersion } from '@/catalog/remote-catalog';
 import { isRemote } from '@/config/env';
-import { getProduct } from '@/data/catalog';
 import { offersForProduct } from '@/data/offers';
 import { OriginBadge } from '@/features/badges';
 import { OfferCard, offerHighlights } from '@/features/OfferCard';
+import { ProductSkeleton } from '@/features/remote/ProductSkeleton';
+import { useProduct } from '@/features/remote/useCatalog';
 import { cityLabel } from '@/data/sellers';
 import { arrivalDays, arrivesToday, deliveredScores, deliveredTotal } from '@/domain/deliveredPrice';
 import { guaranteeState } from '@/domain/guarantee';
@@ -33,7 +34,7 @@ type SortKey = 'total' | 'rating' | 'delivery';
 export default function OffersScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const { s, tx } = useI18n();
-  const product = getProduct(productId ?? '');
+  const { product, status } = useProduct(productId);
   const vehicle = useSelectedVehicle();
   const [destination, setDestination] = useState<DeliveryDestination>('home');
   const [sort, setSort] = useState<SortKey>('total');
@@ -65,6 +66,7 @@ export default function OffersScreen() {
   const highlights = useMemo(() => offerHighlights(offers, destination, city, useDelivered ? deliveredScores(estimates) : {}), [offers, destination, city, useDelivered, estimates]);
   const guaranteed = product ? guaranteeState(product, vehicle) === 'covered' : false;
 
+  if (!product && status === 'loading') return <ProductSkeleton />;
   if (!product) {
     return (
       <Screen header={<ScreenHeader back title={s.offers.title} />}>

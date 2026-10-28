@@ -9,10 +9,12 @@ import { allOffers } from '@/data/offers';
 import { reviewsForSeller } from '@/data/reviews';
 import { cityLabel } from '@/data/sellers';
 import { ProductRow } from '@/features/ProductCard';
+import { ProductSkeleton } from '@/features/remote/ProductSkeleton';
+import { useSellerProducts } from '@/features/remote/useCatalog';
 import { RatingSummaryCard, ReviewItem } from '@/features/Reviews';
 import { getSeller } from '@/domain/pricing';
 import { useI18n } from '@/i18n';
-import { buildListing } from '@/services/catalog';
+import { buildListing, listingsByIds } from '@/services/catalog';
 import { useSelectedVehicle } from '@/store/app-store';
 import { colors, radius, space } from '@/theme/tokens';
 import { Badge } from '@/ui/Badge';
@@ -29,12 +31,16 @@ export default function SellerScreen() {
   const vehicle = useSelectedVehicle();
   const catalogVersion = useCatalogVersion();
   const seller = getSeller(id ?? '');
+  // Remote: the seller's products come from the server (bounded list) into the cache, not from a full catalog.
+  const page = useSellerProducts(id);
   const listings = useMemo(() => {
+    if (isRemote) return listingsByIds(page.productIds ?? [], vehicle);
     const ids = new Set(allOffers().filter((o) => o.sellerId === id).map((o) => o.productId));
     return allProducts().filter((p) => ids.has(p.id)).map((p) => buildListing(p, vehicle));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion re-runs this after a catalog refresh
-  }, [id, vehicle, catalogVersion]);
+  }, [id, vehicle, catalogVersion, page.productIds]);
 
+  if (!seller && isRemote && page.status === 'loading') return <ProductSkeleton />;
   if (!seller) {
     return (
       <Screen header={<ScreenHeader back />}>

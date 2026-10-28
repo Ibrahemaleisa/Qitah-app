@@ -4,11 +4,13 @@ import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { halalasToSar } from '@/api/money';
+import { isRemote } from '@/config/env';
 import { useI18n } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { formatKm } from '@/lib/odometer';
 import { vehicleLabel } from '@/lib/vehicle';
 import { dueLine, kitCartLines, refreshMaintenance, statusVisuals, toStatus, useMaintenance, type MaintenanceService } from '@/services/maintenance';
+import { ensureProducts } from '@/services/remote/catalogSync';
 import { useAppStore } from '@/store/app-store';
 import { enterUp } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
@@ -180,7 +182,9 @@ function ServiceCard({ vehicleId, service }: { vehicleId: string; service: Maint
               size="sm"
               icon="shopping-bag"
               disabled={!kitLines.length}
-              onPress={() => {
+              onPress={async () => {
+                // Remote: the cart clamps to the offer's stock, so the kit's products must be in the cache first.
+                if (isRemote) await ensureProducts(service.kit.lines.map((l) => l.productId)).catch(() => {});
                 kitLines.forEach((l) => addToCart(l.offerId, l.qty));
                 haptic.success();
                 toast(s.maintenance.kitAdded, 'shopping-bag');

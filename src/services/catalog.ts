@@ -25,7 +25,7 @@ import { looksLikePartNumber, normalizePartNumber, normalizeText, withinOneEdit 
  * (`src/lib/search/lexicon.ts`, byte-identical to the server's copy). In DEMO mode everything below runs
  * locally on the bundled data. In REMOTE mode the search screen calls `GET /v1/catalog/search` instead
  * (see `services/remote/search.ts` and `features/search/useCatalogSearch.ts`); the functions here then
- * only serve the snapshot-backed views (home carousels, filter-sheet counts fall back to the server).
+ * only serve listings over the bounded on-demand product cache (favorites, recently viewed, seller pages).
  */
 
 export type SortKey = 'relevance' | 'priceAsc' | 'priceDesc' | 'rating' | 'fastest';
@@ -356,11 +356,12 @@ export function featuredListings(vehicle: Vehicle | undefined): ProductListing[]
     .filter((l) => !isRemote || l.offers.length > 0);
 }
 
-export function listingsByIds(ids: string[], vehicle: Vehicle | undefined): ProductListing[] {
+/** Listings for products the catalog holds (remote: the on-demand cache; ids not loaded yet are skipped). */
+export function listingsByIds(ids: string[], vehicle: Vehicle | undefined, inStockOnly = false): ProductListing[] {
   return ids
     .map((id) => getProduct(id))
     .filter((p): p is Product => !!p)
-    .map((p) => buildListing(p, vehicle));
+    .map((p) => buildListing(p, vehicle, [], inStockOnly));
 }
 
 export const popularSearches = [

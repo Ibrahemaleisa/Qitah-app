@@ -7,7 +7,7 @@ import { LogoSymbol } from '@/brand/Logo';
 import { useRemoteCatalog } from '@/catalog/remote-catalog';
 import { useI18n } from '@/i18n';
 import { startAccountSync } from '@/services/remote/account';
-import { ensureFreshCatalog, hydrateCatalog, loadCachedCatalog, CATALOG_STALE_MS } from '@/services/remote/catalogSync';
+import { ensureFreshCatalog, hydrateCatalog, loadCachedCatalog } from '@/services/remote/catalogSync';
 import { colors, gutter, radius, space } from '@/theme/tokens';
 import { Button } from '@/ui/Button';
 import { Icon } from '@/ui/Icon';
@@ -15,14 +15,19 @@ import { Pressable } from '@/ui/Pressable';
 import { Skeleton } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
 
+/** While active, deltas for the cached products are pulled at most this often (plus on every foreground). */
+const CHANGES_INTERVAL_MS = 5 * 60_000;
+
 /**
- * Remote mode bootstrap: shows the cached catalog immediately (if any), refreshes it from the API,
- * keeps it fresh on foreground / every 60s, and starts account sync. Until the first catalog is
- * available it renders a skeleton, or an error state with retry.
+ * Remote mode bootstrap: restores reference data + the bounded product cache from the device, refreshes the
+ * reference from the API, hydrates on demand (home pack, favorites, cart) and pulls `/v1/catalog/changes` on
+ * foreground (never the whole catalog). Starts account sync. Until reference data is available it renders a
+ * skeleton, or an error state with retry.
  */
 export function RemoteBoot({ children }: { children: ReactNode }) {
   const status = useRemoteCatalog((s) => s.status);
-  const hasData = useRemoteCatalog((s) => s.products.length > 0);
+  // Reference data (categories, makes/models) is all a first screen needs; products load on demand.
+  const hasData = useRemoteCatalog((s) => s.makes.length > 0);
   const [cacheChecked, setCacheChecked] = useState(false);
 
   useEffect(() => {
@@ -36,7 +41,7 @@ export function RemoteBoot({ children }: { children: ReactNode }) {
     });
     const timer = setInterval(() => {
       if (AppState.currentState === 'active') ensureFreshCatalog();
-    }, CATALOG_STALE_MS);
+    }, CHANGES_INTERVAL_MS);
     return () => {
       sub.remove();
       clearInterval(timer);

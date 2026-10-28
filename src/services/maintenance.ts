@@ -20,6 +20,7 @@ import type { Product, Vehicle } from '@/domain/types';
 import type { Strings } from '@/i18n/ar';
 import { formatKm } from '@/lib/odometer';
 import { isLocalId } from '@/services/remote/account';
+import { ensureProducts } from '@/services/remote/catalogSync';
 import { useAppStore, type LocalServiceRecord } from '@/store/app-store';
 
 /**
@@ -125,6 +126,8 @@ export async function refreshMaintenance(vehicle: Vehicle) {
   try {
     const data = await garageApi.maintenance(vehicle.id);
     useRemoteMaintenance.setState((s) => ({ byVehicle: { ...s.byVehicle, [vehicle.id]: { data, state: 'ready' } } }));
+    // Kit lines point at offers the cart needs (stock clamp, names): load their products into the bounded cache.
+    ensureProducts(data.services.flatMap((sv) => sv.kit?.lines.map((l) => l.productId) ?? [])).catch(() => {});
     if (data.vehicle.odometerKm != null && data.vehicle.odometerKm !== vehicle.odometerKm) useAppStore.getState().updateVehicle(vehicle.id, { odometerKm: data.vehicle.odometerKm });
   } catch (e) {
     useRemoteMaintenance.setState((s) => ({ byVehicle: { ...s.byVehicle, [vehicle.id]: { ...s.byVehicle[vehicle.id], state: 'error' } } }));

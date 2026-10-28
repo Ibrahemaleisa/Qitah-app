@@ -13,6 +13,7 @@ import { SampleBadge } from '@/features/badges';
 import { MaintenanceCard } from '@/features/MaintenanceCard';
 import { orderStatusVisuals } from '@/features/orderVisuals';
 import { PartRequestHomeCard } from '@/features/PartRequestEntry';
+import { useHomePack, useProducts } from '@/features/remote/useCatalog';
 import { ProductCard } from '@/features/ProductCard';
 import { VehicleCard } from '@/features/VehicleCard';
 import type { PartArtKind } from '@/domain/types';
@@ -34,6 +35,7 @@ import { Notice } from '@/ui/Notice';
 import { Pressable } from '@/ui/Pressable';
 import { Screen } from '@/ui/Screen';
 import { Section } from '@/ui/Section';
+import { Skeleton } from '@/ui/Skeleton';
 import { Text } from '@/ui/Text';
 
 export default function Home() {
@@ -47,9 +49,19 @@ export default function Home() {
   const catalogVersion = useCatalogVersion();
   const categories = allCategories();
 
+  // Remote: the server's per-vehicle starter pack (recommended fits + featured) and the recently viewed
+  // products are fetched into the bounded cache on demand; demo mode computes them from the bundled data.
+  const homePack = useHomePack(vehicle);
+  const recentLoad = useProducts(recentIds);
   /* eslint-disable react-hooks/exhaustive-deps -- catalogVersion re-runs these after a catalog refresh */
-  const recommended = useMemo(() => (vehicle ? recommendedFor(vehicle) : []), [vehicle, catalogVersion]);
-  const featured = useMemo(() => featuredListings(vehicle), [vehicle, catalogVersion]);
+  const recommended = useMemo(
+    () => (isRemote ? listingsByIds(homePack.recommended, vehicle).filter((l) => l.offers.length > 0) : vehicle ? recommendedFor(vehicle) : []),
+    [vehicle, catalogVersion, homePack.recommended],
+  );
+  const featured = useMemo(
+    () => (isRemote ? listingsByIds(homePack.featured, vehicle, true).filter((l) => l.offers.length > 0) : featuredListings(vehicle)),
+    [vehicle, catalogVersion, homePack.featured],
+  );
   const recent = useMemo(() => listingsByIds(recentIds, vehicle), [recentIds, vehicle, catalogVersion]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
@@ -170,12 +182,24 @@ export default function Home() {
       </View>
 
       {vehicle && recommended.length ? <Carousel title={s.home.forYourVehicle} subtitle={s.home.forYourVehicleHint} data={recommended} /> : null}
-      <Carousel title={s.home.featured} data={featured} />
-      {recent.length ? <Carousel title={s.home.recentlyViewed} data={recent} /> : null}
+      {featured.length || !homePack.loading ? <Carousel title={s.home.featured} data={featured} /> : <CarouselSkeleton title={s.home.featured} />}
+      {recent.length ? <Carousel title={s.home.recentlyViewed} data={recent} /> : recentIds.length && recentLoad.loading ? <CarouselSkeleton title={s.home.recentlyViewed} /> : null}
       <View style={{ paddingHorizontal: gutter, marginTop: space.xxl }}>
         {isRemote ? <Notice tone="info" icon="info" text={s.remote.liveCatalogNote} /> : <Notice tone="sample" text={s.home.sampleBanner} />}
       </View>
     </Screen>
+  );
+}
+
+/** Placeholder cards while a remote carousel's products load. */
+function CarouselSkeleton({ title }: { title: string }) {
+  return (
+    <Section title={title} inset={gutter}>
+      <View accessibilityRole="progressbar" style={{ flexDirection: 'row', gap: space.md, paddingHorizontal: gutter }}>
+        <Skeleton width={168} height={220} rounded={radius.lg} />
+        <Skeleton width={168} height={220} rounded={radius.lg} />
+      </View>
+    </Section>
   );
 }
 
