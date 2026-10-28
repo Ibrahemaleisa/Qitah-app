@@ -2,6 +2,17 @@
 
 Concise log so work can resume without re-discovery. Newest first.
 
+## 2026-10-28: Wave 3, "قطعة للورش" (workshop accounts, B2B channel)
+Goal (committee): ≥40% of GMV from workshop accounts. Before this, "workshop" was only an address kind.
+- **Schema** (`*_organizations`, one section at the end of `schema.prisma`): `Organization` (WORKSHOP|FLEET, APPLIED→APPROVED/REJECTED/SUSPENDED), `OrganizationMember` (OWNER > BUYER > TECHNICIAN; phone invites are INVITED rows), `OrganizationCredit` (Qitah internal sandbox credit, `provider = 'qitah-internal-sandbox'`, no financing partner), `OrganizationRepayment`, `WorkshopQuote`. `Order` gains `buyerOrgId`, `workOrderRef`, `workshopQuoteId` (unique, attribution) and `creditDueAt`. Ledger account `CUSTOMER_RECEIVABLE`; `CREDIT_EXPOSURE` not needed (exposure = receivable balance).
+- **Auth**: `principal.orgMemberships` + `requireOrg(req, orgId, minRole)`; invites link on OTP sign-in, first Cognito sign-in, or `GET /v1/me/orgs`.
+- **NET_TERMS**: credit row locked `FOR UPDATE` in the checkout transaction; `outstanding + total ≤ limit`; server-captured `credit` payment; debit receivable instead of clearing, merchant side unchanged (merchants always paid by Qitah). Refunds on credit orders settle in-transaction against the receivable (no provider). Repayments (finance, idempotent) allocate oldest-due first. `reconcileOrder` understands credit orders. `confirmPaidOrder` was extracted from the webhook capture path and is shared by both.
+- **Workshop → customer quote**: parts at Qitah prices + labour + workshop fee shown transparently; public `/q/:token` page (escaped, noindex, no PII beyond what the workshop typed); approve → workshop order with `workshopQuoteId`.
+- **Commission**: not built here (another agent). Channel is derivable from `Order.buyerOrgId`; TODO marked in `checkout.ts` where the merchant commission is set.
+- **App** ("وضع الورشة", remote mode only): switcher in Account (row + chips) and `/workshop` hub; checkout offers "الدفع الآجل" when eligible plus an optional work-order/plate reference; orders list filtered by org; `/workshop/quotes` (build → share → status → order); `/workshop/statement`; `/workshop/members`; `/workshop/apply`. Strings in the `workshop` i18n group.
+- **Ops portal**: الورش (list/detail: approve/reject/suspend/reinstate, set/freeze credit, record repayments), overdue receivables, workshop leads (from `MechanicReview` workshop name/phone).
+- **Verification**: API 87/87 (5 new in `test/organizations.test.ts`; the concurrent over-limit test was checked to fail without the credit-row lock), app jest 25 suites / 241, ops portal build + typecheck + lint.
+
 ## 2026-10-28: Evaluation committee + waves 1–2
 **Committee** (5 independent members, reports in `docs/strategy/committee/`, synthesis in `docs/strategy/COMMITTEE_REPORT.md`).
 - "60% of all market sales" isn't measurable or achievable in 3–5 years: online is about 5% of a $5–7B parts market.

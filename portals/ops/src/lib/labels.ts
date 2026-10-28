@@ -88,6 +88,18 @@ const VERIFICATION: Record<string, Entry> = {
   REJECTED: ['مرفوضة', 'danger'],
 };
 
+const ORGANIZATION: Record<string, Entry> = {
+  APPLIED: ['طلب جديد', 'warning'],
+  APPROVED: ['معتمدة', 'success'],
+  REJECTED: ['مرفوضة', 'danger'],
+  SUSPENDED: ['موقوفة', 'danger'],
+};
+
+const CREDIT: Record<string, Entry> = {
+  ACTIVE: ['آجل مفعّل', 'success'],
+  FROZEN: ['آجل مجمّد', 'warning'],
+};
+
 export const STATUS_MAPS = {
   order: ORDER,
   merchantOrder: MERCHANT_ORDER,
@@ -98,6 +110,8 @@ export const STATUS_MAPS = {
   refund: REFUND,
   settlement: SETTLEMENT,
   verification: VERIFICATION,
+  organization: ORGANIZATION,
+  credit: CREDIT,
 } as const;
 export type StatusKind = keyof typeof STATUS_MAPS;
 
@@ -139,6 +153,7 @@ export const ACCOUNT_LABEL: Record<string, string> = {
   SHIPPING_PAYABLE: 'مستحقات الشحن',
   PAYOUTS: 'المدفوعات للتجار',
   SUSPENSE: 'حساب معلّق',
+  CUSTOMER_RECEIVABLE: 'مستحقات الورش (آجل)',
 };
 
 export const POSTING_LABEL: Record<string, string> = {
@@ -146,6 +161,7 @@ export const POSTING_LABEL: Record<string, string> = {
   PAYMENT_CAPTURED_UNFULFILLABLE: 'تحصيل دفع متأخر (يُسترد)',
   REFUND_SUCCEEDED: 'استرداد ناجح',
   PAYOUT: 'تحويل للتاجر',
+  CREDIT_REPAYMENT: 'سداد ورشة (آجل)',
 };
 
 export const RETURN_REASON_LABEL: Record<string, string> = {
