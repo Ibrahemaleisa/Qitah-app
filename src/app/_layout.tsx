@@ -109,6 +109,7 @@ export default function RootLayout() {
               <Stack.Screen name="order/cancel" options={sheet([0.7])} />
               <Stack.Screen name="order/return" options={sheet([0.85])} />
               <Stack.Screen name="seller-contact" options={sheet([0.45])} />
+              <Stack.Screen name="guarantee" options={sheet([0.8, 0.98])} />
               <Stack.Screen name="checkout/success" options={{ gestureEnabled: false, animation: 'fade' }} />
               <Stack.Screen name="checkout/payment" options={{ gestureEnabled: false }} />
             </Stack>

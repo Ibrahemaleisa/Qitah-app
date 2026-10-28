@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { View } from 'react-native';
 
 import { cityLabel } from '@/data/sellers';
+import { deliveredPrice, type DeliveryEstimate } from '@/domain/deliveredPrice';
 import type { OfferHighlight } from '@/domain/offerComparison';
 import { deliveryWindow, estimatedTotal, fastestDelivery, getSeller } from '@/domain/pricing';
 import type { CityId, DeliveryDestination, Offer } from '@/domain/types';
@@ -21,6 +22,7 @@ import { toast } from '@/ui/Toast';
 import { PieceMark } from '@/brand/Logo';
 
 import { ConditionBadge } from './badges';
+import { arrivalText, GuaranteeBadge } from './trust';
 
 export { offerHighlights, type OfferHighlight } from '@/domain/offerComparison';
 
@@ -29,6 +31,10 @@ type Props = {
   destination?: DeliveryDestination;
   city?: CityId;
   highlights?: OfferHighlight[];
+  /** Remote: server delivery estimate for the customer's city → delivered price + arrival date. */
+  estimate?: DeliveryEstimate;
+  /** The product is covered by the fit guarantee for the selected vehicle. */
+  guaranteed?: boolean;
 };
 
 const highlightVisuals = {
@@ -41,13 +47,15 @@ const highlightVisuals = {
  * One seller's offer. The price breakdown keeps part price, delivery fee and total on separate
  * lines so offers can be compared at a glance without mental arithmetic.
  */
-export function OfferCard({ offer, destination = 'home', city, highlights = [] }: Props) {
+export function OfferCard({ offer, destination = 'home', city, highlights = [], estimate, guaranteed }: Props) {
   const { s, tx, money, isRTL } = useI18n();
   const addToCart = useAppStore((st) => st.addToCart);
   const inCart = useAppStore((st) => st.cart.find((l) => l.offerId === offer.id)?.qty ?? 0);
   const seller = getSeller(offer.sellerId);
   if (!seller) return null;
   const est = estimatedTotal(offer, destination, city);
+  // Remote + estimate: "السعر واصلاً" replaces "calculated at checkout" (workshop delivery is still priced at checkout).
+  const delivered = est.quotedAtCheckout && destination === 'home' && est.deliverable ? deliveredPrice(offer, estimate) : null;
   const fastest = fastestDelivery(offer, destination, city);
   const window = fastest ? deliveryWindow(offer, fastest) : null;
   const outOfStock = offer.stock <= 0;
@@ -55,7 +63,9 @@ export function OfferCard({ offer, destination = 'home', city, highlights = [] }
   const featured = highlights.some((h) => h.kind === 'cheapest');
   const deliveryText = !est.deliverable
     ? s.product.deliveryUnavailableWorkshop
-    : est.quotedAtCheckout
+    : delivered
+      ? money(delivered.fee)
+      : est.quotedAtCheckout
       ? s.remote.shippingAtCheckout
       : est.freeShipping
         ? s.product.freeShipping
@@ -75,11 +85,16 @@ export function OfferCard({ offer, destination = 'home', city, highlights = [] }
           <PieceMark width={34} />
         </View>
       ) : null}
-      {highlights.length ? (
+      {highlights.length || guaranteed ? (
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
           {highlights.map((h) => (
-            <Badge key={h.kind} label={h.condition ? `${s.product[h.kind]} · ${s.condition[h.condition]}` : s.product[h.kind]} {...highlightVisuals[h.kind]} />
+            <Badge
+              key={h.kind}
+              label={h.condition ? `${s.product[h.kind]} · ${s.condition[h.condition]}` : s.product[h.kind]}
+              {...highlightVisuals[h.kind]}
+            />
           ))}
+          {guaranteed ? <GuaranteeBadge /> : null}
         </View>
       ) : null}
 
@@ -121,20 +136,28 @@ export function OfferCard({ offer, destination = 'home', city, highlights = [] }
         <ConditionBadge condition={offer.condition} />
         <Fact icon="shield" text={s.product.warrantyMonths(offer.warrantyMonths)} />
         {window ? <Fact icon="truck" text={s.common.deliveryIn(window[0], window[1])} /> : null}
-        {est.quotedAtCheckout ? <Fact icon="package" text={s.product.dispatchDays(offer.dispatchDays[0], offer.dispatchDays[1])} /> : null}
+        {delivered ? <Fact icon="truck" text={arrivalText(s, delivered.arrivesBy)} tone={delivered.arrivesToday ? 'success' : undefined} /> : null}
+        {delivered && estimate?.sameDayAvailable ? <Fact icon="clock" text={s.trust.orderBefore(estimate.cutoffLocal)} /> : null}
+        {est.quotedAtCheckout && !delivered ? <Fact icon="package" text={s.product.dispatchDays(offer.dispatchDays[0], offer.dispatchDays[1])} /> : null}
         {est.quotedAtCheckout && offer.originCity ? <Fact icon="map-pin" text={s.remote.shipsFrom(tx(cityLabel(offer.originCity)))} /> : null}
         {!outOfStock && offer.stock <= 3 ? <Fact icon="alert-circle" text={s.product.onlyLeft(offer.stock)} tone="warning" /> : null}
       </View>
 
-      <View accessible accessibilityLabel={`${s.product.partPrice} ${money(offer.price)}, ${s.product.deliveryFee} ${deliveryText}${est.quotedAtCheckout ? '' : `, ${s.product.total} ${est.delivery ? money(est.total) : '—'}`}`} style={{ backgroundColor: colors.surfaceMuted, borderRadius: radius.md, padding: space.md, gap: 6 }}>
+      <View
+        accessible
+        accessibilityLabel={`${s.product.partPrice} ${money(offer.price)}, ${delivered ? s.trust.deliveryEstimate : s.product.deliveryFee} ${deliveryText}${delivered ? `, ${s.trust.deliveredPrice} ${money(delivered.total)} (${s.trust.estimated})` : est.quotedAtCheckout ? '' : `, ${s.product.total} ${est.delivery ? money(est.total) : '—'}`}`}
+        style={{ backgroundColor: colors.surfaceMuted, borderRadius: radius.md, padding: space.md, gap: 6 }}
+      >
         <Line label={s.product.partPrice}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.sm }}>
             {offer.compareAtPrice ? <Price amount={offer.compareAtPrice} variant="caption" strike /> : null}
             <Price amount={offer.price} variant="callout" color="text" />
           </View>
         </Line>
-        <Line label={s.product.deliveryFee}>
-          {est.delivery && !est.freeShipping ? (
+        <Line label={delivered ? s.trust.deliveryEstimate : s.product.deliveryFee}>
+          {delivered ? (
+            <Price amount={delivered.fee} variant="callout" color="text" />
+          ) : est.delivery && !est.freeShipping ? (
             <Price amount={est.fee} variant="callout" color="text" />
           ) : (
             <Text variant="callout" weight="semibold" color={!est.deliverable ? 'danger' : est.quotedAtCheckout ? 'textSecondary' : 'success'}>
@@ -142,8 +165,15 @@ export function OfferCard({ offer, destination = 'home', city, highlights = [] }
             </Text>
           )}
         </Line>
-        {/* Remote: no client-side total — shipping is a live carrier quote shown at checkout. */}
-        {est.quotedAtCheckout ? null : (
+        {/* Remote: the delivered price is a server estimate ("تقديري"); without one, shipping is quoted at checkout. */}
+        {delivered ? (
+          <>
+            <View style={{ height: 1, backgroundColor: colors.line }} />
+            <Line label={`${s.trust.deliveredPrice} · ${s.trust.estimated}`} strong>
+              <Price amount={delivered.total} variant="headline" />
+            </Line>
+          </>
+        ) : est.quotedAtCheckout ? null : (
           <>
             <View style={{ height: 1, backgroundColor: colors.line }} />
             <Line label={s.product.total} strong>
@@ -183,7 +213,7 @@ function Line({ label, children, strong }: { label: string; children: React.Reac
   );
 }
 
-function Fact({ icon, text, tone }: { icon: IconName; text: string; tone?: 'warning' }) {
+function Fact({ icon, text, tone }: { icon: IconName; text: string; tone?: 'warning' | 'success' }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
       <Icon name={icon} size={13} color={tone ?? 'textSecondary'} />

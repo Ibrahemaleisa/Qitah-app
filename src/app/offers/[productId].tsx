@@ -10,10 +10,14 @@ import { getProduct } from '@/data/catalog';
 import { offersForProduct } from '@/data/offers';
 import { OriginBadge } from '@/features/badges';
 import { OfferCard, offerHighlights } from '@/features/OfferCard';
+import { cityLabel } from '@/data/sellers';
+import { arrivalDays, arrivesToday, deliveredScores, deliveredTotal } from '@/domain/deliveredPrice';
+import { guaranteeState } from '@/domain/guarantee';
 import { deliveryWindow, estimatedTotal, fastestDelivery, getSeller } from '@/domain/pricing';
 import type { Condition, DeliveryDestination, Offer } from '@/domain/types';
 import { useI18n } from '@/i18n';
-import { useAppStore } from '@/store/app-store';
+import { useDeliveryEstimates } from '@/services/remote/deliveryEstimates';
+import { useSelectedVehicle } from '@/store/app-store';
 import { enterUp, layoutMove } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 import { Chip } from '@/ui/Chip';
@@ -30,28 +34,36 @@ export default function OffersScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const { s, tx } = useI18n();
   const product = getProduct(productId ?? '');
-  const city = useAppStore((st) => st.addresses[0]?.city);
+  const vehicle = useSelectedVehicle();
   const [destination, setDestination] = useState<DeliveryDestination>('home');
   const [sort, setSort] = useState<SortKey>('total');
   const [condition, setCondition] = useState<Condition | 'all'>('all');
+  const [todayOnly, setTodayOnly] = useState(false);
 
   const catalogVersion = useCatalogVersion();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion picks up live price/stock after a refresh
   const all = useMemo(() => offersForProduct(productId ?? ''), [productId, catalogVersion]);
   const conditions = [...new Set(all.map((o) => o.condition))];
+  // Remote: server estimates for the default address city. Delivered price only applies to home delivery.
+  const { city, estimates } = useDeliveryEstimates(all.map((o) => o.id));
+  const useDelivered = isRemote && destination === 'home' && all.some((o) => estimates[o.id]?.cheapest);
+  const anySameDay = useDelivered && all.some((o) => o.stock > 0 && arrivesToday(estimates[o.id]));
 
   const offers = useMemo(() => {
-    const filtered = all.filter((o) => condition === 'all' || o.condition === condition);
+    const filtered = all.filter((o) => (condition === 'all' || o.condition === condition) && (!todayOnly || !useDelivered || arrivesToday(estimates[o.id])));
     const speed = (o: Offer) => {
+      if (useDelivered) return arrivalDays(o, estimates);
       const f = fastestDelivery(o, destination, city);
       return f ? deliveryWindow(o, f)[1] : 99;
     };
-    const key = (o: Offer) =>
-      sort === 'total' ? estimatedTotal(o, destination, city).total : sort === 'rating' ? -(getSeller(o.sellerId)?.rating?.average ?? 0) : speed(o);
-    return filtered.sort((a, b) => (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) || key(a) - key(b));
-  }, [all, condition, sort, destination, city]);
+    // "Best price" = lowest delivered total (item + estimated delivery) whenever estimates exist.
+    const total = (o: Offer) => (useDelivered ? deliveredTotal(o, estimates) : estimatedTotal(o, destination, city).total);
+    const key = (o: Offer) => (sort === 'total' ? total(o) : sort === 'rating' ? -(getSeller(o.sellerId)?.rating?.average ?? 0) : speed(o));
+    return filtered.sort((a, b) => (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) || key(a) - key(b) || total(a) - total(b));
+  }, [all, condition, sort, destination, city, todayOnly, useDelivered, estimates]);
 
-  const highlights = useMemo(() => offerHighlights(offers, destination, city), [offers, destination, city]);
+  const highlights = useMemo(() => offerHighlights(offers, destination, city, useDelivered ? deliveredScores(estimates) : {}), [offers, destination, city, useDelivered, estimates]);
+  const guaranteed = product ? guaranteeState(product, vehicle) === 'covered' : false;
 
   if (!product) {
     return (
@@ -92,8 +104,9 @@ export default function OffersScreen() {
           <HScroll gap={space.sm}>
             {/* Remote mode has no seller ratings yet, so sorting by rating would be meaningless. */}
             {((isRemote ? ['total', 'delivery'] : ['total', 'rating', 'delivery']) as SortKey[]).map((k) => (
-              <Chip key={k} label={isRemote && k === 'total' ? s.product.partPrice : s.offers.sort[k]} selected={sort === k} onPress={() => setSort(k)} />
+              <Chip key={k} label={isRemote && k === 'total' ? (useDelivered ? s.trust.sortDelivered : s.product.partPrice) : s.offers.sort[k]} selected={sort === k} onPress={() => setSort(k)} />
             ))}
+            {useDelivered ? <Chip label={s.trust.sameDayFilter} selected={todayOnly} onPress={() => setTodayOnly((v) => !v)} /> : null}
           </HScroll>
         </View>
         {conditions.length > 1 ? (
@@ -110,14 +123,15 @@ export default function OffersScreen() {
           </View>
         ) : null}
         <Text variant="caption" color="textTertiary">
-          {isRemote ? s.remote.liveCatalogNote : `${s.product.estTotalHint} · ${s.common.vatIncluded}`}
+          {isRemote ? (useDelivered && city ? s.trust.estimateNote(tx(cityLabel(city))) : city ? s.remote.liveCatalogNote : s.trust.addAddressForEstimate) : `${s.product.estTotalHint} · ${s.common.vatIncluded}`}
         </Text>
+        {todayOnly && useDelivered && !anySameDay ? <Notice tone="info" icon="clock" text={s.trust.noSameDay} /> : null}
       </View>
 
       <View style={{ marginTop: space.lg, gap: space.md }}>
         {offers.map((o, i) => (
           <Animated.View key={o.id} entering={enterUp(i)} layout={layoutMove}>
-            <OfferCard offer={o} destination={destination} city={city} highlights={highlights[o.id]} />
+            <OfferCard offer={o} destination={destination} city={city} highlights={highlights[o.id]} estimate={estimates[o.id]} guaranteed={guaranteed} />
           </Animated.View>
         ))}
       </View>

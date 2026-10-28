@@ -9,7 +9,9 @@ import type { PlanOption, PlanResponse, RemotePaymentMethod, Strategy } from '@/
 import { getProduct } from '@/data/catalog';
 import { getOffer } from '@/data/offers';
 import { cityLabel } from '@/data/sellers';
+import { guaranteeState } from '@/domain/guarantee';
 import type { DeliveryDestination } from '@/domain/types';
+import { GuaranteeBadge } from '@/features/trust';
 import { useI18n } from '@/i18n';
 import { apiErrorMessage } from '@/lib/api-errors';
 import { haptic } from '@/lib/haptics';
@@ -142,7 +144,8 @@ export function RemoteCheckout() {
         planId: current.planId,
         idempotencyKey: current.key,
         paymentMethod: method,
-        vehicle: vehicle ? { label: vehicleLabel(vehicle, lang), modelId: vehicle.modelId, year: vehicle.year } : undefined,
+        // Only a reference to the saved garage vehicle: the server computes each line's fit and guarantee itself.
+        vehicle: vehicle && !/^veh-/.test(vehicle.id) ? { garageVehicleId: vehicle.id } : undefined,
       });
       let opened = true;
       if (res.payment?.redirectUrl && Platform.OS === 'web') opened = await openPaymentPage(res.payment.redirectUrl, tab);
@@ -322,10 +325,14 @@ export function RemoteCheckout() {
                   {[s.remote.shipmentFrom(tx(cityLabel(g.originCity))), (s.remote.services as Record<string, string>)[g.serviceCode] ?? g.serviceCode, s.common.deliveryIn(g.etaDaysMin, g.etaDaysMax)].join(' · ')}
                 </Text>
                 {g.lines.map((l) => (
-                  <View key={l.offerId} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.md }}>
+                  <View key={l.offerId} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.md }}>
                     <Text variant="caption" style={{ flex: 1 }} numberOfLines={2}>
                       {productName(l.productId, l.productNameAr, l.productNameEn)}
                     </Text>
+                    {(() => {
+                      const p = l.productId ? getProduct(l.productId) : undefined;
+                      return p && guaranteeState(p, vehicle) === 'covered' ? <GuaranteeBadge /> : null;
+                    })()}
                     <Text variant="caption" color="textSecondary" tabular>
                       {`${l.quantity} × ${money(halalasToSar(l.unitPriceHalalas))}`}
                     </Text>

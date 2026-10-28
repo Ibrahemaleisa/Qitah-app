@@ -9,16 +9,21 @@ import { useCatalogVersion } from '@/catalog/remote-catalog';
 import { isRemote } from '@/config/env';
 import { getCategory, getProduct } from '@/data/catalog';
 import { reviewsForProduct } from '@/data/reviews';
+import { cityLabel } from '@/data/sellers';
 import { getMake, getModel } from '@/data/vehicles';
 import { OriginBadge, SampleBadge } from '@/features/badges';
 import { FitPanel } from '@/features/FitPanel';
 import { ProductSummary } from '@/features/ProductSummary';
 import { OfferCard, offerHighlights } from '@/features/OfferCard';
 import { RatingSummaryCard, ReviewItem } from '@/features/Reviews';
+import { GuaranteeNote, ReturnPolicySummary } from '@/features/trust';
+import { bestDeliveredOffer, deliveredPrice, deliveredScores, deliveredTotal } from '@/domain/deliveredPrice';
+import { guaranteeState } from '@/domain/guarantee';
 import { estimatedTotal, getSeller } from '@/domain/pricing';
 import { useI18n } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { buildListing } from '@/services/catalog';
+import { useDeliveryEstimates } from '@/services/remote/deliveryEstimates';
 import { useAppStore, useSelectedVehicle } from '@/store/app-store';
 import { enterFade } from '@/theme/motion';
 import { colors, gutter, radius, space } from '@/theme/tokens';
@@ -52,6 +57,8 @@ export default function ProductScreen() {
   const catalogVersion = useCatalogVersion();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion picks up live price/stock after a refresh
   const listing = useMemo(() => (product ? buildListing(product, vehicle) : undefined), [product, vehicle, catalogVersion]);
+  // Remote: delivered price + arrival for the customer's default address city (estimates, "تقديري").
+  const { city, estimates } = useDeliveryEstimates(listing?.offers.map((o) => o.id) ?? []);
 
   if (!product || !listing) {
     return (
@@ -63,9 +70,15 @@ export default function ProductScreen() {
 
   const category = getCategory(product.categoryId);
   const reviews = reviewsForProduct(product.id);
-  const sortedOffers = [...listing.offers].sort((a, b) => (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) || estimatedTotal(a).total - estimatedTotal(b).total);
-  const highlights = offerHighlights(listing.offers);
-  const best = listing.bestOffer;
+  const hasEstimates = isRemote && listing.offers.some((o) => estimates[o.id]?.cheapest);
+  // "Best price" = lowest delivered total once estimates exist, not the lowest item price.
+  const totalOf = (o: (typeof listing.offers)[number]) => (hasEstimates ? deliveredTotal(o, estimates) : estimatedTotal(o).total);
+  const sortedOffers = [...listing.offers].sort((a, b) => (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) || totalOf(a) - totalOf(b));
+  const highlights = offerHighlights(listing.offers, 'home', city, hasEstimates ? deliveredScores(estimates) : {});
+  const best = hasEstimates ? bestDeliveredOffer(listing.offers, estimates) : listing.bestOffer;
+  const bestDelivered = best && hasEstimates ? deliveredPrice(best, estimates[best.id]) : null;
+  const guarantee = guaranteeState(product, vehicle);
+  const guaranteed = guarantee === 'covered';
   const bestInStock = best && best.stock > 0;
 
   const bestSeller = best ? getSeller(best.sellerId) : undefined;
@@ -86,9 +99,9 @@ export default function ProductScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
             <View style={{ flex: 1 }}>
               <Text variant="micro" color="textTertiary">
-                {s.product.bestPrice}
+                {bestDelivered ? `${s.trust.deliveredPrice} · ${s.trust.estimated}` : s.product.bestPrice}
               </Text>
-              {best ? <Price amount={best.price} variant="title2" /> : <Text variant="title2">—</Text>}
+              {bestDelivered ? <Price amount={bestDelivered.total} variant="title2" /> : best ? <Price amount={best.price} variant="title2" /> : <Text variant="title2">—</Text>}
               {best && bestSeller ? (
                 <Text variant="micro" color="textSecondary" numberOfLines={1}>
                   {s.product.youAreAdding(tx(bestSeller.name), s.condition[best.condition])}
@@ -148,11 +161,14 @@ export default function ProductScreen() {
         </View>
 
         <View style={{ marginTop: space.lg }}>
-          <ProductSummary offers={listing.offers} />
+          <ProductSummary offers={listing.offers} estimates={estimates} />
         </View>
 
         <View style={{ marginTop: space.md }}>
           <FitPanel product={product} vehicle={vehicle} status={listing.fit} />
+        </View>
+        <View style={{ marginTop: space.sm }}>
+          <GuaranteeNote state={guarantee} bySpecification={!!product.universal} />
         </View>
 
         <Section
@@ -161,11 +177,20 @@ export default function ProductScreen() {
           action={listing.offers.length > 2 ? { label: s.common.seeAll, onPress: () => router.push(`/offers/${product.id}`) } : undefined}
         >
           <View style={{ gap: space.md }}>
+            {isRemote ? (
+              <Text variant="caption" color="textTertiary">
+                {city ? s.trust.estimateNote(tx(cityLabel(city))) : s.trust.addAddressForEstimate}
+              </Text>
+            ) : null}
             {sortedOffers.slice(0, 2).map((o) => (
-              <OfferCard key={o.id} offer={o} highlights={highlights[o.id]} />
+              <OfferCard key={o.id} offer={o} city={city} highlights={highlights[o.id]} estimate={estimates[o.id]} guaranteed={guaranteed} />
             ))}
             {listing.offers.length > 2 ? <Button label={s.product.compareOffers(listing.offers.length)} variant="secondary" size="md" icon="layers" onPress={() => router.push(`/offers/${product.id}`)} /> : null}
           </View>
+        </Section>
+
+        <Section title={s.trust.returnPolicyTitle}>
+          <ReturnPolicySummary />
         </Section>
 
         <Section title={s.product.specs}>

@@ -3,6 +3,7 @@ import ArrowUpDown from 'lucide-react-native/icons/arrow-up-down';
 import Award from 'lucide-react-native/icons/award';
 import Bell from 'lucide-react-native/icons/bell';
 import Calendar from 'lucide-react-native/icons/calendar';
+import Camera from 'lucide-react-native/icons/camera';
 import Car from 'lucide-react-native/icons/car';
 import Check from 'lucide-react-native/icons/check';
 import ChevronDown from 'lucide-react-native/icons/chevron-down';
@@ -75,6 +76,7 @@ const ICONS = {
   'bar-chart-2': ArrowUpDown,
   bell: Bell,
   calendar: Calendar,
+  camera: Camera,
   car: Car,
   check: Check,
   'check-circle': CircleCheck,
