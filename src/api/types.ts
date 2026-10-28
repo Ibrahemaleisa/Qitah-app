@@ -76,6 +76,20 @@ export type ApiSeller = {
 
 export type SnapshotResponse = { generatedAt: string; products: ApiProduct[]; sellers: ApiSeller[] };
 
+/** `GET /v1/catalog/delivery-estimates` — estimates only; the checkout plan is binding. */
+export type ApiServiceEstimate = { service: string; amountHalalas: number; etaDaysMin: number; etaDaysMax: number; arrivesBy: string };
+export type ApiDeliveryEstimate = {
+  offerId: string;
+  originCity?: string;
+  cheapest: ApiServiceEstimate | null;
+  fastest: ApiServiceEstimate | null;
+  sameDayAvailable: boolean;
+  cutoffLocal: string;
+};
+export type DeliveryEstimatesResponse = { city: string; generatedAt: string; estimates: ApiDeliveryEstimate[] };
+
+export type UploadTarget = { key: string; uploadUrl: string; method: 'PUT'; headers: Record<string, string>; expiresIn: number };
+
 // ── customer
 export type ApiVehicle = { id: string; modelId: string; year: number; trim?: string; engine: string; vin?: string; odometerKm?: number; odometerUpdatedAt?: string; addedAt: number };
 
@@ -290,7 +304,7 @@ export type ApiOrder = {
   paymentExpiresAt: string;
   paymentMethod: string;
   address: Record<string, unknown> | null;
-  vehicle: { label?: string } | null;
+  vehicle: { label?: string; labelAr?: string; labelEn?: string; vin?: string | null } | null;
   totals: { itemsHalalas: number; shippingHalalas: number; discountHalalas: number; totalHalalas: number; vatHalalas: number; refundedHalalas: number };
   cancelReason: string | null;
   merchantOrders: {
@@ -317,6 +331,8 @@ export type ApiOrder = {
     unitPriceHalalas: number;
     lineTotalHalalas: number;
     status: 'ACTIVE' | 'CANCELLED' | string;
+    /** Server-computed fit at checkout; `guaranteed` = covered by ضمان قطعة. */
+    fit?: { status: string; guaranteed: boolean } | null;
   }[];
   shipmentGroups: {
     id: string;
@@ -343,6 +359,10 @@ export type ApiOrder = {
     status: string;
     reason: string;
     refundHalalas: number;
+    guaranteed?: boolean;
+    autoApproved?: boolean;
+    photoCount?: number;
+    returnShipping?: { paidBy: 'CUSTOMER' | 'PLATFORM' | 'MERCHANT' | string; costHalalas: number; status: string; trackingNumber: string | null } | null;
     items: { orderItemId: string; quantity: number }[];
     createdAt: string;
   }[];

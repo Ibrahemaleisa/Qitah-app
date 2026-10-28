@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { create } from 'zustand';
 
 import { toApiError } from '@/api/client';
-import { meApi, ordersApi } from '@/api/endpoints';
+import { meApi, ordersApi, type ReturnRequestInput } from '@/api/endpoints';
 import type { ApiNotification, ApiOrder, RemotePaymentMethod } from '@/api/types';
 
 import { toOrderView, type OrderView } from './orderView';
@@ -58,7 +58,7 @@ export async function cancelOrder(id: string, reason: string) {
   storeOrder(await ordersApi.cancel(id, reason));
 }
 
-export async function requestReturn(id: string, input: { items: { orderItemId: string; quantity: number }[]; reason: string; note?: string }) {
+export async function requestReturn(id: string, input: ReturnRequestInput) {
   storeOrder(await ordersApi.requestReturn(id, input));
 }
 

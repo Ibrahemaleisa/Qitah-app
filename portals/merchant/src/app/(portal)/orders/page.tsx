@@ -106,6 +106,7 @@ function Orders() {
                     <td className="whitespace-nowrap text-sm text-slate">{formatDateTime(o.order.paidAt ?? o.createdAt)}</td>
                     <td className="max-w-[18rem]">
                       <p className="truncate text-sm">{o.items.map((i) => `${i.productNameAr} ×${i.quantity}`).join("، ")}</p>
+                      {o.fitNeedsConfirmation && <Badge tone="warning">تحقق من التوافق</Badge>}
                     </td>
                     <td className="whitespace-nowrap text-sm">
                       {cityAr(o.order.addressSnapshot.city)}

@@ -82,6 +82,19 @@ export const RETURN_STATUS_AR: Record<string, string> = {
   CLOSED: "مغلق",
 };
 
+export const FIT_STATUS_AR: Record<string, string> = {
+  catalogMatch: "مطابقة من الكتالوج",
+  bySpecification: "حسب المواصفة",
+  sellerReported: "توافق أبلغ عنه البائع",
+  noData: "توافق غير معروف",
+};
+
+export const RETURN_PAYER_AR: Record<string, string> = {
+  PLATFORM: "قطعة (ضمان قطعة)",
+  MERCHANT: "أنت (البائع)",
+  CUSTOMER: "العميل (يُخصم من استرداده)",
+};
+
 export const RETURN_REASON_AR: Record<string, string> = {
   wrongPart: "قطعة غير مطابقة",
   damaged: "وصلت تالفة",

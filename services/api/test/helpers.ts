@@ -97,6 +97,15 @@ export async function sendPaymentEvent(app: FastifyInstance, event: Record<strin
   return deliverInProcess(app, paymentWebhook(config.PAYMENT_WEBHOOK_SECRET, event));
 }
 
+/** Uploads a (tiny) JPEG through the customer's private upload flow and returns its key. */
+export async function uploadReturnPhoto(c: Client): Promise<string> {
+  const up = await c.ok<{ key: string; uploadUrl: string }>('POST', '/v1/me/uploads', { purpose: 'return', contentType: 'image/jpeg', sizeBytes: 4, fileName: 'damage.jpg' });
+  const u = new URL(up.uploadUrl);
+  const res = await c.app.inject({ method: 'PUT', url: u.pathname + u.search, payload: Buffer.from([0xff, 0xd8, 0xff, 0xd9]), headers: { 'content-type': 'image/jpeg' } });
+  assert.equal(res.statusCode, 200, res.body);
+  return up.key;
+}
+
 export async function settleSandboxRefunds(ops: Client) {
   return ops.ok<{ settled: number }>('POST', '/v1/ops/sandbox/refunds/settle');
 }

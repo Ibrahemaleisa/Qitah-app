@@ -13,7 +13,7 @@ import * as finance from '../services/finance.js';
 import { acceptMerchantOrder, markReady, rejectMerchantOrder, startPacking } from '../services/fulfillment.js';
 import { orderInclude } from '../services/orderView.js';
 import { createRefund, submitPendingRefunds } from '../services/payments.js';
-import { decideReturn, inspectReturn, markReturnReceived } from '../services/returns.js';
+import { decideReturn, inspectReturn, markReturnReceived, returnPhotoUrls } from '../services/returns.js';
 import { carrierWebhook, pendingSandboxRefundWebhooks } from '../services/sandboxDelivery.js';
 import { createLabel, recordTrackingEvent, schedulePickup } from '../services/shipping.js';
 
@@ -329,22 +329,21 @@ export async function opsRoutes(app: FastifyInstance, deps: Deps) {
     await ops(req);
     const q = parse(z.object({ status: z.string().optional() }), req.query);
     const statuses = q.status?.split(',').filter((x): x is ReturnStatus => x in ReturnStatusEnum);
-    return {
-      items: await prisma.returnCase.findMany({
-        where: statuses?.length ? { status: { in: statuses } } : {},
-        include: { items: { include: { orderItem: true } }, merchant: { select: { displayNameAr: true } }, order: { select: { number: true } }, shipments: true, refunds: true },
-        orderBy: { createdAt: 'desc' },
-        take: 100,
-      }),
-    };
+    const rows = await prisma.returnCase.findMany({
+      where: statuses?.length ? { status: { in: statuses } } : {},
+      include: { items: { include: { orderItem: true } }, merchant: { select: { displayNameAr: true } }, order: { select: { number: true } }, shipments: true, refunds: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    return { items: await Promise.all(rows.map(async (r) => ({ ...r, photos: await returnPhotoUrls(ctx, r.photoKeys) }))) };
   });
   const returnAction = (name: string, fn: (a: Actor, id: string, body: unknown) => Promise<unknown>) =>
     app.post(`/v1/ops/returns/:id/${name}`, async (req) => {
       const { actor } = await ops(req, ['OPS_AGENT']);
       return fn(actor, idOf(req), req.body ?? {});
     });
-  returnAction('approve', (a, id, b) => decideReturn(a, id, true, parse(z.object({ note: z.string().max(300).optional() }), b).note));
-  returnAction('reject', (a, id, b) => decideReturn(a, id, false, parse(z.object({ note: z.string().min(2).max(300) }), b).note));
+  returnAction('approve', (a, id, b) => decideReturn(ctx, a, id, true, parse(z.object({ note: z.string().max(300).optional() }), b).note));
+  returnAction('reject', (a, id, b) => decideReturn(ctx, a, id, false, parse(z.object({ note: z.string().min(2).max(300) }), b).note));
   returnAction('receive', (a, id) => markReturnReceived(a, id));
   returnAction('inspect', (a, id, b) =>
     inspectReturn(ctx, a, id, parse(z.object({ accept: z.boolean(), restock: z.boolean().default(false), refundHalalas: z.number().int().positive().optional(), note: z.string().max(300).optional() }), b)),

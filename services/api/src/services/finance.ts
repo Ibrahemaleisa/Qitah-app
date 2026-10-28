@@ -111,7 +111,7 @@ export async function merchantBalance(merchantId: string) {
 export async function reconcileOrder(orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { payments: true, refunds: true, merchantOrders: true, items: true },
+    include: { payments: true, refunds: true, merchantOrders: true, items: true, shipments: { where: { direction: 'RETURN' } } },
   });
   if (!order) throw notFound('Order');
   const issues: string[] = [];
@@ -134,6 +134,15 @@ export async function reconcileOrder(orderId: string) {
   if (order.refundedHalalas !== order.refunds.filter((r) => r.status === 'SUCCEEDED' && (r.allocation as unknown[]).length > 0).reduce((s, r) => s + r.amountHalalas, 0)) {
     issues.push('order.refundedHalalas does not match succeeded order refunds');
   }
+  // Fit guarantee cost: platform-funded outbound shipping refunds + Qitah-paid reverse labels, nothing else.
+  const guaranteeRefunds = order.refunds
+    .filter((r) => r.status === 'SUCCEEDED')
+    .flatMap((r) => r.allocation as { platformShipping?: number }[])
+    .reduce((s, a) => s + (a.platformShipping ?? 0), 0);
+  const guaranteeLabels = order.shipments.filter((s) => s.paidBy === 'PLATFORM' && s.trackingNumber).reduce((s, x) => s + x.costHalalas, 0);
+  if (acct('GUARANTEE_EXPENSE') !== guaranteeRefunds + guaranteeLabels) {
+    issues.push(`ledger guarantee expense ${acct('GUARANTEE_EXPENSE')} ≠ guarantee refunds + platform return labels ${guaranteeRefunds + guaranteeLabels}`);
+  }
   const itemsSum = order.items.reduce((s, i) => s + i.lineTotalHalalas, 0);
   if (itemsSum !== order.itemsHalalas) issues.push(`items ${itemsSum} ≠ order.items ${order.itemsHalalas}`);
   const moItems = order.merchantOrders.reduce((s, m) => s + m.itemsHalalas, 0);
@@ -146,6 +155,7 @@ export async function reconcileOrder(orderId: string) {
     capturedHalalas: captured,
     refundedHalalas: refundsSucceeded,
     netCollectedHalalas: captured - refundsSucceeded,
+    guaranteeExpenseHalalas: acct('GUARANTEE_EXPENSE'),
     ledger: Object.fromEntries(ledger.map((l) => [l.account, l._sum.amountHalalas ?? 0])),
     reconciled: issues.length === 0,
     issues,

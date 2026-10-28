@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../db.js';
+import { readFitSnapshot } from '../domain/fit.js';
 import { notFound } from '../lib/errors.js';
 
 export const orderInclude = {
@@ -57,6 +58,11 @@ export function presentCustomerOrder(o: OrderFull) {
       unitPriceHalalas: i.unitPriceHalalas,
       lineTotalHalalas: i.lineTotalHalalas,
       status: i.status,
+      /** Server-computed at checkout; `guaranteed` = covered by ضمان قطعة. */
+      fit: (() => {
+        const f = readFitSnapshot(i.fitSnapshot);
+        return f ? { status: f.status, guaranteed: f.guaranteed } : null;
+      })(),
     })),
     shipmentGroups: o.groups.map((g) => {
       const shipment = [...o.shipments].reverse().find((s) => s.fulfillmentGroupId === g.id && s.direction === 'OUTBOUND');
@@ -89,6 +95,13 @@ export function presentCustomerOrder(o: OrderFull) {
       status: r.status,
       reason: r.reason,
       refundHalalas: r.refundHalalas,
+      guaranteed: r.guaranteed,
+      autoApproved: r.decisionNote === 'AUTO_APPROVED_FIT_GUARANTEE',
+      photoCount: r.photoKeys.length,
+      returnShipping: (() => {
+        const s = o.shipments.find((x) => x.returnCaseId === r.id && x.direction === 'RETURN' && x.status !== 'CANCELLED');
+        return s ? { paidBy: s.paidBy, costHalalas: s.costHalalas, status: s.status, trackingNumber: s.trackingNumber } : null;
+      })(),
       items: r.items.map((i) => ({ orderItemId: i.orderItemId, quantity: i.quantity })),
       createdAt: r.createdAt.toISOString(),
     })),

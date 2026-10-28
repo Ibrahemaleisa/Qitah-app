@@ -22,6 +22,8 @@ export type Candidate = {
   weightGrams: number;
   dimsCm: [number, number, number];
   handling: Handling;
+  /** False when this offer cannot go same-day right now (location cutoff passed or merchant cannot dispatch today). */
+  sameDayEligible?: boolean;
 };
 
 export type LineRequest = {
@@ -105,6 +107,7 @@ function evaluate(requests: LineRequest[], assignment: Assignment, destinationCi
         maxDimsCm: maxDims,
         handling,
         itemCount: entries.reduce((s, e) => s + e.req.quantity, 0),
+        sameDayEligible: entries.every((e) => e.c.sameDayEligible !== false),
       }),
       strategy,
     );

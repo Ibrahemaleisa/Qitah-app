@@ -2,6 +2,7 @@ import { Prisma, type Condition } from '@prisma/client';
 
 import type { Ctx } from '../context.js';
 import { prisma, withTx, type Tx } from '../db.js';
+import { DEFAULT_SAME_DAY_CUTOFF_MIN, sameDayEligible } from '../domain/delivery.js';
 import { optimizeCart, type Candidate, type LineRequest, type PlanOption } from '../domain/optimizer.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { orderNumber } from '../lib/ids.js';
@@ -9,13 +10,14 @@ import { applyBps, vatOfInclusive } from '../lib/money.js';
 import { emit } from './events.js';
 import { reserve } from './inventory.js';
 import { initiatePayment } from './payments.js';
+import { buildFitSnapshot, loadVehicleSnapshots, vehicleForLine, type CheckoutVehicleInput } from './trust.js';
 
 const PLAN_TTL_MS = 15 * 60_000;
 export const PAYMENT_METHODS = ['mada', 'card', 'applePay', 'stcPay'] as const;
 
 type OfferRow = Prisma.OfferGetPayload<{ include: { location: true; inventory: true; product: true; merchant: true } }>;
 
-function toCandidate(o: OfferRow): Candidate {
+function toCandidate(o: OfferRow, now: Date): Candidate {
   return {
     offerId: o.id,
     merchantId: o.merchantId,
@@ -27,6 +29,7 @@ function toCandidate(o: OfferRow): Candidate {
     weightGrams: o.product.weightGrams,
     dimsCm: [o.product.lengthCm, o.product.widthCm, o.product.heightCm],
     handling: o.product.handling,
+    sameDayEligible: sameDayEligible(now, o.location.sameDayCutoffMinutes ?? DEFAULT_SAME_DAY_CUTOFF_MIN, o.dispatchDaysMin),
   };
 }
 
@@ -62,17 +65,19 @@ export async function planCheckout(ctx: Ctx, userId: string, input: { lines: Pla
     include: { location: true, inventory: true, product: true, merchant: true },
   });
 
+  const now = ctx.clock();
   const requests: LineRequest[] = input.lines.map((l) => {
     const sel = bySel.get(l.offerId)!;
     return {
       key: l.offerId,
       quantity: l.quantity,
       selectedOfferId: l.offerId,
-      candidates: pool.filter((o) => o.productId === sel.productId && o.condition === sel.condition).map(toCandidate),
+      candidates: pool.filter((o) => o.productId === sel.productId && o.condition === sel.condition).map((o) => toCandidate(o, now)),
     };
   });
 
-  const result = optimizeCart(requests, address.city, (g) => ctx.carrier.rates(g));
+  // Same-day is only offered when every item in the parcel can still make today's cutoff.
+  const result = optimizeCart(requests, address.city, (g) => ctx.carrier.rates(g).filter((r) => r.serviceCode !== 'sameDay' || g.sameDayEligible !== false));
   const merchants = new Map(pool.map((o) => [o.merchantId, o.merchant]));
   const offers = new Map(pool.map((o) => [o.id, o]));
   const expiresAt = new Date(Date.now() + PLAN_TTL_MS);
@@ -178,10 +183,13 @@ function presentOption(
 
 type StoredPlan = PlanOption & { quoteIds: string[] };
 
+/** `vehicle` names the customer's own garage vehicle(s); the server re-computes fit per line and never trusts a client fit claim. */
+export type CheckoutInput = { planId: string; idempotencyKey: string; paymentMethod: string; vehicle?: CheckoutVehicleInput };
+
 export async function checkout(
   ctx: Ctx,
   userId: string,
-  input: { planId: string; idempotencyKey: string; paymentMethod: string; vehicle?: Record<string, unknown> },
+  input: CheckoutInput,
 ) {
   const existing = await prisma.order.findUnique({ where: { customerId_idempotencyKey: { customerId: userId, idempotencyKey: input.idempotencyKey } } });
   if (existing) return finishCheckout(ctx, existing.id, input.paymentMethod);
@@ -217,7 +225,7 @@ async function createOrderFromPlan(
   ctx: Ctx,
   tx: Tx,
   userId: string,
-  input: { planId: string; idempotencyKey: string; paymentMethod: string; vehicle?: Record<string, unknown> },
+  input: CheckoutInput,
 ): Promise<string> {
   // Lock the plan row so it can be used exactly once.
   const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "CheckoutPlan" WHERE id = ${input.planId} AND "userId" = ${userId} FOR UPDATE`;
@@ -230,7 +238,7 @@ async function createOrderFromPlan(
   const plan = planRow.plan as unknown as StoredPlan;
 
   const offerIds = plan.groups.flatMap((g) => g.lines.map((l) => l.offerId));
-  const offers = await tx.offer.findMany({ where: { id: { in: offerIds }, ...purchasable(address.kind === 'WORKSHOP') }, include: { product: true, merchant: true } });
+  const offers = await tx.offer.findMany({ where: { id: { in: offerIds }, ...purchasable(address.kind === 'WORKSHOP') }, include: { product: { include: { fitments: true } }, merchant: true } });
   const byId = new Map(offers.map((o) => [o.id, o]));
   for (const g of plan.groups) {
     for (const l of g.lines) {
@@ -242,6 +250,8 @@ async function createOrderFromPlan(
     }
   }
 
+  const vehicles = await loadVehicleSnapshots(tx, userId, input.vehicle);
+  const orderVehicle = input.vehicle ? (vehicles.get(input.vehicle.garageVehicleId) ?? null) : null;
   const now = new Date();
   const number = orderNumber(now);
   const paymentExpiresAt = new Date(now.getTime() + ctx.config.RESERVATION_MINUTES * 60_000);
@@ -262,7 +272,7 @@ async function createOrderFromPlan(
         phone: address.phone,
         workshopName: address.workshopName,
       },
-      vehicleSnapshot: (input.vehicle ?? undefined) as Prisma.InputJsonValue | undefined,
+      vehicleSnapshot: (orderVehicle ?? undefined) as Prisma.InputJsonValue | undefined,
       paymentMethod: input.paymentMethod,
       itemsHalalas: plan.itemsHalalas,
       shippingHalalas: plan.shippingHalalas,
@@ -323,6 +333,7 @@ async function createOrderFromPlan(
             partNumber: o.product.partNumber,
             condition: o.condition,
             art: o.product.art,
+            fitSnapshot: buildFitSnapshot(o.product, vehicleForLine(input.vehicle, vehicles, [l.key, l.offerId]), now) as unknown as Prisma.InputJsonValue,
           },
         });
         await reserve(tx, { offerId: o.id, quantity: l.quantity, orderId: order.id, orderItemId: item.id, expiresAt: paymentExpiresAt });

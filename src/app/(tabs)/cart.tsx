@@ -9,9 +9,11 @@ import { isRemote } from '@/config/env';
 import { getProduct } from '@/data/catalog';
 import { ConditionBadge } from '@/features/badges';
 import { lineIssues, useLiveCart } from '@/features/remote/useLiveCart';
+import { GuaranteeBadge } from '@/features/trust';
+import { guaranteeState } from '@/domain/guarantee';
 import { groupCartBySeller } from '@/domain/pricing';
 import { useI18n } from '@/i18n';
-import { useAppStore } from '@/store/app-store';
+import { useAppStore, useSelectedVehicle } from '@/store/app-store';
 import { layoutMove } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 import { Button } from '@/ui/Button';
@@ -30,6 +32,7 @@ export default function Cart() {
   const setQty = useAppStore((st) => st.setQty);
   const removeFromCart = useAppStore((st) => st.removeFromCart);
   const acknowledgePrice = useAppStore((st) => st.acknowledgePrice);
+  const vehicle = useSelectedVehicle();
   const catalogVersion = useCatalogVersion();
   // Remote: live price/stock refresh whenever the cart is opened.
   const live = useLiveCart();
@@ -107,12 +110,17 @@ export default function Cart() {
                     <Text variant="callout" weight="semibold" numberOfLines={2}>
                       {tx(product.name)}
                     </Text>
-                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                       <ConditionBadge condition={offer.condition} />
                       <Text variant="caption" color="textSecondary" mono>
                         {product.partNumber}
                       </Text>
                     </View>
+                    {guaranteeState(product, vehicle) === 'covered' ? (
+                      <Pressable onPress={() => router.push('/guarantee')} accessibilityRole="link" accessibilityLabel={`${s.trust.guaranteeBadge}. ${product.universal ? s.trust.guaranteeLineSpec : s.trust.guaranteeLine}`} style={{ alignSelf: 'flex-start' }}>
+                        <GuaranteeBadge />
+                      </Pressable>
+                    ) : null}
                     {unavailable ? (
                       <View style={{ marginTop: 4, gap: space.sm }}>
                         <Notice tone="danger" text={s.remote.outOfStockLine} />

@@ -11,6 +11,8 @@ import type {
   ApiUser,
   ApiVehicle,
   CheckoutResponse,
+  DeliveryEstimatesResponse,
+  UploadTarget,
   OtpRequestResponse,
   OtpVerifyResponse,
   PaymentInit,
@@ -36,6 +38,8 @@ export const catalogApi = {
   reference: () => api.get<ReferenceResponse>('/v1/catalog/reference'),
   snapshot: () => api.get<SnapshotResponse>('/v1/catalog/snapshot', { timeoutMs: 20_000 }),
   offers: (ids: string[]) => api.get<{ offers: ApiOffer[] }>('/v1/catalog/offers', { query: { ids: ids.slice(0, 50).join(',') } }),
+  deliveryEstimates: (offerIds: string[], city: string) =>
+    api.get<DeliveryEstimatesResponse>('/v1/catalog/delivery-estimates', { query: { offerIds: offerIds.slice(0, 50).join(','), city } }),
 };
 
 export type VehicleInput = { modelId: string; year: number; trim?: string; engine: string; vin?: string; odometerKm?: number };
@@ -54,11 +58,22 @@ export const meApi = {
   putCart: (lines: ApiCartLine[]) => api.put<{ lines: ApiCartLine[] }>('/v1/me/cart', { lines }, auth),
   notifications: () => api.get<{ notifications: ApiNotification[] }>('/v1/me/notifications', auth),
   markNotificationsRead: () => api.post<{ ok: true }>('/v1/me/notifications/read', {}, auth),
+  /** Private, customer-scoped upload target (return photos). */
+  createUpload: (input: { purpose: 'return'; contentType: string; sizeBytes: number; fileName: string }) => api.post<UploadTarget>('/v1/me/uploads', input, auth),
+};
+
+export type ReturnRequestInput = {
+  items: { orderItemId: string; quantity: number }[];
+  reason: string;
+  note?: string;
+  photoKeys?: string[];
+  unopened?: boolean;
 };
 
 export const checkoutApi = {
   plan: (addressId: string, lines: { offerId: string; quantity: number }[]) => api.post<PlanResponse>('/v1/checkout/plan', { addressId, lines }, auth),
-  place: (input: { planId: string; idempotencyKey: string; paymentMethod: RemotePaymentMethod; vehicle?: { label: string; modelId?: string; year?: number } }) =>
+  /** `vehicle` only names a garage vehicle: the server computes fit (and the guarantee) itself. */
+  place: (input: { planId: string; idempotencyKey: string; paymentMethod: RemotePaymentMethod; vehicle?: { garageVehicleId: string } }) =>
     // Safe to resend with the same idempotencyKey: the server returns the existing order.
     api.post<CheckoutResponse>('/v1/checkout', input, { ...auth, timeoutMs: 20_000 }),
 };
@@ -68,7 +83,7 @@ export const ordersApi = {
   get: (id: string) => api.get<ApiOrder>(`/v1/orders/${encodeURIComponent(id)}`, auth),
   retryPayment: (id: string, method: RemotePaymentMethod) => api.post<PaymentInit>(`/v1/orders/${encodeURIComponent(id)}/payment`, { method }, auth),
   cancel: (id: string, reason: string) => api.post<ApiOrder>(`/v1/orders/${encodeURIComponent(id)}/cancel`, { reason }, auth),
-  requestReturn: (id: string, input: { items: { orderItemId: string; quantity: number }[]; reason: string; note?: string }) =>
+  requestReturn: (id: string, input: ReturnRequestInput) =>
     api.post<ApiOrder>(`/v1/orders/${encodeURIComponent(id)}/returns`, input, auth),
   events: (after?: string) => api.get<{ events: ApiDomainEvent[]; cursor: string }>('/v1/events', { ...auth, query: { after } }),
 };

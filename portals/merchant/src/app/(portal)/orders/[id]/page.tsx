@@ -8,7 +8,7 @@ import { ShipmentCard } from "@/components/orders/ShipmentCard";
 import { useMerchant } from "@/components/portal/MerchantContext";
 import { Badge, LoadState, StatusBadge } from "@/components/ui/bits";
 import { formatDateTime, formatDue, formatSar, range } from "@/lib/format";
-import { cityAr, CONDITION_AR, label, ORDER_STATUS_AR, REJECT_REASONS, RETURN_STATUS_AR } from "@/lib/labels";
+import { cityAr, CONDITION_AR, FIT_STATUS_AR, label, ORDER_STATUS_AR, REJECT_REASONS, RETURN_STATUS_AR } from "@/lib/labels";
 import type { MerchantOrder } from "@/lib/types";
 import { useApi, useNow } from "@/lib/useApi";
 
@@ -70,6 +70,8 @@ function OrderView({ o, now, reload }: { o: MerchantOrder; now: number; reload: 
         </div>
       )}
 
+      <VehicleCard o={o} />
+
       {o.rejectedReason && (
         <div className="rounded-lg border border-line bg-white px-4 py-3 text-sm">
           <strong>سبب {o.status === "CANCELLED" ? "الإلغاء" : "الرفض"}:</strong> {REJECT_REASONS.find((r) => r.id === o.rejectedReason)?.ar ?? o.rejectedReason}
@@ -83,6 +85,7 @@ function OrderView({ o, now, reload }: { o: MerchantOrder; now: number; reload: 
             <thead>
               <tr>
                 <th>القطعة</th>
+                <th>التوافق</th>
                 <th>رقم القطعة</th>
                 <th>الحالة</th>
                 <th>الكمية</th>
@@ -96,6 +99,17 @@ function OrderView({ o, now, reload }: { o: MerchantOrder; now: number; reload: 
                   <td>
                     <p className="font-medium">{i.productNameAr}</p>
                     {i.status === "CANCELLED" && <Badge>ملغى</Badge>}
+                  </td>
+                  <td className="text-sm" data-testid="item-fit" data-fit={i.fit?.status ?? "none"}>
+                    {i.fit ? (
+                      <div className="flex flex-col items-start gap-1">
+                        <Badge tone={i.fit.guaranteed ? "success" : i.fitNeedsConfirmation ? "warning" : "neutral"}>{label(FIT_STATUS_AR, i.fit.status)}</Badge>
+                        {i.fit.guaranteed && <span className="text-xs text-slate">مشمولة بضمان قطعة</span>}
+                        {i.fitNeedsConfirmation && <span className="text-xs text-warning-text">تحقق من التوافق قبل التجهيز</span>}
+                      </div>
+                    ) : (
+                      <span className="text-slate">—</span>
+                    )}
                   </td>
                   <td className="ltr whitespace-nowrap text-start text-sm">{i.partNumber}</td>
                   <td className="text-sm">{label(CONDITION_AR, i.condition)}</td>
@@ -187,6 +201,35 @@ function OrderView({ o, now, reload }: { o: MerchantOrder; now: number; reload: 
         </section>
       )}
     </div>
+  );
+}
+
+/** Customer vehicle + VIN so the merchant can double-check fit; unverified fits are flagged (no blocking workflow). */
+function VehicleCard({ o }: { o: MerchantOrder }) {
+  const v = o.vehicle;
+  if (!v && !o.fitNeedsConfirmation) return null;
+  return (
+    <section
+      className={`rounded-lg border px-4 py-3 text-sm ${o.fitNeedsConfirmation ? "border-warning/30 bg-warning-soft" : "border-line bg-white"}`}
+      data-testid="order-vehicle"
+      data-needs-confirmation={o.fitNeedsConfirmation ? "true" : "false"}
+    >
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+        <p>
+          <strong>سيارة العميل:</strong> {v ? `${v.labelAr} · ${v.trim} · ${v.engine}` : "لم يحدد العميل سيارة"}
+        </p>
+        {v?.vin && (
+          <p>
+            <strong>رقم الهيكل (VIN):</strong> <span className="ltr font-mono">{v.vin}</span>
+          </p>
+        )}
+      </div>
+      {o.fitNeedsConfirmation && (
+        <p className="mt-1 font-semibold text-warning-text">
+          بعض القطع توافقها مُبلَّغ من البائع أو غير معروف لهذه السيارة. راجع رقم القطعة مع السيارة{v?.vin ? " ورقم الهيكل" : ""} قبل التجهيز، وتواصل مع العميل عبر قطعة عند الشك.
+        </p>
+      )}
+    </section>
   );
 }
 

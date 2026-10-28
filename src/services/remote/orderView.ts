@@ -105,7 +105,28 @@ export type OrderItemView = {
   cancelled: boolean;
   merchantOrderId: string;
   groupId: string;
+  /** Server fit snapshot from checkout: covered by ضمان قطعة. */
+  guaranteed: boolean;
+  fitStatus: string | null;
 };
+
+export type ReturnPayerView = 'qitah' | 'seller' | 'customer';
+
+export type ReturnView = {
+  id: string;
+  number: string;
+  status: string;
+  reason: string;
+  refund: number;
+  items: { orderItemId: string; quantity: number }[];
+  createdAt: number;
+  guaranteed: boolean;
+  autoApproved: boolean;
+  photoCount: number;
+  returnShipping: { payer: ReturnPayerView; cost: number } | null;
+};
+
+const PAYER: Record<string, ReturnPayerView> = { PLATFORM: 'qitah', MERCHANT: 'seller', CUSTOMER: 'customer' };
 
 export type StageEventView = { stage: ShipmentStage; reached: boolean; at: number | null };
 
@@ -147,11 +168,13 @@ export type OrderView = {
   totals: { items: number; shipping: number; total: number; vat: number; refunded: number };
   address: { kind: 'home' | 'workshop'; label: string; workshopName?: string; city: string; district: string; street: string; contactName: string; phone: string } | null;
   vehicleLabel?: string;
+  /** Bilingual vehicle name when the server snapshot has one. */
+  vehicleName?: L10n;
   cancelReason: string | null;
   payment: { status: string; method: string; sandbox: boolean; redirectUrl: string | null } | null;
   items: OrderItemView[];
   shipments: ShipmentView[];
-  returns: { id: string; number: string; status: string; reason: string; refund: number; items: { orderItemId: string; quantity: number }[]; createdAt: number }[];
+  returns: ReturnView[];
   refunds: { id: string; amount: number; status: string; reason: string | null; createdAt: number }[];
   canCancel: boolean;
   /** Items that can still be returned, with the maximum returnable quantity. */
@@ -180,6 +203,8 @@ export function toOrderView(o: ApiOrder, now = Date.now()): OrderView {
     cancelled: i.status === 'CANCELLED',
     merchantOrderId: i.merchantOrderId,
     groupId: i.fulfillmentGroupId,
+    guaranteed: i.fit?.guaranteed === true,
+    fitStatus: i.fit?.status ?? null,
   }));
   const mos = new Map((o.merchantOrders ?? []).map((m) => [m.id, m]));
 
@@ -276,11 +301,24 @@ export function toOrderView(o: ApiOrder, now = Date.now()): OrderView {
         }
       : null,
     vehicleLabel: o.vehicle?.label,
+    vehicleName: o.vehicle?.labelAr ? { ar: o.vehicle.labelAr, en: o.vehicle.labelEn || o.vehicle.labelAr } : undefined,
     cancelReason: o.cancelReason,
     payment: o.payment ? { status: o.payment.status, method: o.payment.method, sandbox: o.payment.sandbox, redirectUrl: o.payment.redirectUrl } : null,
     items,
     shipments,
-    returns: (o.returns ?? []).map((r) => ({ id: r.id, number: r.number, status: r.status, reason: r.reason, refund: halalasToSar(r.refundHalalas), items: r.items, createdAt: ts(r.createdAt) ?? now })),
+    returns: (o.returns ?? []).map((r) => ({
+      id: r.id,
+      number: r.number,
+      status: r.status,
+      reason: r.reason,
+      refund: halalasToSar(r.refundHalalas),
+      items: r.items,
+      createdAt: ts(r.createdAt) ?? now,
+      guaranteed: !!r.guaranteed,
+      autoApproved: !!r.autoApproved,
+      photoCount: r.photoCount ?? 0,
+      returnShipping: r.returnShipping && PAYER[r.returnShipping.paidBy] ? { payer: PAYER[r.returnShipping.paidBy], cost: halalasToSar(r.returnShipping.costHalalas) } : null,
+    })),
     refunds: (o.refunds ?? []).map((r) => ({ id: r.id, amount: halalasToSar(r.amountHalalas), status: r.status, reason: r.reason, createdAt: ts(r.createdAt) ?? now })),
     canCancel,
     returnable,

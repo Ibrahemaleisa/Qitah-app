@@ -70,7 +70,7 @@ test('return inspection restocks exactly once under double submit', async () => 
   // Shortcut fulfilment: mark delivered directly (fulfilment itself is covered elsewhere).
   await prisma.merchantOrder.update({ where: { id: mo.id }, data: { status: 'DELIVERED', deliveredAt: new Date() } });
   const item = await prisma.orderItem.findFirstOrThrow({ where: { orderId: order.orderId } });
-  await c.ok('POST', `/v1/orders/${order.orderId}/returns`, { items: [{ orderItemId: item.id, quantity: 1 }], reason: 'damaged' });
+  await c.ok('POST', `/v1/orders/${order.orderId}/returns`, { items: [{ orderItemId: item.id, quantity: 1 }], reason: 'notAsDescribed' });
   const rc = await prisma.returnCase.findFirstOrThrow({ where: { orderId: order.orderId } });
   const m = await login(app, 'owner@riyadh-center.qitah.test');
   await m.ok('POST', `/v1/merchants/${mo.merchantId}/returns/${rc.id}/approve`, {});
@@ -80,7 +80,7 @@ test('return inspection restocks exactly once under double submit', async () => 
   assert.deepEqual(rs.map((r) => r.status).sort(), [200, 409]);
   assert.equal((await prisma.inventoryLevel.findUniqueOrThrow({ where: { offerId: 'o-001' } })).onHand, before + 1);
   // Duplicate return request for the same unit is refused.
-  const again = await c.post(`/v1/orders/${order.orderId}/returns`, { items: [{ orderItemId: item.id, quantity: 1 }], reason: 'damaged' });
+  const again = await c.post(`/v1/orders/${order.orderId}/returns`, { items: [{ orderItemId: item.id, quantity: 1 }], reason: 'notAsDescribed' });
   assert.equal(again.status, 409);
 });
 

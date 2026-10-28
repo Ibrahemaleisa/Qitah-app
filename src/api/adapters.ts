@@ -1,3 +1,4 @@
+import type { DeliveryEstimate, ServiceEstimate } from '@/domain/deliveredPrice';
 import type {
   Address,
   Category,
@@ -16,7 +17,7 @@ import type {
 } from '@/domain/types';
 
 import { halalasToSar, optionalHalalasToSar } from './money';
-import type { ApiAddress, ApiCategory, ApiMake, ApiOffer, ApiProduct, ApiSeller, ApiVehicle } from './types';
+import type { ApiAddress, ApiCategory, ApiDeliveryEstimate, ApiMake, ApiOffer, ApiProduct, ApiServiceEstimate, ApiSeller, ApiVehicle } from './types';
 
 /**
  * Adapters: API wire shapes → the app's existing domain types, so screens keep working unchanged.
@@ -192,4 +193,16 @@ export function fromAddress(a: Omit<Address, 'id'>): Omit<ApiAddress, 'id'> {
     phone: a.phone,
     ...(a.kind === 'workshop' && a.workshopName ? { workshopName: a.workshopName } : {}),
   };
+}
+
+function toServiceEstimate(e: ApiServiceEstimate | null | undefined): ServiceEstimate | null {
+  if (!e || !Number.isFinite(e.amountHalalas) || !/^\d{4}-\d{2}-\d{2}$/.test(e.arrivesBy ?? '')) return null;
+  return { service: e.service, fee: halalasToSar(e.amountHalalas), etaDays: [Math.max(0, e.etaDaysMin), Math.max(0, e.etaDaysMax)], arrivesBy: e.arrivesBy };
+}
+
+/** Server delivery estimate (halalas) → domain estimate (SAR). Malformed services are dropped, never guessed. */
+export function toDeliveryEstimate(e: ApiDeliveryEstimate): DeliveryEstimate {
+  const cheapest = toServiceEstimate(e.cheapest);
+  const fastest = toServiceEstimate(e.fastest) ?? cheapest;
+  return { offerId: e.offerId, cheapest, fastest, sameDayAvailable: !!e.sameDayAvailable && fastest?.etaDays[1] === 0, cutoffLocal: e.cutoffLocal ?? '14:00' };
 }

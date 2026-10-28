@@ -172,11 +172,12 @@ export function RemoteOrderDetail() {
                       <Text variant="callout" weight="semibold" numberOfLines={2}>
                         {tx(l.name)}
                       </Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <ConditionBadge condition={l.condition} />
                         <Text variant="caption" color="textSecondary">
                           {`${l.qty} × ${money(l.unitPrice)}`}
                         </Text>
+                        {l.guaranteed ? <Badge label={s.trust.guaranteeBadge} tone="success" icon="shield" /> : null}
                       </View>
                     </View>
                   </Pressable>
@@ -212,6 +213,12 @@ export function RemoteOrderDetail() {
                     {`${itemName(it.orderItemId)} × ${it.quantity}`}
                   </Text>
                 ))}
+                {r.guaranteed || r.returnShipping ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+                    {r.autoApproved ? <Badge label={s.trust.autoApproved} tone="success" icon="shield" /> : r.guaranteed ? <Badge label={s.trust.guaranteeBadge} tone="success" icon="shield" /> : null}
+                    {r.returnShipping ? <Badge label={s.trust.returnShipping(s.trust.payer[r.returnShipping.payer])} tone={r.returnShipping.payer === 'customer' ? 'warning' : 'neutral'} icon="truck" /> : null}
+                  </View>
+                ) : null}
                 {r.refund > 0 ? (
                   <Text variant="captionStrong" color="success">
                     {s.remote.refundedTotal(money(r.refund))}
@@ -249,9 +256,9 @@ export function RemoteOrderDetail() {
             <Text variant="caption" color="textTertiary">
               {order.address.contactName} · <Text variant="caption" color="textTertiary" ltr>{order.address.phone}</Text>
             </Text>
-            {order.vehicleLabel ? (
+            {order.vehicleName || order.vehicleLabel ? (
               <Text variant="caption" color="textSecondary">
-                {s.checkout.vehicleNote(order.vehicleLabel)}
+                {s.checkout.vehicleNote(order.vehicleName ? tx(order.vehicleName) : (order.vehicleLabel ?? ''))}
               </Text>
             ) : null}
           </View>

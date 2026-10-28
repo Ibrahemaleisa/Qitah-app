@@ -5,11 +5,11 @@ import { useState, type FormEvent } from "react";
 import { ShipmentCard } from "@/components/orders/ShipmentCard";
 import { useMerchant } from "@/components/portal/MerchantContext";
 import { Dialog } from "@/components/ui/Dialog";
-import { EmptyState, ErrorNote, Field, Forbidden, LoadState, PageHeader, StatusBadge } from "@/components/ui/bits";
+import { Badge, EmptyState, ErrorNote, Field, Forbidden, LoadState, PageHeader, StatusBadge } from "@/components/ui/bits";
 import { useToast } from "@/components/ui/Toast";
 import { api, errorText } from "@/lib/api";
 import { formatDateTime, formatSar, halalasToInput, parseSarToHalalas } from "@/lib/format";
-import { label, RETURN_REASON_AR, RETURN_STATUS_AR } from "@/lib/labels";
+import { FIT_STATUS_AR, label, RETURN_PAYER_AR, RETURN_REASON_AR, RETURN_STATUS_AR } from "@/lib/labels";
 import type { ReturnCase } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
@@ -78,6 +78,7 @@ export default function ReturnsPage() {
                   <h2 className="flex flex-wrap items-center gap-2 font-bold">
                     <span className="ltr">{rc.number}</span>
                     <StatusBadge status={rc.status} labels={RETURN_STATUS_AR} />
+                    {rc.guaranteed && <Badge tone="success">ضمان قطعة · قُبل تلقائياً</Badge>}
                   </h2>
                   <p className="text-sm text-slate">
                     الطلب <span className="ltr">{rc.merchantOrder.number}</span> · {formatDateTime(rc.createdAt)}
@@ -110,7 +111,18 @@ export default function ReturnsPage() {
                 <div>
                   <p>
                     <strong>السبب:</strong> {label(RETURN_REASON_AR, rc.reason)}
+                    {rc.reason === "changedMind" && rc.unopened ? " · أكد العميل أنها لم تُفتح" : ""}
                   </p>
+                  {rc.guaranteed && (
+                    <p className="mt-1 rounded bg-success-soft px-2 py-1.5 text-xs text-success">
+                      القطعة مشمولة بضمان قطعة (توافق من الكتالوج وقت الطلب). قطعة تدفع شحن الإرجاع وتعوّض العميل عن التوصيل؛ قيمة القطعة تُسترد من مستحقك كالمعتاد لأن القطعة تعود إليك.
+                    </p>
+                  )}
+                  {(rc.returnShipping ?? []).map((s) => (
+                    <p key={s.id} className="mt-1" data-testid="return-shipping" data-paid-by={s.paidBy}>
+                      <strong>شحن الإرجاع:</strong> {formatSar(s.costHalalas)} — على {label(RETURN_PAYER_AR, s.paidBy)}
+                    </p>
+                  ))}
                   {rc.customerNote && (
                     <p className="mt-1">
                       <strong>ملاحظة العميل:</strong> {rc.customerNote}
@@ -130,9 +142,24 @@ export default function ReturnsPage() {
                     {rc.items.map((i) => (
                       <li key={i.id}>
                         {i.orderItem.productNameAr} <span className="ltr text-slate">({i.orderItem.partNumber})</span> × {i.quantity} — {formatSar(i.orderItem.unitPriceHalalas * i.quantity)}
+                        {i.fit && <span className="text-xs text-slate"> · {label(FIT_STATUS_AR, i.fit.status)}{i.fit.vin ? ` · VIN ${i.fit.vin}` : ""}</span>}
                       </li>
                     ))}
                   </ul>
+                  {(rc.photos ?? []).length > 0 && (
+                    <div className="mt-2" data-testid="return-photos">
+                      <p className="font-semibold">صور العميل</p>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {rc.photos!.map((p, idx) => (
+                          <a key={p.key} href={p.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded border border-line" title="الرابط صالح لدقائق — حدّث الصفحة إن انتهى">
+                            {/* Signed, short-lived private URL — not an optimisable static asset. */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={p.url} alt={`صورة ${idx + 1} من العميل`} className="h-20 w-20 object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <p className="mt-1 text-slate">قيمة القطع المرتجعة: {formatSar(value)}</p>
                   {rc.refunds.map((r) => (
                     <p key={r.id} className="mt-1">
@@ -185,7 +212,7 @@ function ReturnDialog({ dlg, onClose, onDone }: { dlg: NonNullable<Dlg>; onClose
       body = { accept, ...(note.trim() ? { note: note.trim() } : {}) };
       if (accept) {
         body.restock = restock;
-        if (partial) {
+        if (partial && !rc.guaranteed) {
           const h = parseSarToHalalas(amount);
           if (!h || h > value) return setFieldError(`أدخل مبلغاً بين 0.01 و ${halalasToInput(value)}`);
           body.refundHalalas = h;
@@ -209,7 +236,12 @@ function ReturnDialog({ dlg, onClose, onDone }: { dlg: NonNullable<Dlg>; onClose
   return (
     <Dialog open onClose={onClose} title={title}>
       <form onSubmit={submit} noValidate className="space-y-4">
-        {kind === "approve" && <p className="text-sm text-slate">ستُنشأ شحنة إرجاع ويرتب فريق قطعة استلام القطعة من العميل.</p>}
+        {kind === "approve" && (
+          <p className="text-sm text-slate">
+            ستُنشأ شحنة إرجاع ويرتب فريق قطعة استلام القطعة من العميل.{" "}
+            {rc.reason === "changedMind" ? "شحن الإرجاع على العميل ويُخصم من استرداده." : rc.reason === "wrongPart" ? "شحن الإرجاع عليك إن كان التوافق مُبلَّغاً منك، وإلا فعلى العميل." : "شحن الإرجاع عليك ويُخصم من مستحقك."}
+          </p>
+        )}
         {kind === "inspect" && (
           <>
             <fieldset className="space-y-2 text-sm">
@@ -226,10 +258,14 @@ function ReturnDialog({ dlg, onClose, onDone }: { dlg: NonNullable<Dlg>; onClose
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} /> إعادة القطعة إلى المخزون
                 </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={partial} onChange={(e) => setPartial(e.target.checked)} /> استرداد جزئي (الافتراضي كامل القيمة {formatSar(value)})
-                </label>
-                {partial && (
+                {rc.guaranteed ? (
+                  <p className="text-sm text-slate">مرتجع بضمان قطعة: الاسترداد كامل دائماً (قيمة القطعة + حصة التوصيل على حساب قطعة).</p>
+                ) : (
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={partial} onChange={(e) => setPartial(e.target.checked)} /> استرداد جزئي (الافتراضي كامل القيمة {formatSar(value)})
+                  </label>
+                )}
+                {partial && !rc.guaranteed && (
                   <Field label="مبلغ الاسترداد (ر.س)" required error={fieldError ?? undefined}>
                     {(p) => <input {...p} className="input ltr text-start" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />}
                   </Field>

@@ -68,7 +68,8 @@ async function order(label: string, phone: string, city: string, lines: { offerI
   await call('POST', `/v1/orders/${o.orderId}/returns`, t, { items: [{ orderItemId: view.items[0].id, quantity: 1 }], reason: 'wrongPart', note: 'لا تناسب السيارة' });
   const rc = await prisma.returnCase.findFirstOrThrow({ where: { orderId: o.orderId } });
   const mt = await ownerToken(rc.merchantId);
-  await call('POST', `/v1/merchants/${rc.merchantId}/returns/${rc.id}/approve`, mt, {});
+  // Fit-guarantee lines are auto-approved; everything else waits for the merchant.
+  if (rc.status === 'REQUESTED') await call('POST', `/v1/merchants/${rc.merchantId}/returns/${rc.id}/approve`, mt, {});
   await call('POST', `/v1/merchants/${rc.merchantId}/returns/${rc.id}/receive`, mt);
   await call('POST', `/v1/merchants/${rc.merchantId}/returns/${rc.id}/inspect`, mt, { accept: true, restock: true });
   return o.number;

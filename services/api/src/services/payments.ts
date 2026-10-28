@@ -164,7 +164,11 @@ async function applyEvent(ctx: Ctx, tx: Tx, event: PaymentWebhookEvent): Promise
   return { outcome: 'processed', paymentId: payment.id };
 }
 
-export type Allocation = { merchantId: string; merchantOrderId: string; items: number; commission: number; shipping: number }[];
+/**
+ * Per-merchant refund split used for ledger postings. `shipping` reverses (or, negative, adds to) the carrier
+ * payable; `platformShipping` is the part Qitah funds itself (fit guarantee), booked to GUARANTEE_EXPENSE.
+ */
+export type Allocation = { merchantId: string; merchantOrderId: string; items: number; commission: number; shipping: number; platformShipping?: number }[];
 
 /** Creates a PENDING refund (DB only). Call `submitPendingRefunds` after the transaction commits. */
 export async function createRefund(
@@ -189,7 +193,7 @@ export async function createRefund(
   const pending = await tx.refund.aggregate({ where: { paymentId: current.id, status: 'PENDING' }, _sum: { amountHalalas: true } });
   const refundable = current.capturedHalalas - current.refundedHalalas - (pending._sum.amountHalalas ?? 0);
   if (input.amountHalalas > refundable) throw conflict('REFUND_EXCEEDS_CAPTURED', `At most ${refundable} halalas can be refunded`, { refundable });
-  const allocated = input.allocation.reduce((s, a) => s + a.items + a.shipping, 0);
+  const allocated = input.allocation.reduce((s, a) => s + a.items + a.shipping + (a.platformShipping ?? 0), 0);
   if (input.allocation.length && allocated !== input.amountHalalas) throw new Error('Refund allocation does not sum to amount');
   const refund = await tx.refund.create({
     data: {
@@ -243,6 +247,7 @@ async function settleRefund(tx: Tx, refundId: string) {
     lines.push({ account: 'MERCHANT_PAYABLE', amountHalalas: a.items - a.commission, merchantId: a.merchantId, merchantOrderId: a.merchantOrderId });
     lines.push({ account: 'PLATFORM_COMMISSION', amountHalalas: a.commission, merchantId: a.merchantId, merchantOrderId: a.merchantOrderId });
     lines.push({ account: 'SHIPPING_PAYABLE', amountHalalas: a.shipping, merchantId: a.merchantId, merchantOrderId: a.merchantOrderId });
+    if (a.platformShipping) lines.push({ account: 'GUARANTEE_EXPENSE', amountHalalas: a.platformShipping, merchantId: a.merchantId, merchantOrderId: a.merchantOrderId });
   }
   await post(tx, { type: 'REFUND_SUCCEEDED', refType: 'refund', refId: refund.id, orderId: order.id, lines });
   if (refund.returnCaseId) {

@@ -198,7 +198,14 @@ export async function customerRoutes(app: FastifyInstance, deps: Deps) {
         planId: z.string(),
         idempotencyKey: z.string().min(8).max(100),
         paymentMethod: z.enum(PAYMENT_METHODS),
-        vehicle: z.object({ label: z.string().max(120), modelId: z.string().optional(), year: z.number().int().optional() }).optional(),
+        // Only a reference to the customer's own garage vehicle(s): fit is re-computed server-side and
+        // any client-supplied fit/guarantee claim is stripped by the schema.
+        vehicle: z
+          .object({
+            garageVehicleId: z.string().min(1).max(64),
+            lines: z.array(z.object({ offerId: z.string().max(64), garageVehicleId: z.string().min(1).max(64) })).max(30).optional(),
+          })
+          .optional(),
       }),
       req.body,
     );
@@ -243,11 +250,27 @@ export async function customerRoutes(app: FastifyInstance, deps: Deps) {
         items: z.array(z.object({ orderItemId: z.string(), quantity: z.number().int().min(1) })).min(1),
         reason: z.enum(RETURN_REASONS),
         note: z.string().max(500).optional(),
+        photoKeys: z.array(z.string().max(300)).max(6).optional(),
+        unopened: z.boolean().optional(),
       }),
       req.body,
     );
     await requestReturn(ctx, p.userId, id, body);
     return presentCustomerOrder(await loadOrder(id, { customerId: p.userId }));
+  });
+
+  // ── private uploads (return photos). Keys are scoped to the customer: customers/<userId>/<purpose>/...
+  app.post('/v1/me/uploads', rateLimit(ctx.config.RATE_LIMIT_SCALE, 30, '10 minutes'), async (req) => {
+    const p = await requireUser(req);
+    const body = parse(z.object({ purpose: z.enum(['return']), contentType: z.string(), sizeBytes: z.number().int(), fileName: z.string().min(1).max(200) }), req.body);
+    return ctx.uploads.createUpload({ prefix: `customers/${p.userId}/${body.purpose}`, contentType: body.contentType, sizeBytes: body.sizeBytes, fileName: body.fileName });
+  });
+
+  app.get('/v1/me/uploads', async (req) => {
+    const p = await requireUser(req);
+    const { key } = parse(z.object({ key: z.string().max(300) }), req.query);
+    if (!key.startsWith(`customers/${p.userId}/`)) throw notFound('File');
+    return { url: await ctx.uploads.downloadUrl(key) };
   });
 
   // ── notifications
