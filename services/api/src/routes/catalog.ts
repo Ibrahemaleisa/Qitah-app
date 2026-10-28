@@ -3,9 +3,10 @@ import { z } from 'zod';
 
 import type { Deps } from '../app.js';
 import { prisma } from '../db.js';
-import { notFound } from '../lib/errors.js';
+import { CACHE, sendCached } from '../lib/cache.js';
+import { badRequest, notFound } from '../lib/errors.js';
 import { cityId, pageQuery, parse } from '../lib/http.js';
-import { catalogSnapshot, getProductDetail, offersByIds, presentSellers, referenceData } from '../services/catalog.js';
+import { catalogChanges, catalogSnapshot, getProductDetail, homeStarterPack, offersByIds, presentSellers, productIdsForOffers, productsByIds, referenceData } from '../services/catalog.js';
 import { searchCatalog, searchProducts } from '../services/search.js';
 import { deliveryEstimates, returnPolicy } from '../services/trust.js';
 
@@ -33,20 +34,65 @@ function withVehicle<T extends { modelId?: string; year?: number; engine?: strin
   return { ...q, modelId: q.modelId ?? (modelId || undefined), year: q.year ?? (Number.isInteger(y) && y >= 1950 && y <= 2100 ? y : undefined), engine: q.engine ?? (engine.join(':') || undefined) };
 }
 
+/** Comma-separated id list (`ids=a,b,c`), de-duplicated, at most `max`. */
+const idList = (max: number) =>
+  z
+    .string()
+    .max(max * 65)
+    .optional()
+    .transform((v) => [...new Set((v ?? '').split(',').map((x) => x.trim()).filter(Boolean))])
+    .pipe(z.array(z.string().max(64)).max(max, `At most ${max} ids per request`));
+
+/** Old app builds still call /v1/catalog/snapshot; it is capped and announces its replacement. */
+export const SNAPSHOT_LIMIT = 2000;
+const SNAPSHOT_SUNSET = 'Thu, 31 Dec 2026 23:59:59 GMT';
+export const BATCH_LIMIT = 100;
+
 export async function catalogRoutes(app: FastifyInstance, deps: Deps) {
   const { ctx } = deps;
-  app.get('/v1/catalog/reference', async () => referenceData());
 
+  /** Categories + makes/models. Strong ETag (304 on If-None-Match) and long CDN/browser caching. */
+  app.get('/v1/catalog/reference', async (req, reply) => sendCached(req, reply, await referenceData(), CACHE.reference));
+
+  /**
+   * DEPRECATED: the whole catalog in one response. Capped at SNAPSHOT_LIMIT products (`truncated: true`
+   * beyond that). Replaced by reference + home + products?ids + changes.
+   */
   app.get('/v1/catalog/snapshot', async (_req, reply) => {
-    reply.header('cache-control', 'public, max-age=30');
-    return catalogSnapshot();
+    const body = await catalogSnapshot(SNAPSHOT_LIMIT);
+    reply
+      .header('cache-control', 'public, max-age=30')
+      .header('deprecation', 'true')
+      .header('sunset', SNAPSHOT_SUNSET)
+      .header('link', '</v1/catalog/home>; rel="successor-version", </v1/catalog/products>; rel="alternate"')
+      .header('x-catalog-truncated', String(body.truncated));
+    return body;
+  });
+
+  /**
+   * Home "starter pack" for a vehicle (or none): recommended catalog-verified fits + featured products,
+   * at most 24, with full product payloads and sellers so the app can cache them.
+   */
+  app.get('/v1/catalog/home', async (req, reply) => {
+    const q = withVehicle(parse(z.object({ ...vehicleQuery, limit: z.coerce.number().int().min(1).max(24).default(24) }), req.query));
+    return sendCached(req, reply, await homeStarterPack({ modelId: q.modelId, year: q.year, engine: q.engine }, q.limit), CACHE.home);
+  });
+
+  /**
+   * Deltas for cached products: `since` (ISO time from the previous response's `serverTime`) and up to
+   * 100 product `ids`. Returns the changed products in full, plus `removed` ids.
+   */
+  app.get('/v1/catalog/changes', async (req, reply) => {
+    const q = parse(z.object({ since: z.iso.datetime({ offset: true }), ids: idList(BATCH_LIMIT) }), req.query);
+    reply.header('cache-control', CACHE.none);
+    return catalogChanges(new Date(q.since), q.ids);
   });
 
   /**
    * Relevance-ranked search that understands colloquial part names and vehicles typed in the query.
    * See services/search.ts for matching/ranking and docs in services/api/README.md for the contract.
    */
-  app.get('/v1/catalog/search', async (req) => {
+  app.get('/v1/catalog/search', async (req, reply) => {
     const q = parse(
       z.object({
         q: z.string().max(100).optional(),
@@ -63,7 +109,7 @@ export async function catalogRoutes(app: FastifyInstance, deps: Deps) {
       req.query,
     );
     const v = withVehicle(q);
-    return searchProducts({
+    const result = await searchProducts({
       q: v.q,
       categoryId: v.categoryId,
       modelId: v.modelId,
@@ -77,10 +123,26 @@ export async function catalogRoutes(app: FastifyInstance, deps: Deps) {
       cursor: v.cursor,
       limit: v.limit,
     });
+    // Depends only on the query string (no auth, no cookies): shareable through the CDN for a few seconds.
+    reply.header('cache-control', CACHE.search);
+    return result;
   });
 
-  /** Legacy offset-paged list; delegates to the ranked search. */
-  app.get('/v1/catalog/products', async (req) => {
+  /**
+   * Two shapes on one path:
+   * - `?ids=a,b,c` and/or `?offerIds=x,y` (≤100 each): batch lookup for favorites, recently viewed and the
+   *   cart → `{ products, sellers, missing }`, cacheable with an ETag like product detail;
+   * - otherwise the legacy offset-paged list, delegating to the ranked search.
+   */
+  app.get('/v1/catalog/products', async (req, reply) => {
+    const batch = req.query as { ids?: unknown; offerIds?: unknown };
+    if (batch.ids !== undefined || batch.offerIds !== undefined) {
+      const q = parse(z.object({ ids: idList(BATCH_LIMIT), offerIds: idList(BATCH_LIMIT) }), req.query);
+      const fromOffers = await productIdsForOffers(q.offerIds);
+      const ids = [...new Set([...q.ids, ...fromOffers])];
+      if (ids.length > BATCH_LIMIT) throw badRequest('TOO_MANY_IDS', `At most ${BATCH_LIMIT} products per request`);
+      return sendCached(req, reply, await productsByIds(ids), CACHE.product);
+    }
     const q = parse(
       pageQuery.extend({
         q: z.string().max(100).optional(),
@@ -94,9 +156,9 @@ export async function catalogRoutes(app: FastifyInstance, deps: Deps) {
     return searchCatalog({ q: v.q, categoryId: v.categoryId, modelId: v.modelId, year: v.year, engine: v.engine, fitsOnly: v.fitsOnly, limit: v.limit, offset: v.offset });
   });
 
-  app.get('/v1/catalog/products/:id', async (req) => {
+  app.get('/v1/catalog/products/:id', async (req, reply) => {
     const { id } = parse(z.object({ id: z.string().max(64) }), req.params);
-    return getProductDetail(id);
+    return sendCached(req, reply, await getProductDetail(id), CACHE.product);
   });
 
   /** Live price/stock for cart lines. */

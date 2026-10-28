@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 
-export const prisma = new PrismaClient();
+/** PRISMA_QUERY_EVENTS=1 emits `query` events (SQL + params + duration); used by the load-test benchmark for EXPLAIN plans. */
+export const prisma = new PrismaClient(process.env.PRISMA_QUERY_EVENTS === '1' ? { log: [{ emit: 'event', level: 'query' }] } : undefined);
 export type Tx = Prisma.TransactionClient;
 export type Db = PrismaClient | Tx;
 

@@ -13,6 +13,7 @@ import { audit, emit, type Actor } from '../services/events.js';
 import * as finance from '../services/finance.js';
 import { acceptMerchantOrder, markReady, rejectMerchantOrder, startPacking } from '../services/fulfillment.js';
 import { setOnHand } from '../services/inventory.js';
+import { refreshListing, refreshListingsForLocation } from '../services/listings.js';
 import { readFitSnapshot, needsMerchantConfirmation } from '../domain/fit.js';
 import { decideReturn, inspectReturn, markReturnReceived, returnPhotoUrls } from '../services/returns.js';
 import { presentFit } from '../services/trust.js';
@@ -268,10 +269,14 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     const { principal: p } = await requireMerchant(req, merchantId, 'MANAGER');
     const { id } = parse(z.object({ id: z.string() }), req.params);
     const body = parse(locationBody.partial().extend({ active: z.boolean().optional() }), req.body);
-    const r = await prisma.pickupLocation.updateMany({ where: { id, merchantId }, data: body });
-    if (!r.count) throw notFound('Location');
-    await audit(prisma, actorOf(p.userId), { action: 'location.updated', entityType: 'location', entityId: id, merchantId, data: body });
-    return prisma.pickupLocation.findUniqueOrThrow({ where: { id } });
+    return withTx(async (tx) => {
+      const r = await tx.pickupLocation.updateMany({ where: { id, merchantId }, data: body });
+      if (!r.count) throw notFound('Location');
+      await audit(tx, actorOf(p.userId), { action: 'location.updated', entityType: 'location', entityId: id, merchantId, data: body });
+      // Deactivating a location hides its offers (publicOfferWhere); a city change moves originCities.
+      if (body.active !== undefined || body.city !== undefined) await refreshListingsForLocation(tx, id);
+      return tx.pickupLocation.findUniqueOrThrow({ where: { id } });
+    });
   });
 
   // ── staff
@@ -388,6 +393,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
         },
       });
       await refreshSearchText(tx, product.id);
+      await refreshListing(tx, product.id);
       await audit(tx, actor, { action: 'product.created', entityType: 'product', entityId: product.id, merchantId });
       return tx.product.findUniqueOrThrow({ where: { id: product.id }, include: { identifiers: true, fitments: true } });
     });
@@ -426,6 +432,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     return withTx(async (tx) => {
       const offer = await tx.offer.create({ data: { ...data, merchantId, inventory: { create: { onHand: stock } } } });
       if (stock) await tx.inventoryAdjustment.create({ data: { offerId: offer.id, delta: stock, onHandAfter: stock, reason: 'INITIAL', actorUserId: p.userId } });
+      await refreshListing(tx, offer.productId);
       await audit(tx, actorOf(p.userId), { action: 'offer.created', entityType: 'offer', entityId: offer.id, merchantId, data: { priceHalalas: body.priceHalalas, stock } });
       await emit(tx, { type: 'offer.updated', entityType: 'offer', entityId: offer.id, merchantIds: [merchantId] });
       return tx.offer.findUniqueOrThrow({ where: { id: offer.id }, include: { inventory: true } });
@@ -449,6 +456,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     }
     return withTx(async (tx) => {
       const offer = await tx.offer.update({ where: { id }, data: body, include: { inventory: true } });
+      await refreshListing(tx, offer.productId);
       await audit(tx, actorOf(p.userId), { action: 'offer.updated', entityType: 'offer', entityId: id, merchantId, data: { before: { priceHalalas: existing.priceHalalas, status: existing.status }, after: body } });
       await emit(tx, { type: 'offer.updated', entityType: 'offer', entityId: id, merchantIds: [merchantId] });
       return offer;
@@ -541,6 +549,8 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
             const o = await tx.offer.create({ data: { merchantId, productId: product!.id, locationId: location.id, sku: r.sku, condition: condition as 'NEW', priceHalalas: price, inventory: { create: { onHand: stock } } } });
             if (stock) await tx.inventoryAdjustment.create({ data: { offerId: o.id, delta: stock, onHandAfter: stock, reason: 'IMPORT', actorUserId: p.userId } });
           }
+          // setOnHand refreshes only when the count changed; price / condition / location may have too.
+          await refreshListing(tx, product!.id);
         });
         results.push({ row: rowNo, sku: r.sku, status: existing ? 'updated' : 'created' });
       } catch (e) {

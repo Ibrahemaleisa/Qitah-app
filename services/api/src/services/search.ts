@@ -16,6 +16,7 @@ import {
   type ResolvedVehicle,
 } from '../search/lexicon.js';
 import { presentProduct, productInclude } from './catalog.js';
+import { vehicleFitKeys } from './listings.js';
 
 /**
  * Relevance-ranked product search (`GET /v1/catalog/search`, also behind `/v1/catalog/products`).
@@ -112,24 +113,30 @@ function criteriaFrom(a: QueryAnalysis): Criteria {
   return { groups: a.conceptGroups, free: a.freeTokens, partNumbers, simText, fuzzy: false };
 }
 
-function fitmentExists(v: ResolvedVehicle, source: 'CATALOG' | 'SELLER'): Prisma.Sql {
-  const src = source === 'CATALOG' ? Prisma.sql`f.source = 'CATALOG'` : Prisma.sql`f.source = 'SELLER'`;
-  let scope: Prisma.Sql;
-  if (v.scope === 'vehicle' && v.modelId && v.year !== undefined) {
-    // Unknown engine: an engine-restricted fitment is not a confirmed fit.
-    const engine = v.engine ? Prisma.sql`(cardinality(f.engines) = 0 OR ${v.engine} = ANY(f.engines))` : Prisma.sql`cardinality(f.engines) = 0`;
-    scope = Prisma.sql`f."modelId" = ${v.modelId} AND ${v.year}::int BETWEEN f."yearFrom" AND f."yearTo" AND ${engine}`;
-  } else if (v.modelId) {
-    scope = Prisma.sql`f."modelId" = ${v.modelId}`;
-  } else {
-    scope = Prisma.sql`f."modelId" IN (SELECT vm.id FROM "VehicleModel" vm WHERE vm."makeId" = ${v.makeId ?? ''})`;
-  }
-  return Prisma.sql`EXISTS (SELECT 1 FROM "ProductFitment" f WHERE f."productId" = p.id AND ${src} AND ${scope})`;
+/**
+ * Fit for the vehicle from the read model's exploded fitment keys (one array overlap per source, GIN
+ * indexed). Same rule as an EXISTS over ProductFitment: vehicle scope = model + year in range + (no engine
+ * restriction, or the known engine is listed); model scope = any fitment for the model; make scope = any
+ * fitment for one of its models. See `fitKeys` / `vehicleFitKeys` in services/listings.ts.
+ */
+function fitSql(v: ResolvedVehicle, source: 'catalog' | 'seller'): Prisma.Sql {
+  const keys = vehicleFitKeys(v);
+  return source === 'catalog' ? Prisma.sql`pl."catalogFitKeys" && ${keys}::text[]` : Prisma.sql`pl."sellerFitKeys" && ${keys}::text[]`;
 }
 
 function tierSql(v: ResolvedVehicle | null): Prisma.Sql {
-  if (!v) return Prisma.sql`CASE WHEN p."universalNoteAr" IS NOT NULL THEN 2 ELSE 3 END`;
-  return Prisma.sql`CASE WHEN ${fitmentExists(v, 'CATALOG')} THEN 0 WHEN ${fitmentExists(v, 'SELLER')} THEN 1 WHEN p."universalNoteAr" IS NOT NULL THEN 2 ELSE 3 END`;
+  if (!v) return Prisma.sql`CASE WHEN pl.universal THEN 2 ELSE 3 END`;
+  return Prisma.sql`CASE WHEN ${fitSql(v, 'catalog')} THEN 0 WHEN ${fitSql(v, 'seller')} THEN 1 WHEN pl.universal THEN 2 ELSE 3 END`;
+}
+
+/**
+ * word_similarity(q, t) is exactly 1 when q occurs in t as whole words (every trigram of q lies in that
+ * extent). Colloquial concept queries hit that for nearly every candidate (the concept's surface forms are
+ * part of searchText), so a cheap LIKE skips the trigram computation without changing any value.
+ */
+function similaritySql(simText: string): Prisma.Sql {
+  if (!simText) return Prisma.sql`0::real`;
+  return Prisma.sql`(CASE WHEN (' ' || p."searchText" || ' ') LIKE ${`% ${escapeLike(simText)} %`} THEN 1::real ELSE word_similarity(${simText}, p."searchText") END)`;
 }
 
 function scoredCte(params: SearchParams, c: Criteria, vehicle: ResolvedVehicle | null): Prisma.Sql {
@@ -138,10 +145,18 @@ function scoredCte(params: SearchParams, c: Criteria, vehicle: ResolvedVehicle |
   const freeHit = c.free.map((t) => anyOf(tokenVariants(t).map((v) => Prisma.sql`p."searchText" LIKE ${contains(v)}`)));
 
   let match: Prisma.Sql;
+  // With part numbers, candidates = identifier hits ∪ trigram hits: the UNION lets both sides use their
+  // index instead of one OR across a LEFT JOIN (which forces a scan of every product).
+  let candidates = Prisma.empty;
   if (c.fuzzy) match = Prisma.sql`word_similarity(${c.simText}, p."searchText") >= 0.4`;
   else {
-    const textMatch = c.groups.length || c.free.length ? allOf([...conceptHit, ...freeHit]) : c.partNumbers.length ? Prisma.sql`FALSE` : Prisma.sql`TRUE`;
+    const hasText = c.groups.length || c.free.length;
+    const textMatch = hasText ? allOf([...conceptHit, ...freeHit]) : c.partNumbers.length ? Prisma.sql`FALSE` : Prisma.sql`TRUE`;
     match = c.partNumbers.length ? Prisma.sql`(ph."productId" IS NOT NULL OR ${anyOf(pnContains)} OR ${textMatch})` : textMatch;
+    if (c.partNumbers.length) {
+      const textual = [...pnContains, ...(hasText ? [textMatch] : [])];
+      candidates = Prisma.sql`JOIN (SELECT "productId" AS id FROM pn_hits UNION SELECT p.id FROM "Product" p WHERE ${anyOf(textual)}) cand ON cand.id = p.id`;
+    }
   }
 
   const pnHits = c.partNumbers.length
@@ -151,16 +166,42 @@ function scoredCte(params: SearchParams, c: Criteria, vehicle: ResolvedVehicle |
         GROUP BY i."productId"`
     : Prisma.sql`SELECT NULL::text AS "productId", 0 AS pn WHERE FALSE`;
 
-  const offerFilters: Prisma.Sql[] = [Prisma.sql`o."productId" = p.id`, Prisma.sql`o.status = 'ACTIVE'`, Prisma.sql`m.status = 'APPROVED'`, Prisma.sql`l.active`];
-  if (params.merchantId) offerFilters.push(Prisma.sql`o."merchantId" = ${params.merchantId}`);
-  if (params.conditions?.length) offerFilters.push(Prisma.sql`lower(o.condition::text) = ANY(${params.conditions})`);
-  if (params.inStock) offerFilters.push(Prisma.sql`COALESCE(inv."onHand" - inv.reserved, 0) > 0`);
+  // Offers come from the ProductListing read model (exactly the offers passing publicOfferWhere), so no
+  // per-candidate Offer × Merchant × PickupLocation × InventoryLevel join. Without condition/merchant
+  // filters the precomputed aggregates answer "has a matching offer" and the min price / dispatch; with
+  // them, the per-offer summary in pl.offers is filtered (GIN/array pre-filters keep that set small).
+  const perOffer = !!(params.merchantId || params.conditions?.length);
+  const listingFilters: Prisma.Sql[] = [Prisma.sql`pl.listed`];
+  let offerJoin = Prisma.empty;
+  let price = params.inStock ? Prisma.sql`pl."minInStockPriceHalalas"::bigint` : Prisma.sql`pl."minOfferPriceHalalas"::bigint`;
+  let dispatch = params.inStock ? Prisma.sql`pl."minInStockDispatchDays"::bigint` : Prisma.sql`pl."minDispatchDays"::bigint`;
+  if (params.inStock) listingFilters.push(Prisma.sql`pl."inStockOfferCount" > 0`);
+  if (perOffer) {
+    const offerFilters: Prisma.Sql[] = [];
+    if (params.merchantId) {
+      listingFilters.push(Prisma.sql`pl."merchantIds" @> ARRAY[${params.merchantId}]::text[]`);
+      offerFilters.push(Prisma.sql`e->>'m' = ${params.merchantId}`);
+    }
+    if (params.conditions?.length) {
+      const upper = params.conditions.map((c) => c.toUpperCase());
+      listingFilters.push(params.inStock ? Prisma.sql`pl."inStockConditions" && ${upper}::"Condition"[]` : Prisma.sql`pl."conditions" && ${upper}::"Condition"[]`);
+      offerFilters.push(Prisma.sql`lower(e->>'c') = ANY(${params.conditions})`);
+    }
+    if (params.inStock) offerFilters.push(Prisma.sql`(e->>'a')::int > 0`);
+    offerJoin = Prisma.sql`JOIN LATERAL (
+        SELECT min((e->>'p')::bigint) AS price, min((e->>'d')::bigint) AS dispatch, count(*) AS n
+        FROM jsonb_array_elements(pl.offers) e WHERE ${allOf(offerFilters)}
+      ) ofr ON ofr.n > 0`;
+    price = Prisma.sql`ofr.price`;
+    dispatch = Prisma.sql`ofr.dispatch`;
+  }
 
-  const productFilters: Prisma.Sql[] = [Prisma.sql`p.status = 'ACTIVE'`, match];
-  if (params.categoryId) productFilters.push(Prisma.sql`p."categoryId" = ${params.categoryId}`);
+  const productFilters: Prisma.Sql[] = [Prisma.sql`p.status = 'ACTIVE'`, match, ...listingFilters];
+  // Category on both tables: the listing's (listed, categoryId, …) index lets a category browse start there.
+  if (params.categoryId) productFilters.push(Prisma.sql`p."categoryId" = ${params.categoryId}`, Prisma.sql`pl."categoryId" = ${params.categoryId}`);
   if (params.origins?.length) productFilters.push(Prisma.sql`lower(p.origin::text) = ANY(${params.origins})`);
 
-  const sim = c.simText ? Prisma.sql`word_similarity(${c.simText}, p."searchText")` : Prisma.sql`0::real`;
+  const sim = similaritySql(c.simText);
   const ch = c.groups.length ? Prisma.sql`(${Prisma.join(conceptHit.map((h) => Prisma.sql`(CASE WHEN ${h} THEN 1 ELSE 0 END)`), ' + ')})` : Prisma.sql`0`;
   const pnTier = c.partNumbers.length ? Prisma.sql`COALESCE(ph.pn, CASE WHEN ${anyOf(pnContains)} THEN 1 ELSE 0 END)` : Prisma.sql`0`;
   const hasVehicle = vehicle ? 1 : 0;
@@ -177,17 +218,12 @@ function scoredCte(params: SearchParams, c: Criteria, vehicle: ResolvedVehicle |
   return Prisma.sql`
     pn_hits AS (${pnHits}),
     base AS (
-      SELECT p.id, ${pnTier} AS pn, ${ch} AS ch, ${sim} AS sim, ${tierSql(vehicle)} AS tier, ofr.price, ofr.dispatch
+      SELECT p.id, ${pnTier} AS pn, ${ch} AS ch, ${sim} AS sim, ${tierSql(vehicle)} AS tier, ${price} AS price, ${dispatch} AS dispatch
       FROM "Product" p
+      ${candidates}
+      JOIN "ProductListing" pl ON pl."productId" = p.id
       LEFT JOIN pn_hits ph ON ph."productId" = p.id
-      JOIN LATERAL (
-        SELECT min(o."priceHalalas")::bigint AS price, min(o."dispatchDaysMin")::bigint AS dispatch, count(*) AS n
-        FROM "Offer" o
-        JOIN "Merchant" m ON m.id = o."merchantId"
-        JOIN "PickupLocation" l ON l.id = o."locationId"
-        LEFT JOIN "InventoryLevel" inv ON inv."offerId" = o.id
-        WHERE ${allOf(offerFilters)}
-      ) ofr ON ofr.n > 0
+      ${offerJoin}
       WHERE ${allOf(productFilters)}
     ),
     grouped AS (
@@ -205,6 +241,20 @@ function scoredCte(params: SearchParams, c: Criteria, vehicle: ResolvedVehicle |
 type Row = { id: string; pn: number; tier: number; grp: number; k1: bigint; k2: bigint };
 type CountRow = { fits: bigint; other: bigint; pinned: bigint };
 
+/**
+ * Runs one statement with JIT disabled: these are short OLTP queries whose planner cost estimates can
+ * cross jit_above_cost, and LLVM compilation then costs more (50–300 ms) than the query itself.
+ */
+async function withoutJit<T>(query: Prisma.Sql): Promise<T> {
+  const [, rows] = await prisma.$transaction([prisma.$executeRaw`SET LOCAL jit = off`, prisma.$queryRaw<T>(query)]);
+  return rows;
+}
+
+/**
+ * One scan for the page AND the counts: the counts are window aggregates over every candidate (before the
+ * fit filter and the cursor, which is what `counts` reports), the page is the top of the filtered set.
+ * Only an empty page needs a separate count (e.g. everything hidden by "fits my car", or past the end).
+ */
 async function runQuery(params: SearchParams, c: Criteria, vehicle: ResolvedVehicle | null) {
   const cte = scoredCte(params, c, vehicle);
   const where: Prisma.Sql[] = [];
@@ -217,14 +267,18 @@ async function runQuery(params: SearchParams, c: Criteria, vehicle: ResolvedVehi
     );
   }
   const offset = !params.cursor && params.offset ? Prisma.sql`OFFSET ${params.offset}` : Prisma.empty;
-  const [rows, counts] = await Promise.all([
-    prisma.$queryRaw<Row[]>`WITH ${cte}
-      SELECT id, pn, tier, grp, k1, k2 FROM scored WHERE ${allOf(where)}
-      ORDER BY k1 DESC, k2 DESC, id ASC LIMIT ${params.limit + 1} ${offset}`,
-    prisma.$queryRaw<CountRow[]>`WITH ${cte}
-      SELECT count(*) FILTER (WHERE grp = 0) AS fits, count(*) FILTER (WHERE grp = 1) AS other, count(*) FILTER (WHERE grp = 1 AND pn > 0) AS pinned FROM scored`,
-  ]);
-  return { rows, fits: Number(counts[0]?.fits ?? 0), other: Number(counts[0]?.other ?? 0), pinned: Number(counts[0]?.pinned ?? 0) };
+  const rows = await withoutJit<(Row & CountRow)[]>(Prisma.sql`WITH ${cte}
+    SELECT id, pn, tier, grp, k1, k2, fits, other, pinned FROM (
+      SELECT scored.*, count(*) FILTER (WHERE grp = 0) OVER () AS fits, count(*) FILTER (WHERE grp = 1) OVER () AS other,
+        count(*) FILTER (WHERE grp = 1 AND pn > 0) OVER () AS pinned
+      FROM scored
+    ) s WHERE ${allOf(where)}
+    ORDER BY k1 DESC, k2 DESC, id ASC LIMIT ${params.limit + 1} ${offset}`);
+  const counts =
+    rows[0] ??
+    (await withoutJit<CountRow[]>(Prisma.sql`WITH ${cte}
+      SELECT count(*) FILTER (WHERE grp = 0) AS fits, count(*) FILTER (WHERE grp = 1) AS other, count(*) FILTER (WHERE grp = 1 AND pn > 0) AS pinned FROM scored`))[0];
+  return { rows, fits: Number(counts?.fits ?? 0), other: Number(counts?.other ?? 0), pinned: Number(counts?.pinned ?? 0) };
 }
 
 function fitLabel(tier: number, vehicle: ResolvedVehicle | null): FitLabel {

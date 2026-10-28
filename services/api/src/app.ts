@@ -45,7 +45,7 @@ export async function buildApp(config: Config, overrides: Partial<Ctx> = {}) {
 
   await app.register(helmet, { contentSecurityPolicy: false });
   const origins = config.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
-  await app.register(cors, { origin: origins.length ? origins : false, credentials: false, methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] });
+  await app.register(cors, { origin: origins.length ? origins : false, credentials: false, methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'], exposedHeaders: ['ETag', 'Deprecation'] });
   await app.register(rateLimit, { global: false });
 
   // Keep the raw body for signature verification on webhook routes.

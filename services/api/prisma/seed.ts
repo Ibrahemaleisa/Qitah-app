@@ -12,9 +12,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { hashPassword } from '../src/auth/crypto.js';
+import { prisma as appPrisma } from '../src/db.js';
 import { GENERIC_MAINTENANCE_TEMPLATES } from '../src/lib/maintenance.js';
 import { normalizePartNumber } from '../src/lib/text.js';
 import { buildSearchText } from '../src/services/catalog.js';
+import { rebuildAllListings } from '../src/services/listings.js';
 
 type L10n = { ar: string; en: string };
 type SeedData = {
@@ -259,11 +261,15 @@ async function main() {
     },
   });
 
+  // Offers were written directly above (not through the services), so derive the ProductListing read model once.
+  const listings = await rebuildAllListings();
+
   const counts = {
     merchants: await prisma.merchant.count(),
     locations: await prisma.pickupLocation.count(),
     products: await prisma.product.count(),
     offers: await prisma.offer.count(),
+    listings: listings.scanned,
     users: await prisma.user.count(),
   };
   console.log('Seeded sandbox data:', counts, `\nAll seeded staff/merchant users share the password from SEED_PASSWORD (default ${PASSWORD}).`);
@@ -274,4 +280,4 @@ main()
     console.error(e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => Promise.all([prisma.$disconnect(), appPrisma.$disconnect()]));

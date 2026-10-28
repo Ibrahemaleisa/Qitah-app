@@ -3,11 +3,15 @@ import type { AdjustmentReason } from '@prisma/client';
 import type { Tx } from '../db.js';
 import { conflict, notFound } from '../lib/errors.js';
 import type { Actor } from './events.js';
+import { refreshListingsForOffers } from './listings.js';
 
 /**
  * Stock model: InventoryLevel.onHand (physical units at the merchant) and .reserved (held for unpaid/paid
  * orders not yet committed). Every mutation is a single conditional UPDATE so concurrent checkouts can
  * never oversell; CHECK constraints are the last line of defence.
+ *
+ * Each mutation also refreshes the ProductListing read model (available stock, in-stock price…) in the
+ * same transaction, after the stock row is locked, so search / home / changes never show stale stock.
  */
 
 export async function available(tx: Tx, offerId: string): Promise<number> {
@@ -27,6 +31,7 @@ export async function reserve(tx: Tx, input: { offerId: string; quantity: number
     });
   }
   await tx.inventoryReservation.create({ data: { ...input, status: 'ACTIVE' } });
+  await refreshListingsForOffers(tx, [input.offerId]);
 }
 
 /** Payment captured: reserved units leave stock for good. */
@@ -42,6 +47,8 @@ export async function commitOrder(tx: Tx, orderId: string) {
       data: { offerId: r.offerId, delta: -r.quantity, onHandAfter: lvl.onHand, reason: 'SALE', refType: 'order', refId: orderId },
     });
   }
+  // Available (onHand - reserved) is unchanged by a commit; refreshing keeps the read model exact anyway.
+  await refreshListingsForOffers(tx, reservations.map((r) => r.offerId));
   return reservations.length;
 }
 
@@ -52,6 +59,7 @@ export async function releaseOrder(tx: Tx, orderId: string) {
     await tx.inventoryLevel.update({ where: { offerId: r.offerId }, data: { reserved: { decrement: r.quantity } } });
     await tx.inventoryReservation.update({ where: { id: r.id }, data: { status: 'RELEASED' } });
   }
+  await refreshListingsForOffers(tx, reservations.map((r) => r.offerId));
   return reservations.length;
 }
 
@@ -61,6 +69,7 @@ export async function restock(tx: Tx, input: { offerId: string; quantity: number
   await tx.inventoryAdjustment.create({
     data: { offerId: input.offerId, delta: input.quantity, onHandAfter: lvl.onHand, reason: input.reason, refType: input.refType, refId: input.refId, actorUserId: input.actor?.userId },
   });
+  await refreshListingsForOffers(tx, [input.offerId]);
 }
 
 /** Merchant sets the physical count. Refuses to go below units already reserved for orders. */
@@ -78,5 +87,6 @@ export async function setOnHand(tx: Tx, input: { offerId: string; onHand: number
   await tx.inventoryAdjustment.create({
     data: { offerId: input.offerId, delta, onHandAfter: input.onHand, reason: input.reason, note: input.note, actorUserId: input.actor.userId },
   });
+  await refreshListingsForOffers(tx, [input.offerId]);
   return { onHand: input.onHand, reserved };
 }

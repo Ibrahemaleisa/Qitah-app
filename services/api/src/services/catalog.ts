@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { prisma, type Db } from '../db.js';
 import { notFound } from '../lib/errors.js';
@@ -50,7 +50,7 @@ export const publicOfferWhere: Prisma.OfferWhereInput = {
   location: { active: true },
 };
 
-const offerInclude = { inventory: true, location: true } satisfies Prisma.OfferInclude;
+export const offerInclude = { inventory: true, location: true } satisfies Prisma.OfferInclude;
 type OfferRow = Prisma.OfferGetPayload<{ include: typeof offerInclude }>;
 
 export function presentOffer(o: OfferRow) {
@@ -148,12 +148,106 @@ export async function getProductDetail(id: string) {
   return { product, sellers };
 }
 
-/** Full public catalog for the app's local cache (Phase 1 scale: hundreds to low thousands of SKUs). */
-export async function catalogSnapshot() {
-  const rows = await prisma.product.findMany({ where: { status: 'ACTIVE', offers: { some: publicOfferWhere } }, include: productInclude, orderBy: { createdAt: 'asc' } });
+/**
+ * DEPRECATED full-catalog dump (`GET /v1/catalog/snapshot`), kept for old app builds only. Capped at
+ * `limit` listed products (oldest first) and driven by the ProductListing read model instead of an
+ * `offers: { some }` join. Current apps hydrate on demand: reference + home + products?ids + changes.
+ */
+export async function catalogSnapshot(limit: number) {
+  const listed = await prisma.$queryRaw<{ productId: string }[]>`
+    SELECT pl."productId" FROM "ProductListing" pl JOIN "Product" p ON p.id = pl."productId"
+    WHERE pl.listed AND p.status = 'ACTIVE' ORDER BY p."createdAt" ASC, p.id ASC LIMIT ${limit + 1}`;
+  const ids = listed.slice(0, limit).map((r) => r.productId);
+  const rows = ids.length ? await prisma.product.findMany({ where: { id: { in: ids }, status: 'ACTIVE' }, include: productInclude, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }) : [];
   const products = rows.map(presentProduct);
   const sellers = await presentSellers([...new Set(products.flatMap((p) => p.offers.map((o) => o.sellerId)))]);
-  return { generatedAt: new Date().toISOString(), products, sellers };
+  return { generatedAt: new Date().toISOString(), deprecated: true, truncated: listed.length > limit, limit, products, sellers };
+}
+
+/**
+ * Batch product lookup (favorites, recently viewed, cart, private-offer products…). ACTIVE products in
+ * the order asked, each with its PUBLIC offers (possibly none: the app then shows "unavailable"), plus the
+ * sellers of those offers. Unknown / inactive ids are reported in `missing`.
+ */
+export async function productsByIds(ids: string[]) {
+  const unique = [...new Set(ids)];
+  const rows = unique.length ? await prisma.product.findMany({ where: { id: { in: unique }, status: 'ACTIVE' }, include: productInclude }) : [];
+  const byId = new Map(rows.map((r) => [r.id, presentProduct(r)]));
+  const products = unique.flatMap((id) => {
+    const p = byId.get(id);
+    return p ? [p] : [];
+  });
+  const sellers = await presentSellers([...new Set(products.flatMap((p) => p.offers.map((o) => o.sellerId)))]);
+  return { products, sellers, missing: unique.filter((id) => !byId.has(id)) };
+}
+
+/** Product ids behind PUBLIC offers (a cart only stores offer ids). Private offers resolve via /v1/me/private-offers. */
+export async function productIdsForOffers(offerIds: string[]) {
+  if (!offerIds.length) return [];
+  const rows = await prisma.offer.findMany({ where: { id: { in: [...new Set(offerIds)] }, visibility: 'PUBLIC' }, select: { productId: true } });
+  return [...new Set(rows.map((r) => r.productId))];
+}
+
+export type HomeVehicle = { modelId?: string; year?: number; engine?: string };
+
+/**
+ * Per-vehicle "starter pack" for the home screen (replaces the app's hard-coded featured ids), bounded by `limit`.
+ * - `recommended`: in-stock products with CATALOG-verified fitment for the vehicle (engine-restricted fitment only
+ *   counts when the engine matches, like search), at most 3 per category so one category cannot fill the pack.
+ * - `featured`: the most-offered in-stock products per category. With a vehicle only by-specification (universal)
+ *   products are featured, so the pack never suggests a part that is not known to fit.
+ */
+export async function homeStarterPack(v: HomeVehicle, limit = 24) {
+  const recLimit = Math.ceil((limit * 2) / 3);
+  let recommended: string[] = [];
+  if (v.modelId) {
+    const engine = v.engine ? Prisma.sql`(cardinality(f.engines) = 0 OR ${v.engine} = ANY(f.engines))` : Prisma.sql`cardinality(f.engines) = 0`;
+    const scope = v.year !== undefined ? Prisma.sql`AND ${v.year}::int BETWEEN f."yearFrom" AND f."yearTo" AND ${engine}` : Prisma.empty;
+    const rows = await prisma.$queryRaw<{ productId: string }[]>`
+      WITH fit AS (
+        SELECT DISTINCT f."productId" FROM "ProductFitment" f
+        WHERE f."modelId" = ${v.modelId} AND f.source = 'CATALOG' ${scope}
+      ), ranked AS (
+        SELECT pl."productId", pl."categoryId", pl."inStockOfferCount", pl."totalAvailable",
+          row_number() OVER (PARTITION BY pl."categoryId" ORDER BY pl."inStockOfferCount" DESC, pl."totalAvailable" DESC, pl."productId") AS rn
+        FROM fit JOIN "ProductListing" pl ON pl."productId" = fit."productId"
+        WHERE pl.listed AND pl."inStockOfferCount" > 0
+      )
+      SELECT "productId" FROM ranked WHERE rn <= 3
+      ORDER BY rn, "inStockOfferCount" DESC, "totalAvailable" DESC, "productId" LIMIT ${recLimit}`;
+    recommended = rows.map((r) => r.productId);
+  }
+  const universalOnly = v.modelId ? Prisma.sql`AND pl.universal` : Prisma.empty;
+  const featuredRows = await prisma.$queryRaw<{ productId: string }[]>`
+    SELECT x."productId" FROM "Category" c CROSS JOIN LATERAL (
+      SELECT pl."productId", pl."offerCount" FROM "ProductListing" pl
+      WHERE pl.listed AND pl."categoryId" = c.id AND pl."inStockOfferCount" > 0 ${universalOnly}
+      ORDER BY pl."offerCount" DESC, pl."productId" LIMIT 2
+    ) x ORDER BY c.sort, x."offerCount" DESC, x."productId"`;
+  const taken = new Set(recommended);
+  const featured = featuredRows.map((r) => r.productId).filter((id) => !taken.has(id)).slice(0, Math.max(0, limit - recommended.length));
+  const { products, sellers } = await productsByIds([...recommended, ...featured]);
+  return { vehicle: v.modelId ? { modelId: v.modelId, year: v.year ?? null, engine: v.engine ?? null } : null, recommended, featured, products, sellers };
+}
+
+/**
+ * Deltas for products a client has cached: every product among `ids` whose product row or listing
+ * (any public offer's price, stock, status, terms; seller visibility) changed after `since`, in full;
+ * plus `removed` for ids that are no longer active. `serverTime` is read BEFORE querying so the next
+ * call (since = serverTime) cannot miss a change committed meanwhile.
+ */
+export async function catalogChanges(since: Date, ids: string[]) {
+  const serverTime = new Date();
+  const unique = [...new Set(ids)];
+  if (!unique.length) return { serverTime: serverTime.toISOString(), since: since.toISOString(), products: [], sellers: [], removed: [] };
+  const rows = await prisma.$queryRaw<{ id: string; status: string }[]>`
+    SELECT p.id, p.status::text AS status FROM "Product" p LEFT JOIN "ProductListing" pl ON pl."productId" = p.id
+    WHERE p.id = ANY(${unique}) AND (p."updatedAt" > ${since} OR pl."updatedAt" > ${since} OR p.status <> 'ACTIVE')`;
+  const known = new Set((await prisma.product.findMany({ where: { id: { in: unique } }, select: { id: true } })).map((r) => r.id));
+  const changed = rows.filter((r) => r.status === 'ACTIVE').map((r) => r.id);
+  const { products, sellers } = await productsByIds(changed);
+  const removed = [...rows.filter((r) => r.status !== 'ACTIVE').map((r) => r.id), ...unique.filter((id) => !known.has(id))];
+  return { serverTime: serverTime.toISOString(), since: since.toISOString(), products, sellers, removed };
 }
 
 /** Public live price/stock lookup: private offers are excluded (the owner reads them via /v1/me/private-offers). */

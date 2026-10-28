@@ -3,6 +3,7 @@ import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { Ctx } from './context.js';
 import { prisma, withTx } from './db.js';
 import { notify } from './services/events.js';
+import { sweepListings } from './services/listings.js';
 import { maintenanceReminders } from './services/maintenance.js';
 import { expirePartRequests } from './services/partRequests.js';
 import { expireUnpaidOrders, submitPendingRefunds } from './services/payments.js';
@@ -102,6 +103,19 @@ export async function maintenanceRemindersThrottled(now = new Date()) {
   return maintenanceReminders(now);
 }
 
+/**
+ * ProductListing safety net: re-derives a slice of the catalog per minute (≈2,000 products, so a 1M-SKU
+ * catalog is fully re-checked about every 8 hours per worker) plus any product still missing a row.
+ * Write paths keep the read model current synchronously; this only repairs drift and time-based rules.
+ */
+const LISTING_SWEEP_EVERY_MS = 60_000;
+let lastListingSweep = 0;
+export async function listingSweepThrottled(now = new Date()) {
+  if (now.getTime() - lastListingSweep < LISTING_SWEEP_EVERY_MS) return 0;
+  lastListingSweep = now.getTime();
+  return sweepListings();
+}
+
 export async function runAllJobs(ctx: Ctx, opts: { sqs?: { client: SQSClient; queueUrl: string }; deliver?: (d: Delivery) => Promise<unknown> } = {}) {
   const out: Record<string, number> = {};
   out.expired = await expireUnpaidOrders();
@@ -115,6 +129,7 @@ export async function runAllJobs(ctx: Ctx, opts: { sqs?: { client: SQSClient; qu
     out.sandboxRefundsSettled = deliveries.length;
   }
   out.maintenanceReminders = await maintenanceRemindersThrottled();
+  out.listingsRepaired = await listingSweepThrottled();
   out.outbox = await relayOutbox(opts.sqs);
   out.purged = await purgeExpired();
   return out;

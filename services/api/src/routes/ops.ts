@@ -11,6 +11,7 @@ import { applyBps } from '../lib/money.js';
 import { audit, emit, notify, type Actor } from '../services/events.js';
 import * as finance from '../services/finance.js';
 import { acceptMerchantOrder, markReady, rejectMerchantOrder, startPacking } from '../services/fulfillment.js';
+import { refreshListingsForMerchant } from '../services/listings.js';
 import { orderInclude } from '../services/orderView.js';
 import { createRefund, submitPendingRefunds } from '../services/payments.js';
 import { decideReturn, inspectReturn, markReturnReceived, returnPhotoUrls } from '../services/returns.js';
@@ -124,6 +125,8 @@ export async function opsRoutes(app: FastifyInstance, deps: Deps) {
         });
         await audit(tx, actor, { action: `merchant.${to.toLowerCase()}`, entityType: 'merchant', entityId: id, merchantId: id, data: body });
         await emit(tx, { type: 'merchant.updated', entityType: 'merchant', entityId: id, merchantIds: [id], payload: { status: to } });
+        // Suspension / reinstatement hides / shows every offer of the store (publicOfferWhere): same transaction.
+        await refreshListingsForMerchant(tx, id);
         return updated;
       });
     });

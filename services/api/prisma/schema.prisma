@@ -1298,3 +1298,58 @@ model PartQuote {
   @@index([merchantId, status])
   @@index([status, validUntil])
 }
+
+// ═════════════════════════════════════════════ BEGIN catalog read model (scale) ═════════════════════════════════════════════
+// One row per product, derived ONLY from offers that pass `publicOfferWhere` (services/catalog.ts).
+// Kept current in the same transaction as offer / stock / merchant / location changes by
+// `refreshListings()` (services/listings.ts); a worker sweep and `npm run db:backfill-listings` are the
+// safety net (e.g. for time-based visibility rules). Search, home starter packs, the snapshot and the
+// `/v1/catalog/changes` feed read it instead of joining Offer × Merchant × PickupLocation × InventoryLevel
+// per candidate product. No relations on purpose: this block adds no back-relations to other models.
+
+model ProductListing {
+  productId              String        @id
+  /// Copy of Product.status at refresh time.
+  status                 ProductStatus
+  /// status = ACTIVE and at least one public offer: the product can appear in public listings.
+  listed                 Boolean       @default(false)
+  categoryId             String
+  brand                  String
+  origin                 PartOrigin
+  /// The product has a by-specification ("universal") note.
+  universal              Boolean       @default(false)
+  hasCatalogFitment      Boolean       @default(false)
+  offerCount             Int           @default(0)
+  inStockOfferCount      Int           @default(0)
+  totalAvailable         Int           @default(0)
+  /// Delivered-relevant best price: the cheapest IN-STOCK public offer, else the cheapest public offer.
+  minPriceHalalas        Int?
+  /// Cheapest public offer regardless of stock (search price sort without the in-stock filter).
+  minOfferPriceHalalas   Int?
+  minInStockPriceHalalas Int?
+  minDispatchDays        Int?
+  minInStockDispatchDays Int?
+  conditions             Condition[]
+  inStockConditions      Condition[]
+  merchantIds            String[]
+  originCities           String[]
+  /// Compact per-offer summary [{id,m,c,p,a,d}] for searches filtered by condition or merchant.
+  offers                 Json          @default("[]")
+  /// md5 over every presented public-offer field: changes whenever anything a client caches changes.
+  offersHash             String        @default("")
+  /// Exploded fitment keys by source (`fitKeys` in services/listings.ts): one GIN array overlap answers
+  /// "fits this vehicle / model / make" for search instead of an EXISTS over ProductFitment per candidate.
+  catalogFitKeys         String[]      @default([])
+  sellerFitKeys          String[]      @default([])
+  /// Bumped only when a derived value actually changed (drives `/v1/catalog/changes`).
+  updatedAt              DateTime      @default(now())
+
+  /// Home "featured" (top products per category) and the universal-only variant for a vehicle.
+  @@index([listed, categoryId, offerCount(sort: Desc)])
+  @@index([listed, universal, categoryId, offerCount(sort: Desc)])
+  @@index([updatedAt])
+  @@index([merchantIds], type: Gin)
+  @@index([catalogFitKeys], type: Gin)
+  @@index([sellerFitKeys], type: Gin)
+}
+// ═════════════════════════════════════════════ END catalog read model (scale) ═══════════════════════════════════════════════

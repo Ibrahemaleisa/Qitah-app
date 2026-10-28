@@ -19,7 +19,10 @@
     "db:reset": "prisma migrate reset --force --skip-seed && tsx prisma/seed.ts",
     "prisma:generate": "prisma generate",
     "db:demo-orders": "tsx scripts/demo-orders.ts",
-    "db:backfill-search": "tsx scripts/backfill-search-text.ts"
+    "db:backfill-search": "tsx scripts/backfill-search-text.ts",
+    "db:backfill-listings": "tsx scripts/backfill-listings.ts",
+    "loadtest:generate": "tsx scripts/loadtest/generate.ts",
+    "loadtest:bench": "tsx scripts/loadtest/bench.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1156.0",
