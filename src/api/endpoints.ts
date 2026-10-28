@@ -20,6 +20,8 @@ import type {
   ReferenceResponse,
   RemotePaymentMethod,
   ServiceRecordInput,
+  SearchQuery,
+  SearchResponse,
   SnapshotResponse,
   VinDecodeResponse,
 } from './types';
@@ -40,6 +42,26 @@ export const catalogApi = {
   offers: (ids: string[]) => api.get<{ offers: ApiOffer[] }>('/v1/catalog/offers', { query: { ids: ids.slice(0, 50).join(',') } }),
   deliveryEstimates: (offerIds: string[], city: string) =>
     api.get<DeliveryEstimatesResponse>('/v1/catalog/delivery-estimates', { query: { offerIds: offerIds.slice(0, 50).join(','), city } }),
+  /** Server-side ranked search. Pass `signal` to cancel a superseded request (typing). */
+  search: (q: SearchQuery, signal?: AbortSignal) =>
+    api.get<SearchResponse>('/v1/catalog/search', {
+      signal,
+      retries: 1,
+      query: {
+        q: q.q?.trim() || undefined,
+        modelId: q.modelId,
+        year: q.year,
+        engine: q.engine,
+        fitsOnly: q.fitsOnly === undefined ? undefined : String(q.fitsOnly),
+        categoryId: q.categoryId,
+        origin: q.origin?.length ? q.origin.join(',') : undefined,
+        condition: q.condition?.length ? q.condition.join(',') : undefined,
+        inStock: q.inStock === undefined ? undefined : String(q.inStock),
+        sort: q.sort,
+        cursor: q.cursor,
+        limit: q.limit,
+      },
+    }),
 };
 
 export type VehicleInput = { modelId: string; year: number; trim?: string; engine: string; vin?: string; odometerKm?: number };

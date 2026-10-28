@@ -3,26 +3,43 @@ import type { Prisma } from '@prisma/client';
 import { prisma, type Db } from '../db.js';
 import { notFound } from '../lib/errors.js';
 import { normalizePartNumber, normalizeText } from '../lib/text.js';
+import { conceptSearchTerms, productConcepts } from '../search/lexicon.js';
 
-/** Builds the normalised search text stored on Product. */
-export function buildSearchText(p: { nameAr: string; nameEn: string; brand: string; keywords: string[]; partNumber: string; identifiers?: string[]; categoryNames?: string[] }) {
+/**
+ * Builds the normalised search text stored on Product (GIN trigram-indexed, see *_search_indexes).
+ * Besides names, brand, keywords, category names and part numbers it carries the lexicon's concept
+ * tokens ("{brakepads}") and every colloquial surface form of those concepts, so "هوبات" or "قربة"
+ * find a product even when its own keywords never say so.
+ */
+export function buildSearchText(p: {
+  nameAr: string;
+  nameEn: string;
+  brand: string;
+  keywords: string[];
+  partNumber: string;
+  identifiers?: string[];
+  categoryNames?: string[];
+  categoryId?: string;
+  art?: string | null;
+}) {
   const parts = [p.nameAr, p.nameEn, p.brand, ...p.keywords, ...(p.categoryNames ?? [])].map(normalizeText);
-  const numbers = [p.partNumber, ...(p.identifiers ?? [])].map(normalizePartNumber);
-  return [...parts, ...numbers].join(' ');
+  // Sorted so the seed (which passes OEM references) and refreshSearchText (identifier rows) agree byte for byte.
+  const numbers = [...new Set([p.partNumber, ...(p.identifiers ?? [])].map(normalizePartNumber))].sort();
+  const concepts = conceptSearchTerms(productConcepts({ nameAr: p.nameAr, nameEn: p.nameEn, categoryId: p.categoryId ?? '', art: p.art, keywords: p.keywords }));
+  return [...new Set([...parts, ...numbers, ...concepts].filter(Boolean))].join(' ');
 }
 
+/** Recomputes Product.searchText; returns true when it changed. */
 export async function refreshSearchText(db: Db, productId: string) {
   const p = await db.product.findUniqueOrThrow({ where: { id: productId }, include: { identifiers: true, category: true } });
-  await db.product.update({
-    where: { id: productId },
-    data: {
-      searchText: buildSearchText({
-        ...p,
-        identifiers: p.identifiers.map((i) => i.value),
-        categoryNames: [p.category.nameAr, p.category.nameEn],
-      }),
-    },
+  const searchText = buildSearchText({
+    ...p,
+    identifiers: p.identifiers.map((i) => i.value),
+    categoryNames: [p.category.nameAr, p.category.nameEn],
   });
+  if (searchText === p.searchText) return false;
+  await db.product.update({ where: { id: productId }, data: { searchText } });
+  return true;
 }
 
 export const publicOfferWhere: Prisma.OfferWhereInput = {
@@ -52,7 +69,7 @@ export function presentOffer(o: OfferRow) {
   };
 }
 
-const productInclude = {
+export const productInclude = {
   identifiers: true,
   fitments: true,
   offers: { where: publicOfferWhere, include: offerInclude },
@@ -119,58 +136,7 @@ export async function presentSellers(merchantIds: string[]) {
   }));
 }
 
-export type ProductQuery = {
-  q?: string;
-  categoryId?: string;
-  modelId?: string;
-  year?: number;
-  engine?: string;
-  fitsOnly?: boolean;
-  merchantId?: string;
-  limit: number;
-  offset: number;
-};
-
-export async function searchCatalog(query: ProductQuery) {
-  const where: Prisma.ProductWhereInput = { status: 'ACTIVE' };
-  const and: Prisma.ProductWhereInput[] = [];
-  if (query.categoryId) and.push({ categoryId: query.categoryId });
-  if (query.q?.trim()) {
-    const tokens = normalizeText(query.q).split(/\s+/).filter(Boolean);
-    const pn = normalizePartNumber(query.q);
-    and.push({
-      OR: [
-        { AND: tokens.map((t) => ({ searchText: { contains: t } })) },
-        ...(pn.length >= 4 ? [{ searchText: { contains: pn } }] : []),
-      ],
-    });
-  }
-  if (query.fitsOnly && query.modelId && query.year) {
-    and.push({
-      OR: [
-        { universalNoteAr: { not: null } },
-        {
-          fitments: {
-            some: {
-              modelId: query.modelId,
-              yearFrom: { lte: query.year },
-              yearTo: { gte: query.year },
-              ...(query.engine ? { OR: [{ engines: { isEmpty: true } }, { engines: { has: query.engine } }] } : {}),
-            },
-          },
-        },
-      ],
-    });
-  }
-  if (query.merchantId) and.push({ offers: { some: { ...publicOfferWhere, merchantId: query.merchantId } } });
-  else and.push({ offers: { some: publicOfferWhere } });
-  where.AND = and;
-  const [total, rows] = await Promise.all([
-    prisma.product.count({ where }),
-    prisma.product.findMany({ where, include: productInclude, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: query.limit, skip: query.offset }),
-  ]);
-  return { total, items: rows.map(presentProduct) };
-}
+/** Product search lives in ./search.ts (`searchProducts`, and `searchCatalog` for the legacy list endpoint). */
 
 export async function getProductDetail(id: string) {
   const p = await prisma.product.findFirst({ where: { id, status: 'ACTIVE' }, include: productInclude });

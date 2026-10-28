@@ -196,7 +196,7 @@ async function main() {
         brand: p.brand, origin: p.origin === 'oem' ? 'OEM' : 'AFTERMARKET', partNumber: p.partNumber, art: p.art, keywords: p.keywords,
         specs: p.specs as object[], universalNoteAr: p.universal?.note.ar, universalNoteEn: p.universal?.note.en,
         weightGrams: phys.w, lengthCm: phys.d[0], widthCm: phys.d[1], heightCm: phys.d[2], handling: phys.h,
-        searchText: buildSearchText({ nameAr: p.name.ar, nameEn: p.name.en, brand: p.brand, keywords: p.keywords, partNumber: p.partNumber, identifiers: p.oemReferences, categoryNames: [cat.name.ar, cat.name.en] }),
+        searchText: buildSearchText({ nameAr: p.name.ar, nameEn: p.name.en, brand: p.brand, keywords: p.keywords, partNumber: p.partNumber, identifiers: p.oemReferences, categoryNames: [cat.name.ar, cat.name.en], categoryId: p.categoryId, art: p.art }),
         identifiers: {
           create: [
             { type: 'MPN', value: p.partNumber, normalized: normalizePartNumber(p.partNumber), brand: p.brand },

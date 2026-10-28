@@ -13,7 +13,7 @@ import type { ApiErrorBody, TokenPair } from './types';
  *   refresh-token rotation) and replay the request.
  */
 
-export type ApiErrorCode = 'NETWORK' | 'TIMEOUT' | 'UNAUTHENTICATED' | 'SESSION_EXPIRED' | 'NOT_CONFIGURED' | 'BAD_RESPONSE' | (string & {});
+export type ApiErrorCode = 'NETWORK' | 'TIMEOUT' | 'UNAUTHENTICATED' | 'SESSION_EXPIRED' | 'NOT_CONFIGURED' | 'BAD_RESPONSE' | 'ABORTED' | (string & {});
 
 export class ApiError extends Error {
   readonly code: ApiErrorCode;
@@ -136,6 +136,8 @@ export type RequestOptions = {
   /** Retries for GET requests (default 2). Non-GET requests are never retried automatically. */
   retries?: number;
   query?: Record<string, string | number | undefined>;
+  /** Cancels the request (and any pending retry); rejects with code `ABORTED`. */
+  signal?: AbortSignal;
 };
 
 const RETRYABLE = (e: ApiError) => e.isNetwork || e.status === 429 || e.status >= 500;
@@ -152,12 +154,15 @@ async function rawRequest<T>(method: string, path: string, opts: RequestOptions 
   const maxRetries = method === 'GET' ? (opts.retries ?? 2) : 0;
 
   for (let attempt = 0; ; attempt++) {
+    if (opts.signal?.aborted) throw new ApiError('ABORTED', 'Request cancelled');
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
     }, opts.timeoutMs ?? config.timeoutMs);
+    const onCallerAbort = () => controller.abort();
+    opts.signal?.addEventListener('abort', onCallerAbort);
     try {
       const headers: Record<string, string> = { accept: 'application/json' };
       if (opts.body !== undefined) headers['content-type'] = 'application/json';
@@ -166,6 +171,7 @@ async function rawRequest<T>(method: string, path: string, opts: RequestOptions 
       try {
         res = await config.fetchImpl(url, { method, headers, body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined, signal: controller.signal });
       } catch (e) {
+        if (opts.signal?.aborted) throw new ApiError('ABORTED', 'Request cancelled');
         throw timedOut ? new ApiError('TIMEOUT', 'The server took too long to respond') : new ApiError('NETWORK', e instanceof Error ? e.message : 'Network request failed');
       }
       reportOnline(true);
@@ -182,6 +188,7 @@ async function rawRequest<T>(method: string, path: string, opts: RequestOptions 
       return data as T;
     } catch (e) {
       const err = toApiError(e);
+      if (err.code === 'ABORTED') throw err;
       if (err.isNetwork) reportOnline(false);
       if (attempt < maxRetries && RETRYABLE(err)) {
         await config.sleep(Math.min(4000, 400 * 2 ** attempt) + Math.floor(Math.random() * 150));
@@ -190,6 +197,7 @@ async function rawRequest<T>(method: string, path: string, opts: RequestOptions 
       throw err;
     } finally {
       clearTimeout(timer);
+      opts.signal?.removeEventListener('abort', onCallerAbort);
     }
   }
 }

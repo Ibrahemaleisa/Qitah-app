@@ -214,6 +214,8 @@ model Product {
 
   @@index([categoryId, status])
   @@index([partNumber])
+  // pg_trgm (extension created in *_search_indexes): serves LIKE '%…%' and word_similarity in /v1/catalog/search.
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "Product_searchText_trgm_idx")
 }
 
 model ProductIdentifier {
@@ -227,6 +229,8 @@ model ProductIdentifier {
 
   @@unique([productId, type, normalized])
   @@index([normalized])
+  // Part-number prefix search (LIKE 'x%') regardless of collation.
+  @@index([normalized(ops: raw("text_pattern_ops"))], map: "ProductIdentifier_normalized_pattern_idx")
 }
 
 model ProductFitment {
@@ -1083,6 +1087,7 @@ model DomainEvent {
   @@index([status, availableAt])
   @@index([createdAt])
   @@index([customerId, id])
+  @@index([merchantIds], type: Gin, map: "DomainEvent_merchantIds_gin")
 }
 
 // ───────────────────────────────────────────── garage, maintenance, mechanic reviews
