@@ -9,6 +9,7 @@ import { ShipmentProgress } from '@/features/ShipmentTimeline';
 import { useI18n } from '@/i18n';
 import { toOrderView, type OrderView, type ShipmentView } from '@/services/remote/orderView';
 import { fetchOrders, useRemoteOrders } from '@/services/remote/orders';
+import { useActiveOrg } from '@/services/remote/workshop';
 import { useAppStore } from '@/store/app-store';
 import { enterUp } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
@@ -43,6 +44,8 @@ export function RemoteOrders() {
   const listState = useRemoteOrders((st) => st.listState);
   const orders = useMemo(() => list.map((o) => toOrderView(o)).sort((a, b) => b.createdAt - a.createdAt), [list]);
   const label = useShipmentLabel();
+  // Workshop mode lists the organisation's orders (server-filtered); retail mode is unchanged.
+  const activeOrg = useActiveOrg();
   usePollWhileFocused(() => (user ? fetchOrders() : undefined), 15_000, !!user);
 
   if (!user) {
@@ -54,7 +57,7 @@ export function RemoteOrders() {
   }
 
   return (
-    <Screen header={<ScreenHeader title={s.orders.title} subtitle={orders.length ? s.remote.autoRefresh : undefined} large />}>
+    <Screen header={<ScreenHeader title={activeOrg ? s.workshop.orders : s.orders.title} subtitle={activeOrg ? s.workshop.buyingFor(activeOrg.org.displayName) : orders.length ? s.remote.autoRefresh : undefined} large />}>
       {listState === 'loading' && !orders.length ? (
         <View style={{ gap: space.md }} accessibilityLabel={s.remote.loadingCatalog}>
           {[0, 1].map((i) => (
@@ -115,6 +118,7 @@ export function RemoteOrders() {
                     <View style={{ flexDirection: 'row', gap: 6 }}>
                       <Badge label={s.success.shipments(order.shipments.length)} icon="truck" />
                       {order.returns.length ? <Badge label={s.remote.returns} tone="info" icon="rotate-ccw" /> : null}
+                      {activeOrg && list.find((o) => o.id === order.id)?.workOrderRef ? <Badge label={s.workshop.workOrder(list.find((o) => o.id === order.id)!.workOrderRef!)} icon="hash" /> : null}
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Price amount={order.totals.total} />
