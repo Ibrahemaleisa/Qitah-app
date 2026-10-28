@@ -385,7 +385,9 @@ export async function acceptQuote(userId: string, requestId: string, quoteId: st
 }
 
 async function createDraftProduct(tx: Tx, r: PartRequest, q: PartQuote) {
-  const category = (q.categoryId && (await tx.category.findUnique({ where: { id: q.categoryId } }))) || (await tx.category.findFirstOrThrow({ orderBy: { sort: 'asc' } }));
+  // A free-text quote may omit the category: park it in the first category with a neutral illustration until ops curates it.
+  const chosen = q.categoryId ? await tx.category.findUnique({ where: { id: q.categoryId } }) : null;
+  const category = chosen ?? (await tx.category.findFirstOrThrow({ orderBy: { sort: 'asc' } }));
   const name = q.partName ?? r.description.slice(0, 120);
   const partNumber = q.partNumber?.trim() || r.partNumber?.trim() || `RFQ-${r.number}`;
   const product = await tx.product.create({
@@ -398,7 +400,7 @@ async function createDraftProduct(tx: Tx, r: PartRequest, q: PartQuote) {
       brand: q.brand ?? '—',
       origin: q.origin ?? 'AFTERMARKET',
       partNumber,
-      art: category.art,
+      art: chosen ? category.art : 'pump',
       keywords: [],
       ...DRAFT_PHYSICAL,
       status: 'DRAFT',

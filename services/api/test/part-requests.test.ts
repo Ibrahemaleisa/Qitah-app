@@ -84,6 +84,7 @@ test('request → two quotes → isolation → accept → private offer → chec
   assert.equal(detail.photos.length, 1);
   const photo = await app.inject({ method: 'GET', url: new URL(detail.photos[0].url).pathname + new URL(detail.photos[0].url).search });
   assert.equal(photo.statusCode, 200);
+  assert.equal(photo.headers['cross-origin-resource-policy'], 'cross-origin', 'signed photo URLs can be embedded by the app and portals');
   assert.ok(!JSON.stringify(detail).includes(c.phone) && !JSON.stringify(detail).includes(c.userId), 'customer contact hidden from merchants');
 
   // Quote 1: riyadh-center links a catalog product, price as SAR string.

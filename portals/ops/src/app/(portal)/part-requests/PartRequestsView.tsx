@@ -172,7 +172,7 @@ export function PartRequestsView() {
                                       · <Mono>{r.partNumber}</Mono>
                                     </>
                                   ) : null}
-                                  {r.photoCount ? ` · ${r.photoCount} صور` : ''}
+                                  {r.photoCount ? ` · ${r.photoCount === 1 ? 'صورة' : `${r.photoCount} صور`}` : ''}
                                 </div>
                               </td>
                               <td>{cityName(r.city)}</td>

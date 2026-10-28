@@ -93,7 +93,7 @@ export default function PartRequestsPage() {
                     <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
                       <Badge>{cityAr(r.city)}</Badge>
                       {r.partNumber && <Badge><span className="ltr">{r.partNumber}</span></Badge>}
-                      {r.photoCount > 0 && <Badge tone="teal">{r.photoCount} صور</Badge>}
+                      {r.photoCount > 0 && <Badge tone="teal">{r.photoCount === 1 ? "صورة" : `${r.photoCount} صور`}</Badge>}
                       <Badge>{PREFERRED_CONDITION_AR[r.preferredCondition]}</Badge>
                       <Badge>{PREFERRED_ORIGIN_AR[r.preferredOrigin]}</Badge>
                       {r.quantity > 1 && <Badge>الكمية {r.quantity}</Badge>}
