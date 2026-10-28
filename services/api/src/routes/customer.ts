@@ -5,7 +5,7 @@ import type { Deps } from '../app.js';
 import { prisma } from '../db.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { cityId, parse, rateLimit } from '../lib/http.js';
-import { checkout, PAYMENT_METHODS, planCheckout, visibleTo } from '../services/checkout.js';
+import { checkout, CHECKOUT_PAYMENT_METHODS, PAYMENT_METHODS, planCheckout, visibleTo } from '../services/checkout.js';
 import { cancelOrderByCustomer } from '../services/fulfillment.js';
 import { loadOrder, orderInclude, presentCustomerOrder } from '../services/orderView.js';
 import { initiatePayment } from '../services/payments.js';
@@ -198,7 +198,10 @@ export async function customerRoutes(app: FastifyInstance, deps: Deps) {
       z.object({
         planId: z.string(),
         idempotencyKey: z.string().min(8).max(100),
-        paymentMethod: z.enum(PAYMENT_METHODS),
+        paymentMethod: z.enum(CHECKOUT_PAYMENT_METHODS),
+        // Workshop mode: buy for an organisation (BUYER/OWNER of an APPROVED org, re-checked server-side).
+        buyerOrgId: z.string().min(1).max(64).optional(),
+        workOrderRef: z.string().max(60).optional(),
         // Only a reference to the customer's own garage vehicle(s): fit is re-computed server-side and
         // any client-supplied fit/guarantee claim is stripped by the schema.
         vehicle: z
@@ -214,16 +217,22 @@ export async function customerRoutes(app: FastifyInstance, deps: Deps) {
   });
 
   // ── orders
+  /** Retail (default): the user's personal orders. `?orgId=` (workshop mode): every order of that organisation. */
   app.get('/v1/orders', async (req) => {
     const p = await requireUser(req);
-    const rows = await prisma.order.findMany({ where: { customerId: p.userId }, include: orderInclude, orderBy: { createdAt: 'desc' }, take: 50 });
+    const { orgId } = parse(z.object({ orgId: z.string().min(1).max(64).optional() }), req.query);
+    if (orgId) await deps.guards.requireOrg(req, orgId, 'TECHNICIAN');
+    const where = orgId ? { buyerOrgId: orgId } : { customerId: p.userId, buyerOrgId: null };
+    const rows = await prisma.order.findMany({ where, include: orderInclude, orderBy: { createdAt: 'desc' }, take: 50 });
     return { orders: rows.map(presentCustomerOrder) };
   });
 
   app.get('/v1/orders/:id', async (req) => {
     const p = await requireUser(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);
-    return presentCustomerOrder(await loadOrder(id, { customerId: p.userId }));
+    // The buyer, or any active member of the buying organisation.
+    const orgIds = p.orgMemberships.map((m) => m.orgId);
+    return presentCustomerOrder(await loadOrder(id, orgIds.length ? { OR: [{ customerId: p.userId }, { buyerOrgId: { in: orgIds } }] } : { customerId: p.userId }));
   });
 
   app.post('/v1/orders/:id/payment', async (req) => {

@@ -10,6 +10,7 @@ import type {
   ApiOrder,
   ApiUser,
   ApiVehicle,
+  CheckoutPaymentMethod,
   CheckoutResponse,
   DeliveryEstimatesResponse,
   UploadTarget,
@@ -95,13 +96,15 @@ export type ReturnRequestInput = {
 export const checkoutApi = {
   plan: (addressId: string, lines: { offerId: string; quantity: number }[]) => api.post<PlanResponse>('/v1/checkout/plan', { addressId, lines }, auth),
   /** `vehicle` only names a garage vehicle: the server computes fit (and the guarantee) itself. */
-  place: (input: { planId: string; idempotencyKey: string; paymentMethod: RemotePaymentMethod; vehicle?: { garageVehicleId: string } }) =>
+  /** Workshop mode adds `buyerOrgId` (+ optional `workOrderRef`) and may pay with NET_TERMS (server-side credit). */
+  place: (input: { planId: string; idempotencyKey: string; paymentMethod: CheckoutPaymentMethod; vehicle?: { garageVehicleId: string }; buyerOrgId?: string; workOrderRef?: string }) =>
     // Safe to resend with the same idempotencyKey: the server returns the existing order.
     api.post<CheckoutResponse>('/v1/checkout', input, { ...auth, timeoutMs: 20_000 }),
 };
 
 export const ordersApi = {
-  list: () => api.get<{ orders: ApiOrder[] }>('/v1/orders', auth),
+  /** `orgId` (workshop mode): that organisation's orders; omitted: the customer's personal orders. */
+  list: (orgId?: string) => api.get<{ orders: ApiOrder[] }>('/v1/orders', { ...auth, query: { orgId } }),
   get: (id: string) => api.get<ApiOrder>(`/v1/orders/${encodeURIComponent(id)}`, auth),
   retryPayment: (id: string, method: RemotePaymentMethod) => api.post<PaymentInit>(`/v1/orders/${encodeURIComponent(id)}/payment`, { method }, auth),
   cancel: (id: string, reason: string) => api.post<ApiOrder>(`/v1/orders/${encodeURIComponent(id)}/cancel`, { reason }, auth),

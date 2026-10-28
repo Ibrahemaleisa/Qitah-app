@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { Prisma, type Condition } from '@prisma/client';
 
 import { prisma, type Db } from '../db.js';
+import { freshnessPolicy, hiddenAt, staleAt } from '../domain/freshness.js';
 import { offerInclude, presentOffer, publicOfferWhere } from './catalog.js';
 
 /**
@@ -48,6 +49,7 @@ type ListingRow = {
   originCities: string[];
   offers: ListingOffer[];
   offersHash: string;
+  nextChangeAt: Date | null;
   catalogFitKeys: string[];
   sellerFitKeys: string[];
 };
@@ -84,7 +86,27 @@ export function vehicleFitKeys(v: { scope: 'vehicle' | 'model' | 'make'; makeId?
 const min = (xs: number[]) => (xs.length ? Math.min(...xs) : null);
 const ordered = <T extends string>(set: Set<T>, order: readonly T[]) => order.filter((x) => set.has(x));
 
+/** A timestamp(3) column value in UTC regardless of the session time zone. */
+export const utcTimestamp = (d: Date | null) => Prisma.sql`(${d ? d.toISOString() : null}::timestamptz AT TIME ZONE 'UTC')`;
+
+/**
+ * The next instant one of these (currently public) offers changes by time alone under the freshness policy
+ * (domain/freshness.ts, the same policy publicOfferWhere applies): turning stale, or — once stale — hidden.
+ * The worker re-derives listings whose `nextChangeAt` has passed, so a product never keeps a hidden offer's
+ * price or stock, and the `stale` flag clients cache is refreshed.
+ */
+export function nextFreshnessChange(confirmations: Date[], now = new Date(), policy = freshnessPolicy()): Date | null {
+  let next: number | null = null;
+  for (const c of confirmations) {
+    const stale = staleAt(c, policy).getTime();
+    const t = stale > now.getTime() ? stale : hiddenAt(c, policy).getTime();
+    if (next === null || t < next) next = t;
+  }
+  return next === null ? null : new Date(next);
+}
+
 async function computeRows(db: Db, ids: string[]): Promise<{ rows: ListingRow[]; missing: string[] }> {
+  const now = new Date();
   const products = await db.product.findMany({
     where: { id: { in: ids } },
     select: {
@@ -137,7 +159,9 @@ async function computeRows(db: Db, ids: string[]): Promise<{ rows: ListingRow[];
       merchantIds: [...new Set(list.map((o) => o.merchantId))].sort(),
       originCities: [...new Set(list.map((o) => o.location.city))].sort(),
       offers: presented.map((o) => ({ id: o.id, m: o.sellerId, c: o.condition, p: o.priceHalalas, a: o.available, d: o.dispatchDays[0] })),
-      offersHash: presented.length ? createHash('md5').update(JSON.stringify(presented)).digest('hex') : '',
+      // The seller quality score is recomputed in bulk by the scorecard job and is not price/stock: left out of the hash.
+      offersHash: presented.length ? createHash('md5').update(JSON.stringify(presented.map(({ qualityScore: _q, ...o }) => o))).digest('hex') : '',
+      nextChangeAt: nextFreshnessChange(list.map((o) => o.lastConfirmedAt), now),
     };
   });
   return { rows, missing: ids.filter((id) => !found.has(id)) };
@@ -148,13 +172,13 @@ function upsertSql(rows: ListingRow[]) {
     (r) => Prisma.sql`(${r.productId}, ${r.status}::"ProductStatus", ${r.listed}, ${r.categoryId}, ${r.brand}, ${r.origin}::"PartOrigin", ${r.universal}, ${r.hasCatalogFitment},
       ${r.offerCount}, ${r.inStockOfferCount}, ${r.totalAvailable}, ${r.minPriceHalalas}::int, ${r.minOfferPriceHalalas}::int, ${r.minInStockPriceHalalas}::int,
       ${r.minDispatchDays}::int, ${r.minInStockDispatchDays}::int, ${r.conditions}::"Condition"[], ${r.inStockConditions}::"Condition"[], ${r.merchantIds}::text[],
-      ${r.originCities}::text[], ${JSON.stringify(r.offers)}::jsonb, ${r.offersHash}, ${r.catalogFitKeys}::text[], ${r.sellerFitKeys}::text[], now())`,
+      ${r.originCities}::text[], ${JSON.stringify(r.offers)}::jsonb, ${r.offersHash}, ${r.catalogFitKeys}::text[], ${r.sellerFitKeys}::text[], ${utcTimestamp(r.nextChangeAt)}, now())`,
   );
   // Every derived column; the WHERE makes an unchanged row a no-op (no write, no updatedAt bump).
   return Prisma.sql`
     INSERT INTO "ProductListing" ("productId", "status", "listed", "categoryId", "brand", "origin", "universal", "hasCatalogFitment",
       "offerCount", "inStockOfferCount", "totalAvailable", "minPriceHalalas", "minOfferPriceHalalas", "minInStockPriceHalalas",
-      "minDispatchDays", "minInStockDispatchDays", "conditions", "inStockConditions", "merchantIds", "originCities", "offers", "offersHash", "catalogFitKeys", "sellerFitKeys", "updatedAt")
+      "minDispatchDays", "minInStockDispatchDays", "conditions", "inStockConditions", "merchantIds", "originCities", "offers", "offersHash", "catalogFitKeys", "sellerFitKeys", "nextChangeAt", "updatedAt")
     VALUES ${Prisma.join(values)}
     ON CONFLICT ("productId") DO UPDATE SET
       "status" = EXCLUDED."status", "listed" = EXCLUDED."listed", "categoryId" = EXCLUDED."categoryId", "brand" = EXCLUDED."brand",
@@ -165,19 +189,19 @@ function upsertSql(rows: ListingRow[]) {
       "minInStockDispatchDays" = EXCLUDED."minInStockDispatchDays", "conditions" = EXCLUDED."conditions",
       "inStockConditions" = EXCLUDED."inStockConditions", "merchantIds" = EXCLUDED."merchantIds", "originCities" = EXCLUDED."originCities",
       "offers" = EXCLUDED."offers", "offersHash" = EXCLUDED."offersHash", "catalogFitKeys" = EXCLUDED."catalogFitKeys",
-      "sellerFitKeys" = EXCLUDED."sellerFitKeys", "updatedAt" = now()
+      "sellerFitKeys" = EXCLUDED."sellerFitKeys", "nextChangeAt" = EXCLUDED."nextChangeAt", "updatedAt" = now()
     WHERE ("ProductListing"."status", "ProductListing"."listed", "ProductListing"."categoryId", "ProductListing"."brand", "ProductListing"."origin",
            "ProductListing"."universal", "ProductListing"."hasCatalogFitment", "ProductListing"."offerCount", "ProductListing"."inStockOfferCount",
            "ProductListing"."totalAvailable", "ProductListing"."minPriceHalalas", "ProductListing"."minOfferPriceHalalas",
            "ProductListing"."minInStockPriceHalalas", "ProductListing"."minDispatchDays", "ProductListing"."minInStockDispatchDays",
            "ProductListing"."conditions", "ProductListing"."inStockConditions", "ProductListing"."merchantIds", "ProductListing"."originCities",
-           "ProductListing"."offersHash", "ProductListing"."catalogFitKeys", "ProductListing"."sellerFitKeys")
+           "ProductListing"."offersHash", "ProductListing"."catalogFitKeys", "ProductListing"."sellerFitKeys", "ProductListing"."nextChangeAt")
       IS DISTINCT FROM
           (EXCLUDED."status", EXCLUDED."listed", EXCLUDED."categoryId", EXCLUDED."brand", EXCLUDED."origin", EXCLUDED."universal",
            EXCLUDED."hasCatalogFitment", EXCLUDED."offerCount", EXCLUDED."inStockOfferCount", EXCLUDED."totalAvailable", EXCLUDED."minPriceHalalas",
            EXCLUDED."minOfferPriceHalalas", EXCLUDED."minInStockPriceHalalas", EXCLUDED."minDispatchDays", EXCLUDED."minInStockDispatchDays",
            EXCLUDED."conditions", EXCLUDED."inStockConditions", EXCLUDED."merchantIds", EXCLUDED."originCities", EXCLUDED."offersHash",
-           EXCLUDED."catalogFitKeys", EXCLUDED."sellerFitKeys")
+           EXCLUDED."catalogFitKeys", EXCLUDED."sellerFitKeys", EXCLUDED."nextChangeAt")
     RETURNING "productId"`;
 }
 
@@ -276,6 +300,13 @@ export async function rebuildAllListings(opts: { batch?: number; onBatch?: (scan
  * any product that has no listing row yet. Catches drift from paths outside the services (manual SQL)
  * and time-based visibility rules (offer freshness) that change with no write at all.
  */
+/** Listings with an offer that turned stale or hidden by time (see `nextFreshnessChange`), oldest first. */
+export async function refreshDueListings(now = new Date(), limit = 5000) {
+  const due = await prisma.$queryRaw<{ productId: string }[]>`
+    SELECT "productId" FROM "ProductListing" WHERE "nextChangeAt" <= ${utcTimestamp(now)} ORDER BY "nextChangeAt" LIMIT ${limit}`;
+  return due.length ? refreshListings(prisma, due.map((r) => r.productId)) : 0;
+}
+
 let sweepCursor = '';
 export async function sweepListings(opts: { slice?: number } = {}) {
   const slice = opts.slice ?? 2000;

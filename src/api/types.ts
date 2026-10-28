@@ -299,10 +299,12 @@ export type PlanResponse = {
 };
 
 export type RemotePaymentMethod = 'mada' | 'card' | 'applePay' | 'stcPay';
+/** Checkout also accepts NET_TERMS for approved workshops (captured by the server against Qitah's internal credit). */
+export type CheckoutPaymentMethod = RemotePaymentMethod | 'NET_TERMS';
 
 export type PaymentInit = { id: string; redirectUrl: string | null; sandbox: boolean; status: string };
 
-export type CheckoutResponse = { orderId: string; number: string; status: string; totalHalalas: number; payment: PaymentInit | null };
+export type CheckoutResponse = { orderId: string; number: string; status: string; totalHalalas: number; payment: (PaymentInit & { method?: string }) | null; buyerOrgId?: string | null; workOrderRef?: string | null; creditDueAt?: string | null };
 
 // ── orders
 export type ServerOrderStatus =
@@ -358,6 +360,11 @@ export type ApiOrder = {
   vehicle: { label?: string; labelAr?: string; labelEn?: string; vin?: string | null } | null;
   totals: { itemsHalalas: number; shippingHalalas: number; discountHalalas: number; totalHalalas: number; vatHalalas: number; refundedHalalas: number };
   cancelReason: string | null;
+  /** Workshop orders only (absent/null for retail). */
+  buyerOrgId?: string | null;
+  workOrderRef?: string | null;
+  workshopQuoteId?: string | null;
+  creditDueAt?: string | null;
   merchantOrders: {
     id: string;
     number: string;

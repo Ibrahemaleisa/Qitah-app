@@ -8,6 +8,7 @@ import type { Address, CartLine, Vehicle } from '@/domain/types';
 import { useAppStore } from '@/store/app-store';
 
 import { syncPrivateOffers, watchSignOut } from './partRequests';
+import { startWorkshopSync } from './workshop';
 
 /**
  * Remote account state: OTP sign-in, profile, and syncing the garage, addresses and cart with the
@@ -172,6 +173,7 @@ export function startAccountSync() {
   if (!isRemote || started) return;
   started = true;
   watchSignOut();
+  startWorkshopSync();
   onSessionExpired(() => {
     useAppStore.getState().signOut();
   });

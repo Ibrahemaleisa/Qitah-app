@@ -53,7 +53,11 @@ export type Merchant = {
   contactEmail: string;
   contactPhone: string;
   status: MerchantStatus;
-  commissionBps: number;
+  /** Negotiated merchant-wide B2C rate; null = commission rules per category/origin/condition. */
+  commissionBps: number | null;
+  settlementCadence?: 'WEEKLY' | 'DAILY';
+  trustedForEarlyPayout?: boolean;
+  qualityScore?: number | null;
   supportsWorkshopDelivery: boolean;
   slaAcceptMinutes: number;
   slaReadyMinutes: number;
@@ -79,7 +83,7 @@ export type MerchantDetail = Merchant & {
   locations: PickupLocation[];
   members: { id: string; role: string; status: string; createdAt: string; user: { id: string; name: string | null; email: string | null; phone: string | null } }[];
   orderStats: { status: MerchantOrderStatus; _count: number }[];
-  balance: { payableHalalas: number; commissionHalalas: number; paidOutHalalas: number };
+  balance: { payableHalalas: number; commissionHalalas: number; paidOutHalalas: number; reserveHeldHalalas?: number };
 };
 
 export type Address = { city?: string; district?: string; street?: string; details?: string | null; contactName?: string; phone?: string; kind?: string; label?: string; workshopName?: string | null };
@@ -230,6 +234,9 @@ export type Reconciliation = {
   capturedHalalas: number;
   refundedHalalas: number;
   netCollectedHalalas: number;
+  paymentFeesHalalas?: number;
+  paymentFeesEstimated?: boolean;
+  margin?: { commissionHalalas: number; shippingMarginHalalas: number; paymentFeesHalalas: number; guaranteeExpenseHalalas: number; contributionHalalas: number };
   ledger: Record<string, number>;
   reconciled: boolean;
   issues: string[];
@@ -326,20 +333,115 @@ export type Settlement = {
   commissionHalalas: number;
   refundsHalalas: number;
   netHalalas: number;
+  reserveHeldHalalas?: number;
+  reserveReleasedHalalas?: number;
+  automatic?: boolean;
   payoutReference: string | null;
   approvedAt: string | null;
   paidAt: string | null;
   createdAt: string;
   merchant: { displayNameAr: string };
-  lines: { id: string; merchantOrderId: string; netHalalas: number }[];
+  lines: { id: string; merchantOrderId: string; netHalalas: number; kind?: 'SALE' | 'RESERVE_RELEASE'; reserveHalalas?: number }[];
 };
 
 export type Eligibility = {
   merchantId: string;
   displayNameAr: string;
+  settlementCadence?: 'WEEKLY' | 'DAILY';
+  trustedForEarlyPayout?: boolean;
   eligibleOrders: number;
   eligibleNetHalalas: number;
-  balance: { payableHalalas: number; commissionHalalas: number; paidOutHalalas: number };
+  eligibleReserveHalalas?: number;
+  balance: { payableHalalas: number; commissionHalalas: number; paidOutHalalas: number; reserveHeldHalalas?: number };
+};
+
+// ───────── merchant economics
+
+export type CommissionRule = {
+  id: string;
+  name: string;
+  merchantId: string | null;
+  merchantNameAr: string | null;
+  categoryId: string | null;
+  origin: 'OEM' | 'AFTERMARKET' | null;
+  condition: 'NEW' | 'USED' | 'REFURBISHED' | null;
+  channel: 'B2C' | 'B2B' | 'ANY';
+  bps: number;
+  priority: number;
+  active: boolean;
+  validFrom: string | null;
+  validTo: string | null;
+  note: string | null;
+  createdAt: string;
+};
+
+export type RatePreview = { bps: number; source: 'rule' | 'merchant' | 'default'; ruleId: string | null };
+
+export type WindowMetrics = {
+  days: number;
+  received: number;
+  accepted: number;
+  rejected: number;
+  outOfStockRejected: number;
+  ready: number;
+  readyOnTime: number;
+  delivered: number;
+  badReturns: number;
+  customerCancelled: number;
+  acceptanceRate: number | null;
+  outOfStockRate: number | null;
+  cancellationRate: number | null;
+  onTimeReadyRate: number | null;
+  badReturnRate: number | null;
+  avgAcceptMinutes: number | null;
+};
+
+export type ScorecardWarning = 'OUT_OF_STOCK_HIGH' | 'FRESHNESS_LOW' | 'ACCEPTANCE_LOW' | 'ON_TIME_LOW' | 'BAD_RETURNS_HIGH';
+
+export type Scorecard = {
+  merchantId: string;
+  generatedAt: string;
+  d30: WindowMetrics;
+  d90: WindowMetrics;
+  offers: { active: number; fresh: number; stale: number; freshnessRate: number | null; staleAfterDays: number; hiddenAfterDays: number };
+  qualityScore: number;
+  thresholds: { outOfStockRate: number; freshnessRate: number; acceptanceRate: number; onTimeReadyRate: number; badReturnRate: number };
+  warnings: ScorecardWarning[];
+};
+
+export type PerformanceRow = Scorecard & {
+  merchant: { id: string; displayNameAr: string; displayNameEn: string; status: MerchantStatus; city: string; settlementCadence: 'WEEKLY' | 'DAILY'; trustedForEarlyPayout: boolean };
+};
+
+export type MarginRow = {
+  orderId: string;
+  number: string;
+  status: OrderStatus;
+  paidAt: string;
+  paymentMethod: string;
+  totalHalalas: number;
+  refundedHalalas: number;
+  feesEstimated: boolean;
+  commissionHalalas: number;
+  shippingMarginHalalas: number;
+  paymentFeesHalalas: number;
+  guaranteeExpenseHalalas: number;
+  contributionHalalas: number;
+};
+
+export type Margins = {
+  total: number;
+  items: MarginRow[];
+  totals: {
+    orders: number;
+    gmvHalalas: number;
+    commissionHalalas: number;
+    shippingMarginHalalas: number;
+    paymentFeesHalalas: number;
+    guaranteeExpenseHalalas: number;
+    contributionHalalas: number;
+    negativeOrders: number;
+  };
 };
 
 export type LiveEvent = { id: string; type: string; entityType: string; entityId: string; orderId: string | null; payload: Record<string, unknown>; createdAt: string };

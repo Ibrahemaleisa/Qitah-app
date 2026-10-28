@@ -6,6 +6,7 @@ import { meApi, ordersApi, type ReturnRequestInput } from '@/api/endpoints';
 import type { ApiNotification, ApiOrder, RemotePaymentMethod } from '@/api/types';
 
 import { toOrderView, type OrderView } from './orderView';
+import { activeOrgId, useWorkshop } from './workshop';
 
 /** Server orders and notifications (remote mode). Not persisted: always re-read from the API. */
 
@@ -29,6 +30,11 @@ export const useRemoteOrders = create<RemoteOrdersState>()(() => ({
   notificationsState: 'idle',
 }));
 
+// Retail ↔ workshop switch: the list belongs to the previous mode, drop it (re-read on the orders screen's next focus).
+useWorkshop.subscribe((s, prev) => {
+  if (s.activeOrgId !== prev.activeOrgId) useRemoteOrders.setState({ list: [], listState: 'idle', listError: null });
+});
+
 function storeOrder(o: ApiOrder) {
   useRemoteOrders.setState((s) => ({
     byId: { ...s.byId, [o.id]: o },
@@ -36,10 +42,14 @@ function storeOrder(o: ApiOrder) {
   }));
 }
 
+/** Retail mode: the customer's own orders. Workshop mode: every order of the active organisation. */
 export async function fetchOrders() {
   useRemoteOrders.setState((s) => ({ listState: s.list.length ? s.listState : 'loading' }));
+  const orgId = activeOrgId();
   try {
-    const { orders } = await ordersApi.list();
+    const { orders } = await ordersApi.list(orgId ?? undefined);
+    // The user switched mode while this was in flight: drop the stale list.
+    if (activeOrgId() !== orgId) return;
     useRemoteOrders.setState((s) => ({ list: orders, listState: 'ready', listError: null, byId: { ...s.byId, ...Object.fromEntries(orders.map((o) => [o.id, o])) } }));
   } catch (e) {
     const err = toApiError(e);

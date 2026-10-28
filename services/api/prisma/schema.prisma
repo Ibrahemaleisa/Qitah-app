@@ -267,27 +267,34 @@ enum VerificationStatus {
 }
 
 model Merchant {
-  id                       String         @id @default(cuid())
+  id                       String            @id @default(cuid())
   legalName                String
   displayNameAr            String
   displayNameEn            String
-  crNumber                 String         @unique
+  crNumber                 String            @unique
   vatNumber                String?
   city                     String
-  specialtyAr              String         @default("")
-  specialtyEn              String         @default("")
+  specialtyAr              String            @default("")
+  specialtyEn              String            @default("")
   contactEmail             String
   contactPhone             String
-  status                   MerchantStatus @default(APPLIED)
-  commissionBps            Int            @default(1000)
-  supportsWorkshopDelivery Boolean        @default(true)
-  slaAcceptMinutes         Int            @default(240)
-  slaReadyMinutes          Int            @default(1440)
+  status                   MerchantStatus    @default(APPLIED)
+  /// Merchant-wide negotiated commission (bps). NULL = use the CommissionRule tiers (see "merchant economics").
+  commissionBps            Int?
+  supportsWorkshopDelivery Boolean           @default(true)
+  slaAcceptMinutes         Int               @default(240)
+  slaReadyMinutes          Int               @default(1440)
   statusReason             String?
   approvedAt               DateTime?
   approvedById             String?
-  createdAt                DateTime       @default(now())
-  updatedAt                DateTime       @updatedAt
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+  /// merchant economics: automatic settlement cadence and early payout (with a reserve) for trusted DAILY merchants.
+  settlementCadence        SettlementCadence @default(WEEKLY)
+  trustedForEarlyPayout    Boolean           @default(false)
+  /// Cached 0–100 scorecard score (worker refresh; formula in domain/scorecard.ts). Offer-comparison tiebreaker.
+  qualityScore             Int?
+  qualityScoreAt           DateTime?
 
   verifications  MerchantVerification[]
   members        MerchantMember[]
@@ -331,23 +338,23 @@ model MerchantMember {
 }
 
 model PickupLocation {
-  id           String          @id @default(cuid())
-  merchantId   String
-  name         String
-  city         String
-  district     String
-  street       String
-  contactPhone String
-  latitude     Float?
-  longitude    Float?
+  id                   String             @id @default(cuid())
+  merchantId           String
+  name                 String
+  city                 String
+  district             String
+  street               String
+  contactPhone         String
+  latitude             Float?
+  longitude            Float?
   /// Same-day cutoff, minutes after midnight Riyadh time (default 14:00). Orders after it miss same-day delivery.
-  sameDayCutoffMinutes Int     @default(840)
-  active       Boolean         @default(true)
-  createdAt    DateTime        @default(now())
-  merchant     Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  offers       Offer[]
-  groups       FulfillmentGroup[]
-  shipments    Shipment[]
+  sameDayCutoffMinutes Int                @default(840)
+  active               Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  merchant             Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  offers               Offer[]
+  groups               FulfillmentGroup[]
+  shipments            Shipment[]
 
   @@index([merchantId])
 }
@@ -384,27 +391,30 @@ enum AdjustmentReason {
 }
 
 model Offer {
-  id               String      @id @default(cuid())
+  id               String          @id @default(cuid())
   merchantId       String
   productId        String
   locationId       String
   sku              String
-  condition        Condition   @default(NEW)
+  condition        Condition       @default(NEW)
   priceHalalas     Int
   compareAtHalalas Int?
-  warrantyMonths   Int         @default(0)
-  dispatchDaysMin  Int         @default(0)
-  dispatchDaysMax  Int         @default(1)
+  warrantyMonths   Int             @default(0)
+  dispatchDaysMin  Int             @default(0)
+  dispatchDaysMax  Int             @default(1)
   noteAr           String?
   noteEn           String?
-  status           OfferStatus @default(ACTIVE)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  status           OfferStatus     @default(ACTIVE)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
   /// PRIVATE offers come from an accepted part-request quote (see "part requests (RFQ)" at the end):
   /// never listed publicly, purchasable only by `privateForUserId`, and only until the quote's `validUntil`.
   visibility       OfferVisibility @default(PUBLIC)
   privateForUserId String?
   partQuote        PartQuote?
+  /// Last time the merchant confirmed stock/price (any stock or price update, CSV import, "confirm all").
+  /// Drives the freshness policy: stale after FRESHNESS_STALE_DAYS, hidden after FRESHNESS_HIDE_DAYS.
+  lastConfirmedAt  DateTime        @default(now())
 
   merchant     Merchant               @relation(fields: [merchantId], references: [id])
   product      Product                @relation(fields: [productId], references: [id])
@@ -419,6 +429,7 @@ model Offer {
   @@index([productId, status])
   @@index([merchantId, status])
   @@index([privateForUserId])
+  @@index([merchantId, lastConfirmedAt])
 }
 
 /// available = onHand - reserved. Both guarded by CHECK constraints.
@@ -512,18 +523,18 @@ model CartItem {
 
 /// Server-computed, priced checkout option. Checkout must reference an unexpired plan.
 model CheckoutPlan {
-  id             String   @id @default(cuid())
-  userId         String
-  addressId      String
-  strategy       String
-  plan           Json
-  itemsHalalas   Int
+  id              String    @id @default(cuid())
+  userId          String
+  addressId       String
+  strategy        String
+  plan            Json
+  itemsHalalas    Int
   shippingHalalas Int
-  totalHalalas   Int
-  sandboxRates   Boolean
-  expiresAt      DateTime
-  usedAt         DateTime?
-  createdAt      DateTime @default(now())
+  totalHalalas    Int
+  sandboxRates    Boolean
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdAt       DateTime  @default(now())
 
   @@index([userId, createdAt])
   @@index([expiresAt])
@@ -616,10 +627,22 @@ model Order {
   reservations   InventoryReservation[]
   ledgerEntries  LedgerEntry[]
 
+  // organizations (see "organizations (workshops / fleets)" at the end): set only for workshop/fleet orders.
+  /// Buying organisation; present = B2B channel (commission rules derive the channel from it).
+  buyerOrgId      String?
+  /// The workshop's own job / plate reference, printed on its statement.
+  workOrderRef    String?
+  /// Attribution: the workshop→customer quote this order was converted from.
+  workshopQuoteId String?       @unique
+  /// NET_TERMS only: when the receivable for this order falls due (paidAt + credit termsDays).
+  creditDueAt     DateTime?
+  buyerOrg        Organization? @relation(fields: [buyerOrgId], references: [id])
+
   @@unique([customerId, idempotencyKey])
   @@index([status, createdAt])
   @@index([status, paymentExpiresAt])
   @@index([customerId, createdAt])
+  @@index([buyerOrgId, createdAt])
 }
 
 model MerchantOrder {
@@ -643,13 +666,13 @@ model MerchantOrder {
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
-  order          Order              @relation(fields: [orderId], references: [id])
-  merchant       Merchant           @relation(fields: [merchantId], references: [id])
-  items          OrderItem[]
-  groups         FulfillmentGroup[]
-  shipments      Shipment[]
-  returnCases    ReturnCase[]
-  settlementLine SettlementLine?
+  order           Order              @relation(fields: [orderId], references: [id])
+  merchant        Merchant           @relation(fields: [merchantId], references: [id])
+  items           OrderItem[]
+  groups          FulfillmentGroup[]
+  shipments       Shipment[]
+  returnCases     ReturnCase[]
+  settlementLines SettlementLine[]
 
   @@index([merchantId, status, createdAt])
   @@index([orderId])
@@ -674,6 +697,12 @@ model OrderItem {
   status             OrderItemStatus @default(ACTIVE)
   /// Server-computed fit at checkout: {vehicle, status, guaranteed, fitmentIds, vin}. Drives the fit guarantee.
   fitSnapshot        Json?
+  /// Commission resolved per line at checkout (category/origin/condition differ within one merchant order).
+  /// MerchantOrder.commissionHalalas = Σ lines; refunds reverse commission at the line's rate.
+  commissionBps      Int             @default(0)
+  commissionHalalas  Int             @default(0)
+  /// CommissionRule that matched (null = merchant rate or platform default). Plain column: rules may be edited later.
+  commissionRuleId   String?
   createdAt          DateTime        @default(now())
 
   order         Order            @relation(fields: [orderId], references: [id])
@@ -827,6 +856,10 @@ model Payment {
   capturedHalalas   Int           @default(0)
   refundedHalalas   Int           @default(0)
   sandbox           Boolean
+  /// Provider fee recorded at capture (PAYMENT_FEES). Sandbox fees come from the configured table and are estimates.
+  feeBps            Int           @default(0)
+  feeHalalas        Int           @default(0)
+  feeEstimated      Boolean       @default(false)
   redirectUrl       String?
   failureReason     String?
   createdAt         DateTime      @default(now())
@@ -949,6 +982,12 @@ enum LedgerAccount {
   SUSPENSE
   /// Platform-funded fit-guarantee cost (outbound shipping refunded + return shipping).
   GUARANTEE_EXPENSE
+  /// Owed by a buying organisation for NET_TERMS orders (debit = the workshop owes Qitah).
+  CUSTOMER_RECEIVABLE
+  /// Payment-provider fees (platform cost, debit). Credited to CUSTOMER_CLEARING: the PSP nets them from the funds it remits.
+  PAYMENT_FEES
+  /// Part of a merchant's payable withheld after an early (DAILY) payout until the return window closes.
+  MERCHANT_RESERVE
 }
 
 enum SettlementStatus {
@@ -991,18 +1030,23 @@ model LedgerPosting {
 }
 
 model Settlement {
-  id                String           @id @default(cuid())
-  merchantId        String
-  status            SettlementStatus @default(DRAFT)
-  grossHalalas      Int
-  commissionHalalas Int
-  refundsHalalas    Int
-  netHalalas        Int
-  payoutReference   String?
-  approvedById      String?
-  approvedAt        DateTime?
-  paidAt            DateTime?
-  createdAt         DateTime         @default(now())
+  id                     String           @id @default(cuid())
+  merchantId             String
+  status                 SettlementStatus @default(DRAFT)
+  grossHalalas           Int
+  commissionHalalas      Int
+  refundsHalalas         Int
+  netHalalas             Int
+  /// Withheld from early-payout lines (moved to MERCHANT_RESERVE) / released back in RESERVE_RELEASE lines.
+  reserveHeldHalalas     Int              @default(0)
+  reserveReleasedHalalas Int              @default(0)
+  /// Generated by the settlement worker job (vs. by a finance user).
+  automatic              Boolean          @default(false)
+  payoutReference        String?
+  approvedById           String?
+  approvedAt             DateTime?
+  paidAt                 DateTime?
+  createdAt              DateTime         @default(now())
 
   merchant Merchant         @relation(fields: [merchantId], references: [id])
   lines    SettlementLine[]
@@ -1011,15 +1055,20 @@ model Settlement {
 }
 
 model SettlementLine {
-  id                String        @id @default(cuid())
+  id                String             @id @default(cuid())
   settlementId      String
-  merchantOrderId   String        @unique
+  merchantOrderId   String
+  /// SALE: the order's payable (minus a reserve when paid early). RESERVE_RELEASE: the reserve, net of later refunds.
+  kind              SettlementLineKind @default(SALE)
   grossHalalas      Int
   commissionHalalas Int
   refundsHalalas    Int
   netHalalas        Int
-  settlement        Settlement    @relation(fields: [settlementId], references: [id], onDelete: Cascade)
-  merchantOrder     MerchantOrder @relation(fields: [merchantOrderId], references: [id])
+  reserveHalalas    Int                @default(0)
+  settlement        Settlement         @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  merchantOrder     MerchantOrder      @relation(fields: [merchantOrderId], references: [id])
+
+  @@unique([merchantOrderId, kind])
 }
 
 // ───────────────────────────────────────────── notifications, audit, events
@@ -1299,6 +1348,225 @@ model PartQuote {
   @@index([status, validUntil])
 }
 
+// ───────────────────────────────────────────── organizations (workshops / fleets)
+// "قطعة للورش": a workshop (or fleet) buys as an organisation. Members (OWNER > BUYER > TECHNICIAN) order on its
+// behalf; an approved org can get NET_TERMS credit from Qitah's INTERNAL SANDBOX credit ledger (no financing partner
+// is connected: `provider` says so). Merchants are always paid by Qitah regardless of how the workshop pays.
+// User ids are plain columns so this block adds no back-relations to models other agents edit in parallel.
+
+enum OrganizationType {
+  WORKSHOP
+  FLEET
+}
+
+enum OrganizationStatus {
+  APPLIED
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+/// Ordered OWNER > BUYER > TECHNICIAN. BUYER/OWNER may order; TECHNICIAN sees the org's orders only.
+enum OrganizationRole {
+  OWNER
+  BUYER
+  TECHNICIAN
+}
+
+enum OrganizationMemberStatus {
+  /// Invited by phone; linked to the user (userId set, ACTIVE) when that phone signs in with OTP.
+  INVITED
+  ACTIVE
+  REMOVED
+}
+
+enum OrganizationCreditStatus {
+  ACTIVE
+  FROZEN
+}
+
+enum WorkshopQuoteStatus {
+  SENT
+  APPROVED
+  DECLINED
+  EXPIRED
+  CONVERTED
+}
+
+model Organization {
+  id           String             @id @default(cuid())
+  type         OrganizationType   @default(WORKSHOP)
+  legalName    String
+  displayName  String
+  crNumber     String
+  vatNumber    String?
+  city         String
+  district     String
+  address      String
+  latitude     Float?
+  longitude    Float?
+  contactPhone String
+  status       OrganizationStatus @default(APPLIED)
+  statusReason String?
+  createdById  String
+  approvedAt   DateTime?
+  approvedById String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  members    OrganizationMember[]
+  credit     OrganizationCredit?
+  repayments OrganizationRepayment[]
+  quotes     WorkshopQuote[]
+  orders     Order[]
+
+  @@index([status, createdAt])
+  @@index([crNumber])
+}
+
+model OrganizationMember {
+  id           String                   @id @default(cuid())
+  orgId        String
+  /// Null while the invite is pending.
+  userId       String?
+  /// Phone the member was invited with (+9665XXXXXXXX); null for the founding OWNER.
+  invitedPhone String?
+  role         OrganizationRole
+  status       OrganizationMemberStatus @default(ACTIVE)
+  invitedById  String?
+  joinedAt     DateTime?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  org          Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@unique([orgId, invitedPhone])
+  @@index([userId, status])
+  @@index([invitedPhone, status])
+}
+
+/// Qitah's INTERNAL credit line for the sandbox (no external financing partner). Outstanding = the org's
+/// CUSTOMER_RECEIVABLE ledger balance; the row is locked FOR UPDATE by every NET_TERMS checkout.
+model OrganizationCredit {
+  id           String                   @id @default(cuid())
+  orgId        String                   @unique
+  limitHalalas Int
+  termsDays    Int                      @default(30)
+  status       OrganizationCreditStatus @default(ACTIVE)
+  provider     String                   @default("qitah-internal-sandbox")
+  approvedById String?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  org          Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+/// A repayment recorded by Qitah finance (bank transfer received outside Qitah). Allocated oldest-due first:
+/// [{orderId, amountHalalas}], one CREDIT_REPAYMENT ledger posting per allocated order.
+model OrganizationRepayment {
+  id             String       @id @default(cuid())
+  orgId          String
+  amountHalalas  Int
+  idempotencyKey String       @unique
+  reference      String?
+  note           String?
+  allocation     Json         @default("[]")
+  recordedById   String?
+  createdAt      DateTime     @default(now())
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+}
+
+/// "عرض سعر للعميل": a workshop's price proposal to its own customer, shared through an unguessable link
+/// (only the SHA-256 of the token is stored). Parts are priced at the Qitah price; labour and the workshop's
+/// margin (`markupHalalas`) are shown TRANSPARENTLY as their own lines ("أجرة اليد" / "رسوم الورشة").
+/// Approval converts it into a workshop order (Order.workshopQuoteId) bought at Qitah prices.
+model WorkshopQuote {
+  id              String              @id @default(cuid())
+  number          String              @unique
+  orgId           String
+  createdByUserId String
+  /// The workshop's delivery address (owned by createdByUserId), used when the quote is converted.
+  addressId       String
+  /// {plate?, vin?, model, year?} exactly as the workshop typed it.
+  vehicle         Json
+  /// [{offerId, productId, nameAr, nameEn, brand, partNumber, condition, quantity, unitPriceHalalas}]
+  lines           Json
+  partsHalalas    Int
+  laborHalalas    Int                 @default(0)
+  markupHalalas   Int                 @default(0)
+  totalHalalas    Int
+  note            String?
+  /// For sharing (WhatsApp) only; never shown on the public page.
+  customerPhone   String?
+  tokenHash       String              @unique
+  expiresAt       DateTime
+  status          WorkshopQuoteStatus @default(SENT)
+  respondedAt     DateTime?
+  orderId         String?             @unique
+  convertError    String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  org             Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+  @@index([status, expiresAt])
+}
+
+// ───────────────────────────────────────────── merchant economics
+// Commission rules, automatic settlement with an early-payout reserve, and job idempotency marks.
+// Merchant/category ids are plain columns (validated in services/commission.ts) so this block adds no
+// back-relations to models other agents edit in parallel. Fields added to existing models are marked
+// "merchant economics" in place (Merchant, Offer, OrderItem, Payment, Settlement, SettlementLine).
+
+enum SettlementCadence {
+  WEEKLY
+  DAILY
+}
+
+enum SettlementLineKind {
+  SALE
+  RESERVE_RELEASE
+}
+
+enum CommissionChannel {
+  B2C
+  B2B
+  ANY
+}
+
+/// Commission tier. NULL dimensions match anything; the most specific active rule wins (see domain/commission.ts).
+model CommissionRule {
+  id          String            @id @default(cuid())
+  name        String
+  merchantId  String?
+  categoryId  String?
+  origin      PartOrigin?
+  condition   Condition?
+  channel     CommissionChannel @default(ANY)
+  bps         Int
+  priority    Int               @default(0)
+  active      Boolean           @default(true)
+  validFrom   DateTime?
+  validTo     DateTime?
+  note        String?
+  createdById String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([active, merchantId])
+}
+
+/// Insert-first idempotency for scheduled jobs: one row per (job, scope, period), e.g.
+/// "settlement:<merchantId>:2026-10-25" or "stale-reminder:<merchantId>:2026-10-28".
+model JobRunMark {
+  key       String   @id
+  result    Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // ═════════════════════════════════════════════ BEGIN catalog read model (scale) ═════════════════════════════════════════════
 // One row per product, derived ONLY from offers that pass `publicOfferWhere` (services/catalog.ts).
 // Kept current in the same transaction as offer / stock / merchant / location changes by
@@ -1341,6 +1609,9 @@ model ProductListing {
   /// "fits this vehicle / model / make" for search instead of an EXISTS over ProductFitment per candidate.
   catalogFitKeys         String[]      @default([])
   sellerFitKeys          String[]      @default([])
+  /// Next instant a public offer of this product turns stale or hidden by time alone (offer freshness policy,
+  /// domain/freshness.ts); the worker re-derives listings once it has passed.
+  nextChangeAt           DateTime?
   /// Bumped only when a derived value actually changed (drives `/v1/catalog/changes`).
   updatedAt              DateTime      @default(now())
 
@@ -1348,6 +1619,7 @@ model ProductListing {
   @@index([listed, categoryId, offerCount(sort: Desc)])
   @@index([listed, universal, categoryId, offerCount(sort: Desc)])
   @@index([updatedAt])
+  @@index([nextChangeAt])
   @@index([merchantIds], type: Gin)
   @@index([catalogFitKeys], type: Gin)
   @@index([sellerFitKeys], type: Gin)

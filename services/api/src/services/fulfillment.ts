@@ -6,6 +6,7 @@ import { assertTransition, COLLECTED, MERCHANT_ORDER_TRANSITIONS } from '../doma
 import { conflict, forbidden, notFound } from '../lib/errors.js';
 import { audit, emit, notify, type Actor } from './events.js';
 import { releaseOrder, restock } from './inventory.js';
+import { refreshListingsForOffers } from './listings.js';
 import { recomputeOrderStatus } from './orders.js';
 import { createRefund, submitPendingRefunds, type Allocation } from './payments.js';
 import { ensureOutboundShipments } from './shipping.js';
@@ -38,10 +39,12 @@ async function transition(
 }
 
 export const acceptMerchantOrder = (ctx: Ctx, actor: Actor, id: string, merchantId?: string) =>
-  transition(ctx, actor, id, merchantId, 'ACCEPTED', async (mo) => ({
-    acceptedAt: new Date(),
-    readyBy: new Date(Date.now() + mo.merchant.slaReadyMinutes * 60_000),
-  }));
+  transition(ctx, actor, id, merchantId, 'ACCEPTED', async (mo, tx) => {
+    // Accepting is an availability confirmation for the offers on this order (offer freshness).
+    await tx.offer.updateMany({ where: { id: { in: mo.items.map((i) => i.offerId) }, visibility: 'PUBLIC' }, data: { lastConfirmedAt: new Date() } });
+    await refreshListingsForOffers(tx, mo.items.map((i) => i.offerId));
+    return { acceptedAt: new Date(), readyBy: new Date(Date.now() + mo.merchant.slaReadyMinutes * 60_000) };
+  });
 
 export const startPacking = (ctx: Ctx, actor: Actor, id: string, merchantId?: string) => transition(ctx, actor, id, merchantId, 'PACKING');
 
@@ -94,7 +97,16 @@ async function cancelMerchantOrderInTx(
   await tx.merchantOrder.update({ where: { id: mo.id }, data: { status: to, rejectedReason: reason } });
   const payment = await tx.payment.findFirst({ where: { orderId: mo.orderId, status: { in: ['CAPTURED', 'PARTIALLY_REFUNDED'] } } });
   if (payment) {
-    const allocation: Allocation = [{ merchantId: mo.merchantId, merchantOrderId: mo.id, items: mo.itemsHalalas, commission: mo.commissionHalalas, shipping: mo.shippingHalalas }];
+    const allocation: Allocation = [
+      {
+        merchantId: mo.merchantId,
+        merchantOrderId: mo.id,
+        items: mo.itemsHalalas,
+        commission: mo.commissionHalalas,
+        shipping: mo.shippingHalalas,
+        lines: mo.items.map((i) => ({ orderItemId: i.id, items: i.lineTotalHalalas, commission: i.commissionHalalas })),
+      },
+    ];
     await createRefund(tx, {
       payment,
       amountHalalas: mo.itemsHalalas + mo.shippingHalalas,

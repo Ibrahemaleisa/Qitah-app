@@ -1,8 +1,10 @@
-import { Prisma, type Payment } from '@prisma/client';
+import { Prisma, type LedgerAccount, type MerchantOrder, type Order, type Payment } from '@prisma/client';
 
 import type { Ctx } from '../context.js';
 import { prisma, withTx, type Tx } from '../db.js';
+import type { Config } from '../config.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
+import { applyBps } from '../lib/money.js';
 import type { PaymentWebhookEvent } from '../providers/payment/types.js';
 import { audit, emit, notify, type Actor } from './events.js';
 import { commitOrder, releaseOrder } from './inventory.js';
@@ -11,7 +13,14 @@ import { post, type LedgerLine } from './ledger.js';
 /**
  * Payment lifecycle. An order becomes PAID only from a verified provider webhook — never from a
  * client-side success callback. Webhooks are deduplicated on (provider, providerEventId).
+ *
+ * Exception: NET_TERMS orders of approved workshops are captured by the server at checkout against Qitah's
+ * internal credit line (Payment.provider = CREDIT_PROVIDER). No money moves through a provider for them;
+ * the workshop owes Qitah (CUSTOMER_RECEIVABLE) until finance records its repayment.
  */
+
+/** Payment.provider for NET_TERMS orders. Never sent to the payment provider (no providerPaymentId). */
+export const CREDIT_PROVIDER = 'credit';
 
 export async function initiatePayment(ctx: Ctx, orderId: string, method: string): Promise<Payment> {
   const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: { payments: { orderBy: { createdAt: 'desc' } } } });
@@ -67,7 +76,46 @@ async function lockPayment(tx: Tx, providerPaymentId: string) {
   await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${found.orderId} FOR UPDATE`;
   const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Payment" WHERE "providerPaymentId" = ${providerPaymentId} FOR UPDATE`;
   if (!rows.length) return null;
-  return tx.payment.findUniqueOrThrow({ where: { id: rows[0].id }, include: { order: { include: { merchantOrders: true } } } });
+  return tx.payment.findUniqueOrThrow({ where: { id: rows[0].id }, include: { order: { include: { merchantOrders: { include: { groups: { select: { serviceCode: true } } } } } } } });
+}
+
+/** Provider fee table (bps of the captured amount) per payment method; configurable through env. */
+export function paymentFeeBps(config: Pick<Config, 'PAYMENT_FEE_BPS_MADA' | 'PAYMENT_FEE_BPS_CARD' | 'PAYMENT_FEE_BPS_APPLE_PAY' | 'PAYMENT_FEE_BPS_STC_PAY'>, method: string): number {
+  const table: Record<string, number> = {
+    mada: config.PAYMENT_FEE_BPS_MADA,
+    card: config.PAYMENT_FEE_BPS_CARD,
+    applePay: config.PAYMENT_FEE_BPS_APPLE_PAY,
+    stcPay: config.PAYMENT_FEE_BPS_STC_PAY,
+  };
+  // Unknown methods are charged like a card (the most expensive common rail) rather than as free.
+  return table[method] ?? config.PAYMENT_FEE_BPS_CARD;
+}
+
+/**
+ * Records the provider's fee for a capture: a PLATFORM cost (debit PAYMENT_FEES) netted by the PSP from the funds
+ * it remits (credit CUSTOMER_CLEARING). It never changes what the merchant or the customer is owed. Fees are not
+ * returned on refunds (mada/card MDR is not refunded), so refunds never touch this posting.
+ * Sandbox: the fee is computed from the configured table and flagged `feeEstimated`.
+ */
+async function recordPaymentFee(ctx: Ctx, tx: Tx, payment: { id: string; method: string; sandbox: boolean; orderId: string }, capturedHalalas: number) {
+  const feeBps = paymentFeeBps(ctx.config, payment.method);
+  const feeHalalas = applyBps(capturedHalalas, feeBps);
+  await tx.payment.update({ where: { id: payment.id }, data: { feeBps, feeHalalas, feeEstimated: payment.sandbox } });
+  await post(tx, {
+    type: 'PAYMENT_FEE',
+    refType: 'payment',
+    refId: payment.id,
+    orderId: payment.orderId,
+    lines: [
+      { account: 'PAYMENT_FEES', amountHalalas: feeHalalas },
+      { account: 'CUSTOMER_CLEARING', amountHalalas: -feeHalalas },
+    ],
+  });
+}
+
+/** Accept SLA in minutes: same-day orders get the fast SLA (capped at the merchant's own SLA when shorter). */
+export function acceptSlaMinutes(merchantSlaMinutes: number, serviceCodes: string[], sameDayMinutes: number): number {
+  return serviceCodes.includes('sameDay') ? Math.min(merchantSlaMinutes, sameDayMinutes) : merchantSlaMinutes;
 }
 
 async function applyEvent(ctx: Ctx, tx: Tx, event: PaymentWebhookEvent): Promise<WebhookResult & { paymentId?: string }> {
@@ -85,6 +133,8 @@ async function applyEvent(ctx: Ctx, tx: Tx, event: PaymentWebhookEvent): Promise
       return { outcome: 'flagged', detail: 'AMOUNT_MISMATCH', paymentId: payment.id };
     }
     await tx.payment.update({ where: { id: payment.id }, data: { status: 'CAPTURED', capturedHalalas: event.amountHalalas } });
+    // The provider charges its fee on every capture, including late/duplicate ones we refund.
+    await recordPaymentFee(ctx, tx, payment, event.amountHalalas);
 
     if (order.status !== 'PENDING_PAYMENT') {
       // Money arrived for an order we can no longer fulfil (expired / cancelled / paid twice): hold in suspense and refund in full.
@@ -110,33 +160,7 @@ async function applyEvent(ctx: Ctx, tx: Tx, event: PaymentWebhookEvent): Promise
       return { outcome: 'flagged', detail: 'LATE_PAYMENT_REFUNDED', paymentId: payment.id };
     }
 
-    const now = new Date();
-    await commitOrder(tx, order.id);
-    await tx.order.update({ where: { id: order.id }, data: { status: 'PAID', paidAt: now } });
-    const merchants = await tx.merchant.findMany({ where: { id: { in: order.merchantOrders.map((m) => m.merchantId) } } });
-    for (const mo of order.merchantOrders) {
-      const m = merchants.find((x) => x.id === mo.merchantId)!;
-      await tx.merchantOrder.update({ where: { id: mo.id }, data: { status: 'NEW', acceptBy: new Date(now.getTime() + m.slaAcceptMinutes * 60_000) } });
-      await notify(tx, { audience: 'MERCHANT', merchantId: mo.merchantId, type: 'merchant_order.new', title: 'طلب جديد', body: `طلب ${mo.number} بانتظار القبول`, data: { merchantOrderId: mo.id } });
-    }
-    const lines: LedgerLine[] = [{ account: 'CUSTOMER_CLEARING', amountHalalas: order.totalHalalas }];
-    for (const mo of order.merchantOrders) {
-      lines.push({ account: 'MERCHANT_PAYABLE', amountHalalas: -(mo.itemsHalalas - mo.commissionHalalas), merchantId: mo.merchantId, merchantOrderId: mo.id });
-      lines.push({ account: 'PLATFORM_COMMISSION', amountHalalas: -mo.commissionHalalas, merchantId: mo.merchantId, merchantOrderId: mo.id });
-      lines.push({ account: 'SHIPPING_PAYABLE', amountHalalas: -mo.shippingHalalas, merchantId: mo.merchantId, merchantOrderId: mo.id });
-    }
-    if (order.discountHalalas) lines.push({ account: 'PLATFORM_COMMISSION', amountHalalas: order.discountHalalas });
-    await post(tx, { type: 'PAYMENT_CAPTURED', refType: 'payment', refId: payment.id, orderId: order.id, lines });
-    await audit(tx, actor, { action: 'payment.captured', entityType: 'order', entityId: order.id, data: { paymentId: payment.id, amount: event.amountHalalas } });
-    await emit(tx, {
-      type: 'order.paid',
-      entityType: 'order',
-      entityId: order.id,
-      orderId: order.id,
-      customerId: order.customerId,
-      merchantIds: order.merchantOrders.map((m) => m.merchantId),
-    });
-    await notify(tx, { audience: 'CUSTOMER', userId: order.customerId, type: 'order.paid', title: `الطلب ${order.number}`, body: 'تم تأكيد الدفع', data: { orderId: order.id } });
+    await confirmPaidOrder(tx, { order, paymentId: payment.id, amountHalalas: event.amountHalalas, debit: 'CUSTOMER_CLEARING', actor, sameDayAcceptMinutes: ctx.config.SLA_SAME_DAY_ACCEPT_MINUTES });
     return { outcome: 'processed', paymentId: payment.id };
   }
 
@@ -165,10 +189,72 @@ async function applyEvent(ctx: Ctx, tx: Tx, event: PaymentWebhookEvent): Promise
 }
 
 /**
+ * Marks a PENDING_PAYMENT order PAID once its money is secured, commits stock, releases suborders to merchants
+ * and posts the capture. The caller holds the Order lock. `debit` is CUSTOMER_CLEARING for money received from a
+ * payment provider (verified webhook), or CUSTOMER_RECEIVABLE for a NET_TERMS order the workshop owes Qitah.
+ * Either way the merchant payable is identical: merchants are paid by Qitah regardless of how the buyer pays.
+ */
+export async function confirmPaidOrder(
+  tx: Tx,
+  input: {
+    order: Order & { merchantOrders: MerchantOrder[] };
+    paymentId: string;
+    amountHalalas: number;
+    debit: Extract<LedgerAccount, 'CUSTOMER_CLEARING' | 'CUSTOMER_RECEIVABLE'>;
+    actor: Actor;
+    /** Accept-SLA cap for same-day orders (config SLA_SAME_DAY_ACCEPT_MINUTES). */
+    sameDayAcceptMinutes: number;
+    now?: Date;
+    orderData?: Prisma.OrderUpdateInput;
+  },
+) {
+  const { order, actor } = input;
+  const now = input.now ?? new Date();
+  await commitOrder(tx, order.id);
+  await tx.order.update({ where: { id: order.id }, data: { ...input.orderData, status: 'PAID', paidAt: now } });
+  const merchants = await tx.merchant.findMany({ where: { id: { in: order.merchantOrders.map((m) => m.merchantId) } } });
+  for (const mo of order.merchantOrders) {
+    const m = merchants.find((x) => x.id === mo.merchantId)!;
+    const groups = await tx.fulfillmentGroup.findMany({ where: { merchantOrderId: mo.id }, select: { serviceCode: true } });
+    const slaMinutes = acceptSlaMinutes(m.slaAcceptMinutes, groups.map((g) => g.serviceCode), input.sameDayAcceptMinutes);
+    await tx.merchantOrder.update({ where: { id: mo.id }, data: { status: 'NEW', acceptBy: new Date(now.getTime() + slaMinutes * 60_000) } });
+    await notify(tx, { audience: 'MERCHANT', merchantId: mo.merchantId, type: 'merchant_order.new', title: 'طلب جديد', body: `طلب ${mo.number} بانتظار القبول`, data: { merchantOrderId: mo.id } });
+  }
+  const lines: LedgerLine[] = [{ account: input.debit, amountHalalas: order.totalHalalas }];
+  for (const mo of order.merchantOrders) {
+    lines.push({ account: 'MERCHANT_PAYABLE', amountHalalas: -(mo.itemsHalalas - mo.commissionHalalas), merchantId: mo.merchantId, merchantOrderId: mo.id });
+    lines.push({ account: 'PLATFORM_COMMISSION', amountHalalas: -mo.commissionHalalas, merchantId: mo.merchantId, merchantOrderId: mo.id });
+    lines.push({ account: 'SHIPPING_PAYABLE', amountHalalas: -mo.shippingHalalas, merchantId: mo.merchantId, merchantOrderId: mo.id });
+  }
+  if (order.discountHalalas) lines.push({ account: 'PLATFORM_COMMISSION', amountHalalas: order.discountHalalas });
+  await post(tx, { type: 'PAYMENT_CAPTURED', refType: 'payment', refId: input.paymentId, orderId: order.id, lines });
+  await audit(tx, actor, { action: 'payment.captured', entityType: 'order', entityId: order.id, data: { paymentId: input.paymentId, amount: input.amountHalalas, debit: input.debit } });
+  await emit(tx, {
+    type: 'order.paid',
+    entityType: 'order',
+    entityId: order.id,
+    orderId: order.id,
+    customerId: order.customerId,
+    merchantIds: order.merchantOrders.map((m) => m.merchantId),
+  });
+  const body = input.debit === 'CUSTOMER_RECEIVABLE' ? 'تم تأكيد الطلب على حساب الدفع الآجل' : 'تم تأكيد الدفع';
+  await notify(tx, { audience: 'CUSTOMER', userId: order.customerId, type: 'order.paid', title: `الطلب ${order.number}`, body, data: { orderId: order.id } });
+}
+
+/**
  * Per-merchant refund split used for ledger postings. `shipping` reverses (or, negative, adds to) the carrier
  * payable; `platformShipping` is the part Qitah funds itself (fit guarantee), booked to GUARANTEE_EXPENSE.
  */
-export type Allocation = { merchantId: string; merchantOrderId: string; items: number; commission: number; shipping: number; platformShipping?: number }[];
+export type Allocation = {
+  merchantId: string;
+  merchantOrderId: string;
+  items: number;
+  commission: number;
+  shipping: number;
+  platformShipping?: number;
+  /** Per order line split of `items`/`commission` (each line reversed at its own commission rate). */
+  lines?: { orderItemId: string; items: number; commission: number }[];
+}[];
 
 /** Creates a PENDING refund (DB only). Call `submitPendingRefunds` after the transaction commits. */
 export async function createRefund(
@@ -209,6 +295,8 @@ export async function createRefund(
   });
   await audit(tx, input.actor, { action: 'refund.requested', entityType: 'order', entityId: input.payment.orderId, data: { refundId: refund.id, amount: input.amountHalalas, reason: input.reason } });
   await emit(tx, { type: 'refund.requested', entityType: 'refund', entityId: refund.id, orderId: input.payment.orderId });
+  // NET_TERMS: nothing to send to a provider. The refund reduces what the workshop owes, in this transaction.
+  if (current.provider === CREDIT_PROVIDER) return settleRefund(tx, refund.id);
   return refund;
 }
 
@@ -228,7 +316,9 @@ export async function submitPendingRefunds(ctx: Ctx, orderId?: string) {
 }
 
 async function settleRefund(tx: Tx, refundId: string) {
-  const refund = await tx.refund.update({ where: { id: refundId }, data: { status: 'SUCCEEDED' } });
+  const pending = await tx.refund.findUniqueOrThrow({ where: { id: refundId }, include: { payment: true } });
+  const credit = pending.payment.provider === CREDIT_PROVIDER;
+  const refund = await tx.refund.update({ where: { id: refundId }, data: { status: 'SUCCEEDED', ...(credit ? { providerRefundId: `credit:${refundId}` } : {}) } });
   const payment = await tx.payment.findUniqueOrThrow({ where: { id: refund.paymentId } });
   const refunded = payment.refundedHalalas + refund.amountHalalas;
   await tx.payment.update({
@@ -241,7 +331,26 @@ async function settleRefund(tx: Tx, refundId: string) {
   if (!fromSuspense) {
     await tx.order.update({ where: { id: order.id }, data: { refundedHalalas: { increment: refund.amountHalalas } } });
   }
-  const lines: LedgerLine[] = [{ account: 'CUSTOMER_CLEARING', amountHalalas: -refund.amountHalalas }];
+  const lines: LedgerLine[] = [];
+  if (credit) {
+    // Credit order: reduce the receivable. Only if the workshop already repaid this order does the remainder
+    // become cash Qitah owes back to it (CUSTOMER_CLEARING, paid out by finance like a provider refund).
+    const owed = await tx.ledgerEntry.aggregate({ where: { orderId: order.id, account: 'CUSTOMER_RECEIVABLE' }, _sum: { amountHalalas: true } });
+    const fromReceivable = Math.min(refund.amountHalalas, Math.max(0, owed._sum.amountHalalas ?? 0));
+    lines.push({ account: 'CUSTOMER_RECEIVABLE', amountHalalas: -fromReceivable });
+    if (refund.amountHalalas > fromReceivable) {
+      lines.push({ account: 'CUSTOMER_CLEARING', amountHalalas: -(refund.amountHalalas - fromReceivable) });
+      await notify(tx, {
+        audience: 'OPS',
+        type: 'credit.refund_payout',
+        title: 'استرداد نقدي لورشة',
+        body: `الطلب ${order.number}: ${((refund.amountHalalas - fromReceivable) / 100).toFixed(2)} ر.س بعد السداد`,
+        data: { orderId: order.id, refundId: refund.id },
+      });
+    }
+  } else {
+    lines.push({ account: 'CUSTOMER_CLEARING', amountHalalas: -refund.amountHalalas });
+  }
   if (fromSuspense) lines.push({ account: 'SUSPENSE', amountHalalas: refund.amountHalalas });
   for (const a of refund.allocation as Allocation) {
     lines.push({ account: 'MERCHANT_PAYABLE', amountHalalas: a.items - a.commission, merchantId: a.merchantId, merchantOrderId: a.merchantOrderId });
@@ -260,9 +369,12 @@ async function settleRefund(tx: Tx, refundId: string) {
     userId: order.customerId,
     type: 'refund.succeeded',
     title: `الطلب ${order.number}`,
-    body: `تم استرداد ${(refund.amountHalalas / 100).toFixed(2)} ر.س`,
+    body: credit
+      ? `تم خصم ${(refund.amountHalalas / 100).toFixed(2)} ر.س من مستحقات الدفع الآجل`
+      : `تم استرداد ${(refund.amountHalalas / 100).toFixed(2)} ر.س`,
     data: { orderId: order.id },
   });
+  return refund;
 }
 
 /** Expires unpaid orders whose reservation window ended and releases their stock. */

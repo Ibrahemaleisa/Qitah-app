@@ -455,6 +455,8 @@ function Trace({ t, reload }: { t: OrderTrace; reload: () => void }) {
                 ['المحصّل', <Money key="c" h={r.capturedHalalas} />],
                 ['المسترد (ناجح)', <Money key="r" h={r.refundedHalalas} />],
                 ['صافي المحصّل', <Money key="n" h={r.netCollectedHalalas} />],
+                ['رسوم مزود الدفع' + (r.paymentFeesEstimated ? ' (تقديرية)' : ''), <Money key="f" h={r.paymentFeesHalalas ?? 0} />],
+                ['هامش المساهمة', <Money key="m" h={r.margin?.contributionHalalas ?? 0} />],
                 ...Object.entries(r.ledger).map(([acct, v]) => [ACCOUNT_LABEL[acct] ?? acct, <Money key={acct} h={v} />] as [string, React.ReactNode]),
               ]}
             />

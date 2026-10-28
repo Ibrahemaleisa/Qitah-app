@@ -3,11 +3,14 @@ import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { Ctx } from './context.js';
 import { prisma, withTx } from './db.js';
 import { notify } from './services/events.js';
-import { sweepListings } from './services/listings.js';
+import { autoSettlements, releaseReserves } from './services/finance.js';
+import { staleOfferReminders } from './services/freshness.js';
+import { refreshDueListings, sweepListings } from './services/listings.js';
 import { maintenanceReminders } from './services/maintenance.js';
 import { expirePartRequests } from './services/partRequests.js';
 import { expireUnpaidOrders, submitPendingRefunds } from './services/payments.js';
 import { pendingSandboxRefundWebhooks, type Delivery } from './services/sandboxDelivery.js';
+import { refreshQualityScores } from './services/scorecard.js';
 
 /**
  * Background jobs. Every job is idempotent and safe to run concurrently on several workers
@@ -104,16 +107,38 @@ export async function maintenanceRemindersThrottled(now = new Date()) {
 }
 
 /**
- * ProductListing safety net: re-derives a slice of the catalog per minute (≈2,000 products, so a 1M-SKU
- * catalog is fully re-checked about every 8 hours per worker) plus any product still missing a row.
- * Write paths keep the read model current synchronously; this only repairs drift and time-based rules.
+ * ProductListing upkeep, once a minute: (1) products whose offers just crossed a freshness boundary
+ * (`nextChangeAt`: an offer turning stale or hidden by time alone, with no write) are re-derived; (2) a
+ * safety-net slice of the catalog (≈2,000 products, so 1M SKUs are fully re-checked about every 8 hours per
+ * worker) plus any product still missing a row. Write paths keep the read model current synchronously.
  */
 const LISTING_SWEEP_EVERY_MS = 60_000;
 let lastListingSweep = 0;
 export async function listingSweepThrottled(now = new Date()) {
   if (now.getTime() - lastListingSweep < LISTING_SWEEP_EVERY_MS) return 0;
   lastListingSweep = now.getTime();
-  return sweepListings();
+  return (await refreshDueListings(now)) + (await sweepListings());
+}
+
+/**
+ * Merchant economics jobs (each idempotent on its own): release early-payout reserves whose window closed, then
+ * generate the period's automatic DRAFT settlements, remind merchants about offers going stale, and refresh the
+ * cached merchant quality scores used to order offers.
+ * They scan merchants/offers, so the worker loop runs them at most every 10 minutes per process.
+ */
+const ECONOMICS_EVERY_MS = 600_000;
+let lastEconomicsRun = 0;
+export async function economicsJobs(ctx: Ctx, now = new Date()) {
+  const reservesReleased = await releaseReserves(ctx, now);
+  const settlementsDrafted = await autoSettlements(ctx, now);
+  const staleReminders = await staleOfferReminders(now);
+  const qualityScoresUpdated = await refreshQualityScores(now);
+  return { reservesReleased, settlementsDrafted, staleReminders, qualityScoresUpdated };
+}
+export async function economicsJobsThrottled(ctx: Ctx, now = new Date()) {
+  if (now.getTime() - lastEconomicsRun < ECONOMICS_EVERY_MS) return { reservesReleased: 0, settlementsDrafted: 0, staleReminders: 0, qualityScoresUpdated: 0 };
+  lastEconomicsRun = now.getTime();
+  return economicsJobs(ctx, now);
 }
 
 export async function runAllJobs(ctx: Ctx, opts: { sqs?: { client: SQSClient; queueUrl: string }; deliver?: (d: Delivery) => Promise<unknown> } = {}) {
@@ -129,6 +154,7 @@ export async function runAllJobs(ctx: Ctx, opts: { sqs?: { client: SQSClient; qu
     out.sandboxRefundsSettled = deliveries.length;
   }
   out.maintenanceReminders = await maintenanceRemindersThrottled();
+  Object.assign(out, await economicsJobsThrottled(ctx));
   out.listingsRepaired = await listingSweepThrottled();
   out.outbox = await relayOutbox(opts.sqs);
   out.purged = await purgeExpired();

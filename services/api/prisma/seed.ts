@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 import { hashPassword } from '../src/auth/crypto.js';
 import { prisma as appPrisma } from '../src/db.js';
+import { DEFAULT_COMMISSION_RULES } from '../src/domain/commission.js';
 import { GENERIC_MAINTENANCE_TEMPLATES } from '../src/lib/maintenance.js';
 import { normalizePartNumber } from '../src/lib/text.js';
 import { buildSearchText } from '../src/services/catalog.js';
@@ -124,6 +125,8 @@ async function main() {
   }
   const passwordHash = await hashPassword(PASSWORD);
 
+  // Commission tiers: the migration inserts them, but --force wipes every table, so re-create them here.
+  for (const r of DEFAULT_COMMISSION_RULES) await prisma.commissionRule.upsert({ where: { id: r.id }, update: {}, create: { ...r, note: 'Committee default' } });
   for (const [i, c] of data.categories.entries()) await prisma.category.create({ data: { id: c.id, nameAr: c.name.ar, nameEn: c.name.en, art: c.art, sort: i } });
   for (const m of data.makes) {
     await prisma.vehicleMake.create({
@@ -164,7 +167,8 @@ async function main() {
         contactPhone: `+96650000${String(1000 + i)}`,
         status: 'APPROVED',
         approvedAt: new Date(),
-        commissionBps: s.id === 's-salvage' ? 1200 : 1000,
+        // Negotiated merchant-wide rate for the salvage yard; everyone else uses the CommissionRule tiers (migration seeds them).
+        commissionBps: s.id === 's-salvage' ? 1200 : null,
         supportsWorkshopDelivery: s.supportsWorkshopDelivery,
         slaAcceptMinutes: Math.max(60, s.responseHours * 60),
         createdAt: new Date(Date.UTC(s.joinedYear, 0, 15)),

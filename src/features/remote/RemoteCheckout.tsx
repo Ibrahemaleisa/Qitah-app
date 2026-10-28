@@ -5,12 +5,13 @@ import { Platform, View } from 'react-native';
 import { toApiError } from '@/api/client';
 import { checkoutApi } from '@/api/endpoints';
 import { halalasToSar } from '@/api/money';
-import type { PlanOption, PlanResponse, RemotePaymentMethod, Strategy } from '@/api/types';
+import type { CheckoutPaymentMethod, PlanOption, PlanResponse, RemotePaymentMethod, Strategy } from '@/api/types';
 import { getProduct } from '@/data/catalog';
 import { getOffer } from '@/data/offers';
 import { cityLabel } from '@/data/sellers';
 import { guaranteeState } from '@/domain/guarantee';
 import type { DeliveryDestination } from '@/domain/types';
+import { canBuyForOrg, netTermsState, normalizeWorkOrderRef } from '@/domain/workshop';
 import { GuaranteeBadge } from '@/features/trust';
 import { useI18n } from '@/i18n';
 import { apiErrorMessage } from '@/lib/api-errors';
@@ -18,6 +19,7 @@ import { haptic } from '@/lib/haptics';
 import { makeId } from '@/lib/id';
 import { vehicleLabel } from '@/lib/vehicle';
 import { paymentMethods } from '@/services/payments/mock';
+import { refreshOrgs, useActiveOrg } from '@/services/remote/workshop';
 import { useAppStore, useSelectedVehicle } from '@/store/app-store';
 import { colors, radius, space } from '@/theme/tokens';
 import { Badge } from '@/ui/Badge';
@@ -25,6 +27,7 @@ import { Button } from '@/ui/Button';
 import { ChoiceRow } from '@/ui/ChoiceRow';
 import { EmptyState } from '@/ui/EmptyState';
 import { Icon, type IconName } from '@/ui/Icon';
+import { Input } from '@/ui/Input';
 import { Notice } from '@/ui/Notice';
 import { Pressable } from '@/ui/Pressable';
 import { Screen, ScreenHeader, StickyFooter } from '@/ui/Screen';
@@ -66,7 +69,11 @@ export function RemoteCheckout() {
   const address = candidates.find((a) => a.id === addressId) ?? candidates[0];
   const [plan, setPlan] = useState<PlanState>({ status: 'idle' });
   const [strategy, setStrategy] = useState<Strategy>('selected');
-  const [method, setMethod] = useState<RemotePaymentMethod>(Platform.OS === 'ios' ? 'applePay' : 'mada');
+  const [method, setMethod] = useState<CheckoutPaymentMethod>(Platform.OS === 'ios' ? 'applePay' : 'mada');
+  // Workshop mode ("وضع الورشة"): buy for the active organisation; retail mode leaves all of this unset.
+  const activeOrg = useActiveOrg();
+  const orgBuyer = canBuyForOrg(activeOrg);
+  const [workOrderRef, setWorkOrderRef] = useState('');
   const [placing, setPlacing] = useState(false);
   const [notice, setNotice] = useState<string>();
   const requestSeq = useRef(0);
@@ -122,7 +129,10 @@ export function RemoteCheckout() {
   if (cart.length === 0) blockers.push('emptyCart');
   if (!user) blockers.push('signIn');
   if (!address) blockers.push('address');
-  const canPlace = blockers.length === 0 && !!selectedOption && plan.status === 'ready' && !placing;
+  const netTerms = activeOrg ? netTermsState(activeOrg, selectedOption?.totalHalalas) : 'none';
+  // NET_TERMS only while it covers this total; otherwise fall back to the default card method.
+  const effectiveMethod: CheckoutPaymentMethod = method === 'NET_TERMS' && netTerms !== 'available' ? (Platform.OS === 'ios' ? 'applePay' : 'mada') : method;
+  const canPlace = blockers.length === 0 && !!selectedOption && plan.status === 'ready' && !placing && (!activeOrg || orgBuyer);
 
   const sellerName = (offerId: string, group?: { merchantNameAr: string; merchantNameEn: string }) =>
     group ? tx({ ar: group.merchantNameAr, en: group.merchantNameEn || group.merchantNameAr }) : (getOffer(offerId)?.sellerId ?? '');
@@ -134,28 +144,38 @@ export function RemoteCheckout() {
       attempt.current = { planId: selectedOption.planId, key: makeId('chk') };
     }
     const current = attempt.current;
+    const onCredit = effectiveMethod === 'NET_TERMS';
     // Web: open the tab inside the tap so the browser doesn't block it; it's pointed at the
-    // provider page once the order exists.
-    const tab = preopenPaymentTab();
+    // provider page once the order exists. Net terms never visit a payment page.
+    const tab = onCredit ? null : preopenPaymentTab();
     setPlacing(true);
     setNotice(undefined);
     try {
       const res = await checkoutApi.place({
         planId: current.planId,
         idempotencyKey: current.key,
-        paymentMethod: method,
+        paymentMethod: effectiveMethod,
         // Only a reference to the saved garage vehicle: the server computes each line's fit and guarantee itself.
         vehicle: vehicle && !/^veh-/.test(vehicle.id) ? { garageVehicleId: vehicle.id } : undefined,
+        ...(activeOrg && orgBuyer ? { buyerOrgId: activeOrg.org.id, workOrderRef: normalizeWorkOrderRef(workOrderRef) } : {}),
       });
+      if (onCredit) {
+        // Confirmed by the server on the workshop's credit line: the payment screen sees PAID and shows success.
+        haptic.success();
+        refreshOrgs().catch(() => {});
+        router.replace({ pathname: '/checkout/payment', params: { orderId: res.orderId } });
+        return;
+      }
       let opened = true;
       if (res.payment?.redirectUrl && Platform.OS === 'web') opened = await openPaymentPage(res.payment.redirectUrl, tab);
       else closePaymentTab(tab);
       haptic.success();
-      router.replace({ pathname: '/checkout/payment', params: { orderId: res.orderId, method, open: Platform.OS === 'web' ? '0' : '1', blocked: opened ? '0' : '1' } });
+      router.replace({ pathname: '/checkout/payment', params: { orderId: res.orderId, method: effectiveMethod, open: Platform.OS === 'web' ? '0' : '1', blocked: opened ? '0' : '1' } });
     } catch (e) {
       closePaymentTab(tab);
       setPlacing(false);
       const err = toApiError(e);
+      if (err.code === 'CREDIT_LIMIT_EXCEEDED' || err.code === 'CREDIT_FROZEN') refreshOrgs().catch(() => {});
       haptic.warning();
       if ((REPLAN_CODES as readonly string[]).includes(String(err.code))) {
         attempt.current = null;
@@ -165,7 +185,7 @@ export function RemoteCheckout() {
       }
       // Network/timeouts: the same idempotency key is reused on the next tap, so a request that
       // actually reached the server can't create a second order.
-      toast(apiErrorMessage(s, err), 'alert-circle');
+      toast(s.workshop.errors[String(err.code)] ?? apiErrorMessage(s, err), 'alert-circle');
     }
   };
 
@@ -181,7 +201,7 @@ export function RemoteCheckout() {
     if (b === 'signIn') router.push('/sign-in');
     else router.push({ pathname: '/address/edit', params: { kind: destination } });
   };
-  const methodName = tx(paymentMethods.find((m) => m.id === method)?.name ?? { ar: method, en: method });
+  const methodName = effectiveMethod === 'NET_TERMS' ? s.workshop.netTerms : tx(paymentMethods.find((m) => m.id === effectiveMethod)?.name ?? { ar: effectiveMethod, en: effectiveMethod });
   const total = selectedOption ? halalasToSar(selectedOption.totalHalalas) : undefined;
   const unavailable = plan.data?.unavailable ?? [];
 
@@ -207,7 +227,7 @@ export function RemoteCheckout() {
             </View>
           ) : null}
           <Button
-            label={placing ? s.remote.placing : s.checkout.payWith(methodName)}
+            label={placing ? s.remote.placing : effectiveMethod === 'NET_TERMS' ? s.workshop.confirmNetTerms : s.checkout.payWith(methodName)}
             trailing={placing || total === undefined ? undefined : money(total)}
             loading={placing}
             disabled={!canPlace}
@@ -217,6 +237,11 @@ export function RemoteCheckout() {
       }
     >
       <Notice tone="sample" icon="shield" text={s.remote.sandboxPayment} />
+      {activeOrg ? (
+        <View style={{ marginTop: space.sm }}>
+          <Notice tone={orgBuyer ? 'info' : 'warning'} icon="store" text={orgBuyer ? s.workshop.orderFor(activeOrg.org.displayName) : s.workshop.technicianNoBuy} />
+        </View>
+      ) : null}
 
       <Section step={1} title={s.checkout.deliverTo}>
         <Segmented
@@ -346,12 +371,32 @@ export function RemoteCheckout() {
 
       <Section step={3} title={s.checkout.payment}>
         <View style={{ gap: space.sm }}>
+          {activeOrg && orgBuyer && netTerms !== 'none' && activeOrg.credit ? (
+            <ChoiceRow
+              selected={effectiveMethod === 'NET_TERMS'}
+              disabled={netTerms !== 'available'}
+              onPress={() => setMethod('NET_TERMS')}
+              title={s.workshop.netTerms}
+              subtitle={
+                netTerms === 'frozen'
+                  ? s.workshop.creditFrozen
+                  : netTerms === 'overLimit'
+                    ? s.workshop.netTermsOverLimit(money(halalasToSar(activeOrg.credit.availableHalalas)))
+                    : s.workshop.netTermsHint(activeOrg.credit.termsDays, money(halalasToSar(activeOrg.credit.availableHalalas)))
+              }
+              leading={
+                <View style={{ width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="receipt" size={17} />
+                </View>
+              }
+            />
+          ) : null}
           {REMOTE_METHODS.map((id) => {
             const m = paymentMethods.find((x) => x.id === id)!;
             return (
               <ChoiceRow
                 key={id}
-                selected={method === id}
+                selected={effectiveMethod === id}
                 onPress={() => setMethod(id)}
                 title={tx(m.name)}
                 subtitle={tx(m.description)}
@@ -364,6 +409,9 @@ export function RemoteCheckout() {
               />
             );
           })}
+          {activeOrg && orgBuyer ? (
+            <Input label={s.workshop.workOrderRef} placeholder={s.workshop.workOrderPlaceholder} value={workOrderRef} onChangeText={setWorkOrderRef} maxLength={60} />
+          ) : null}
         </View>
       </Section>
 

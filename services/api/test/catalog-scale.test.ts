@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 
 import { runAllJobs } from '../src/jobs.js';
-import { rebuildAllListings, refreshListings } from '../src/services/listings.js';
+import { rebuildAllListings, refreshDueListings, refreshListings } from '../src/services/listings.js';
 import { addAddress, Client, ctx, customer, login, payOnSandboxPage, prisma, resetDatabase, startApp } from './helpers.js';
 
 /**
@@ -282,4 +282,40 @@ test('search: identical results through the read model, including condition + in
   assert.ok(usedNew.items.every((p: any) => p.offers.some((o: any) => o.condition !== 'new')));
   const best = usedNew.items.map((p: any) => Math.min(...p.offers.filter((o: any) => o.condition !== 'new').map((o: any) => o.priceHalalas)));
   assert.deepEqual(best, [...best].sort((a, b) => b - a));
+});
+
+test('offer freshness: time alone hides an unconfirmed offer from the read model and search; stale flags refresh; reconfirming restores', async () => {
+  const DAY = 86_400_000;
+  // p-camry-pads-oem: o-001 389 SAR, o-002 365 SAR (cheapest), o-003 372 SAR.
+  const before = await listing('p-camry-pads-oem');
+  assert.equal(before.minPriceHalalas, 36500);
+  assert.ok(before.nextChangeAt && before.nextChangeAt > new Date(), 'next freshness boundary is in the future');
+  const t0 = new Date().toISOString();
+
+  // Time passes with no write: o-002 was last confirmed 22 days ago (past FRESHNESS_HIDE_DAYS), o-003 8 days ago (stale).
+  await prisma.offer.update({ where: { id: 'o-002' }, data: { lastConfirmedAt: new Date(Date.now() - 22 * DAY) } });
+  await prisma.offer.update({ where: { id: 'o-003' }, data: { lastConfirmedAt: new Date(Date.now() - 8 * DAY) } });
+  await prisma.productListing.update({ where: { productId: 'p-camry-pads-oem' }, data: { nextChangeAt: new Date(Date.now() - 1000) } });
+  // What the worker's listing job does every minute (runAllJobs → listingSweepThrottled → refreshDueListings).
+  assert.equal(await refreshDueListings(), 1);
+
+  const l = await assertListingMatchesDetail('p-camry-pads-oem', 'after the freshness boundary');
+  assert.equal(l.minPriceHalalas, 37200, 'the hidden offer no longer sets the price');
+  assert.ok(!(l.offers as any[]).some((o) => o.id === 'o-002'));
+  assert.ok(l.nextChangeAt! > new Date());
+  const search = await anon.ok<any>('GET', `/v1/catalog/search?q=${encodeURIComponent('فحمات')}&sort=priceAsc&limit=50`);
+  const hit = search.items.find((p: any) => p.id === 'p-camry-pads-oem');
+  assert.ok(hit && !hit.offers.some((o: any) => o.id === 'o-002'));
+  assert.equal(hit.offers.find((o: any) => o.id === 'o-003').stale, true);
+  // Clients holding the product learn about it from the changes feed.
+  const changes = await anon.ok<any>('GET', `/v1/catalog/changes?since=${encodeURIComponent(t0)}&ids=p-camry-pads-oem`);
+  assert.deepEqual(changes.products.map((p: any) => p.id), ['p-camry-pads-oem']);
+
+  // The merchant reconfirms ("my stock is accurate"): the offer is public again in the same transaction.
+  const m = await login(app, 'owner@brake-house.qitah.test');
+  await m.ok('POST', '/v1/merchants/s-brake-house/offers/confirm', { offerIds: ['o-002'] });
+  assert.equal((await assertListingMatchesDetail('p-camry-pads-oem', 'after reconfirmation')).minPriceHalalas, 36500);
+  const eastern = await login(app, 'owner@eastern.qitah.test');
+  await eastern.ok('POST', '/v1/merchants/s-eastern/offers/confirm', {});
+  assert.ok(!(await anon.ok<any>('GET', '/v1/catalog/products/p-camry-pads-oem')).product.offers.some((o: any) => o.stale));
 });

@@ -6,15 +6,21 @@ import { DEFAULT_SAME_DAY_CUTOFF_MIN, sameDayEligible } from '../domain/delivery
 import { optimizeCart, type Candidate, type LineRequest, type PlanOption } from '../domain/optimizer.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { orderNumber } from '../lib/ids.js';
-import { applyBps, vatOfInclusive } from '../lib/money.js';
+import { vatOfInclusive } from '../lib/money.js';
+import { blendedBps, lineCommission } from '../domain/commission.js';
+import { hiddenBefore } from '../domain/freshness.js';
+import { loadCommissionRules, orderChannel, resolveLine } from './commission.js';
 import { emit } from './events.js';
 import { reserve } from './inventory.js';
 import { privateOfferWhere } from './partRequests.js';
-import { initiatePayment } from './payments.js';
+import { assertCanBuyFor, authorizeNetTerms, NET_TERMS } from './organizations.js';
+import { confirmPaidOrder, CREDIT_PROVIDER, initiatePayment } from './payments.js';
 import { buildFitSnapshot, loadVehicleSnapshots, vehicleForLine, type CheckoutVehicleInput } from './trust.js';
 
 const PLAN_TTL_MS = 15 * 60_000;
 export const PAYMENT_METHODS = ['mada', 'card', 'applePay', 'stcPay'] as const;
+/** Checkout also accepts NET_TERMS (workshop credit, captured by the server); it is never sent to the payment provider. */
+export const CHECKOUT_PAYMENT_METHODS = [...PAYMENT_METHODS, NET_TERMS] as const;
 
 type OfferRow = Prisma.OfferGetPayload<{ include: { location: true; inventory: true; product: true; merchant: true } }>;
 
@@ -43,7 +49,11 @@ const purchasable = (workshop: boolean, userId: string): Prisma.OfferWhereInput 
   status: 'ACTIVE',
   merchant: { status: 'APPROVED', ...(workshop ? { supportsWorkshopDelivery: true } : {}) },
   location: { active: true },
-  OR: [{ visibility: 'PUBLIC', product: { status: 'ACTIVE' } }, { ...privateOfferWhere(userId), product: { status: { in: ['ACTIVE', 'DRAFT'] } } }],
+  OR: [
+    // Public offers not confirmed for FRESHNESS_HIDE_DAYS are hidden until the merchant reconfirms (merchant economics).
+    { visibility: 'PUBLIC', product: { status: 'ACTIVE' }, lastConfirmedAt: { gte: hiddenBefore() } },
+    { ...privateOfferWhere(userId), product: { status: { in: ['ACTIVE', 'DRAFT'] } } },
+  ],
 });
 
 /** Offers a user may reference at all (cart lines, plan inputs): public ones and their own private ones. */
@@ -193,7 +203,18 @@ function presentOption(
 type StoredPlan = PlanOption & { quoteIds: string[] };
 
 /** `vehicle` names the customer's own garage vehicle(s); the server re-computes fit per line and never trusts a client fit claim. */
-export type CheckoutInput = { planId: string; idempotencyKey: string; paymentMethod: string; vehicle?: CheckoutVehicleInput };
+export type CheckoutInput = {
+  planId: string;
+  idempotencyKey: string;
+  paymentMethod: string;
+  vehicle?: CheckoutVehicleInput;
+  /** Buy for a workshop/fleet: the user must be an ACTIVE BUYER/OWNER of this APPROVED organisation. */
+  buyerOrgId?: string;
+  /** The workshop's job / plate reference (org orders only). */
+  workOrderRef?: string;
+  /** Internal only (quote conversion): attribution to the workshop→customer quote. Never taken from a client. */
+  workshopQuoteId?: string;
+};
 
 export async function checkout(
   ctx: Ctx,
@@ -220,13 +241,19 @@ export async function checkout(
 
 async function finishCheckout(ctx: Ctx, orderId: string, method: string) {
   const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
-  const payment = order.status === 'PENDING_PAYMENT' ? await initiatePayment(ctx, orderId, method) : null;
+  const payment =
+    order.status === 'PENDING_PAYMENT'
+      ? await initiatePayment(ctx, orderId, method)
+      : await prisma.payment.findFirst({ where: { orderId, status: { in: ['CAPTURED', 'PARTIALLY_REFUNDED', 'REFUNDED'] } } });
   return {
     orderId: order.id,
     number: order.number,
     status: order.status,
     totalHalalas: order.totalHalalas,
-    payment: payment && { id: payment.id, redirectUrl: payment.redirectUrl, sandbox: payment.sandbox, status: payment.status },
+    payment: payment && { id: payment.id, redirectUrl: payment.redirectUrl, sandbox: payment.sandbox, status: payment.status, method: payment.method },
+    buyerOrgId: order.buyerOrgId,
+    workOrderRef: order.workOrderRef,
+    creditDueAt: order.creditDueAt?.toISOString() ?? null,
   };
 }
 
@@ -245,6 +272,13 @@ async function createOrderFromPlan(
   const address = await tx.address.findFirst({ where: { id: planRow.addressId, userId, deletedAt: null } });
   if (!address) throw notFound('Address');
   const plan = planRow.plan as unknown as StoredPlan;
+
+  // Workshop / fleet buying. Retail checkouts (no buyerOrgId) are untouched by this block.
+  const netTerms = input.paymentMethod === NET_TERMS;
+  if ((netTerms || input.workOrderRef || input.workshopQuoteId) && !input.buyerOrgId) throw badRequest('ORG_REQUIRED', 'Net terms and work-order references need a workshop account');
+  if (input.buyerOrgId) await assertCanBuyFor(tx, userId, input.buyerOrgId);
+  // Locks the org's credit row: concurrent NET_TERMS checkouts of one org cannot both pass the limit check.
+  const credit = netTerms ? await authorizeNetTerms(tx, input.buyerOrgId!, plan.totalHalalas) : null;
 
   const offerIds = plan.groups.flatMap((g) => g.lines.map((l) => l.offerId));
   const offers = await tx.offer.findMany({ where: { id: { in: offerIds }, ...purchasable(address.kind === 'WORKSHOP', userId) }, include: { product: { include: { fitments: true } }, merchant: true } });
@@ -289,15 +323,26 @@ async function createOrderFromPlan(
       vatHalalas: vatOfInclusive(plan.totalHalalas),
       sandbox: planRow.sandboxRates || ctx.payments.sandbox,
       paymentExpiresAt,
+      buyerOrgId: input.buyerOrgId,
+      workOrderRef: input.workOrderRef?.trim() || null,
+      workshopQuoteId: input.workshopQuoteId,
     },
   });
 
   const merchantIds = [...new Set(plan.groups.map((g) => g.merchantId))].sort();
+  // Commission is resolved per LINE (category / origin / condition differ within one merchant order).
+  const rules = await loadCommissionRules(tx, merchantIds);
+  const channel = orderChannel(order);
+  const commissionOf = (offerId: string, lineTotal: number) => {
+    const o = byId.get(offerId)!;
+    const r = resolveLine(ctx.config.COMMISSION_DEFAULT_BPS, rules, o.merchant, { categoryId: o.product.categoryId, origin: o.product.origin, condition: o.condition }, channel, now);
+    return { commissionBps: r.bps, commissionHalalas: lineCommission(lineTotal, r.bps), commissionRuleId: r.ruleId };
+  };
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   for (const [mi, merchantId] of merchantIds.entries()) {
     const groups = plan.groups.map((g, gi) => ({ g, quoteId: plan.quoteIds[gi] })).filter(({ g }) => g.merchantId === merchantId);
-    const merchant = byId.get(groups[0].g.lines[0].offerId)!.merchant;
     const itemsHalalas = groups.reduce((s, { g }) => s + g.lines.reduce((x, l) => x + l.unitPriceHalalas * l.quantity, 0), 0);
+    const commissionHalalas = groups.reduce((s, { g }) => s + g.lines.reduce((x, l) => x + commissionOf(l.offerId, l.unitPriceHalalas * l.quantity).commissionHalalas, 0), 0);
     const mo = await tx.merchantOrder.create({
       data: {
         number: `${number}-${letters[mi]}`,
@@ -305,8 +350,9 @@ async function createOrderFromPlan(
         merchantId,
         itemsHalalas,
         shippingHalalas: groups.reduce((s, { g }) => s + g.rate.amountHalalas, 0),
-        commissionBps: merchant.commissionBps,
-        commissionHalalas: applyBps(itemsHalalas, merchant.commissionBps),
+        // Display rate only (Σ line commission / Σ items); ledger and refunds use the per-line rates.
+        commissionBps: blendedBps(itemsHalalas, commissionHalalas),
+        commissionHalalas,
       },
     });
     for (const { g, quoteId } of groups) {
@@ -337,6 +383,7 @@ async function createOrderFromPlan(
             quantity: l.quantity,
             unitPriceHalalas: l.unitPriceHalalas,
             lineTotalHalalas: l.unitPriceHalalas * l.quantity,
+            ...commissionOf(o.id, l.unitPriceHalalas * l.quantity),
             productNameAr: o.product.nameAr,
             productNameEn: o.product.nameEn,
             partNumber: o.product.partNumber,
@@ -351,5 +398,24 @@ async function createOrderFromPlan(
   }
   await tx.checkoutPlan.update({ where: { id: planRow.id }, data: { usedAt: now } });
   await emit(tx, { type: 'order.created', entityType: 'order', entityId: order.id, orderId: order.id, customerId: userId, payload: { number } });
+
+  if (credit) {
+    // NET_TERMS: no payment provider. The server captures against the org's credit line in this same transaction
+    // (still holding the credit lock), so the receivable is visible to the next checkout's limit check.
+    const payment = await tx.payment.create({
+      data: { orderId: order.id, provider: CREDIT_PROVIDER, method: NET_TERMS, status: 'CAPTURED', amountHalalas: plan.totalHalalas, capturedHalalas: plan.totalHalalas, sandbox: true },
+    });
+    const full = await tx.order.findUniqueOrThrow({ where: { id: order.id }, include: { merchantOrders: true } });
+    await confirmPaidOrder(tx, {
+      order: full,
+      paymentId: payment.id,
+      amountHalalas: plan.totalHalalas,
+      debit: 'CUSTOMER_RECEIVABLE',
+      actor: { userId, type: 'customer' },
+      sameDayAcceptMinutes: ctx.config.SLA_SAME_DAY_ACCEPT_MINUTES,
+      now,
+      orderData: { creditDueAt: new Date(now.getTime() + credit.termsDays * 86_400_000) },
+    });
+  }
   return order.id;
 }

@@ -6,11 +6,13 @@ import { LogoSymbol } from '@/brand/Logo';
 import { isRemote } from '@/config/env';
 import { signOut as signOutRemote } from '@/services/remote/account';
 import { clearRemoteOrders, useRemoteOrders } from '@/services/remote/orders';
+import { setActiveOrg, useActiveOrg, useWorkshop } from '@/services/remote/workshop';
 import { useI18n } from '@/i18n';
 import { confirmAction } from '@/lib/confirm';
 import { useAppStore } from '@/store/app-store';
 import { colors, radius, space } from '@/theme/tokens';
 import { Button } from '@/ui/Button';
+import { Chip } from '@/ui/Chip';
 import { ListGroup, ListRow } from '@/ui/ListRow';
 import { Screen, ScreenHeader } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
@@ -28,6 +30,10 @@ export default function Account() {
   const signOut = useAppStore((st) => st.signOut);
   const resetDemo = useAppStore((st) => st.resetDemo);
   const version = Constants.expoConfig?.version ?? '1.0.0';
+  // Workshop mode (remote only): the org switcher lives on /workshop; this row shows who you are buying as.
+  const orgs = useWorkshop((st) => st.orgs);
+  const orgCount = orgs.length;
+  const activeOrg = useActiveOrg();
 
   return (
     <Screen header={<ScreenHeader title={s.account.title} large />}>
@@ -65,6 +71,28 @@ export default function Account() {
       )}
 
       <View style={{ marginTop: space.xl, gap: space.lg }}>
+        {isRemote && user ? (
+          <ListGroup>
+            <ListRow
+              icon="store"
+              title={orgCount ? s.workshop.mode : s.workshop.apply}
+              subtitle={orgCount ? undefined : s.workshop.applyHint}
+              value={orgCount ? (activeOrg ? activeOrg.org.displayName : s.workshop.retail) : undefined}
+              onPress={() => router.push('/workshop')}
+              last
+            />
+          </ListGroup>
+        ) : null}
+        {isRemote && user && orgs.some((m) => m.org.status === 'APPROVED') ? (
+          <View accessibilityLabel={s.workshop.switchTitle} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: -space.sm }}>
+            <Chip label={s.workshop.retail} selected={!activeOrg} onPress={() => setActiveOrg(null)} />
+            {orgs
+              .filter((m) => m.org.status === 'APPROVED')
+              .map((m) => (
+                <Chip key={m.org.id} label={m.org.displayName} icon="store" selected={activeOrg?.org.id === m.org.id} onPress={() => setActiveOrg(m.org.id)} />
+              ))}
+          </View>
+        ) : null}
         <ListGroup>
           {user ? <ListRow icon="user" title={s.account.profile} onPress={() => router.push('/profile')} /> : null}
           <ListRow icon="car" title={s.account.vehicles} value={vehicles ? String(vehicles) : undefined} onPress={() => router.push('/garage')} />
