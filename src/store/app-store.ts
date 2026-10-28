@@ -13,6 +13,9 @@ export type User = { id?: string; name: string; phone: string; email?: string };
 
 export type NotificationPrefs = { orderUpdates: boolean; priceDrops: boolean; offers: boolean };
 
+/** Demo mode: service records kept on the device (remote mode stores them on the server). */
+export type LocalServiceRecord = { id: string; vehicleId: string; serviceCode: string; variant?: string; doneAtKm?: number; doneAt: string; createdAt: number };
+
 type State = {
   lang: Lang;
   onboardingDone: boolean;
@@ -27,6 +30,9 @@ type State = {
   orders: Order[];
   notificationPrefs: NotificationPrefs;
   sampleOrderSeeded: boolean;
+  serviceRecords: LocalServiceRecord[];
+  /** "Send to my mechanic" links by review id (the server never stores the token in clear, so the device keeps it to re-share). */
+  mechanicLinks: Record<string, string>;
 };
 
 type Actions = {
@@ -39,6 +45,9 @@ type Actions = {
   addVehicle: (vehicle: Omit<Vehicle, 'id' | 'addedAt'>) => Vehicle;
   removeVehicle: (id: string) => void;
   selectVehicle: (id: string) => void;
+  updateVehicle: (id: string, patch: Partial<Omit<Vehicle, 'id'>>) => void;
+  addServiceRecord: (record: Omit<LocalServiceRecord, 'id' | 'createdAt'>) => LocalServiceRecord;
+  saveMechanicLink: (reviewId: string, url: string) => void;
 
   addToCart: (offerId: string, qty?: number) => void;
   setQty: (offerId: string, qty: number) => void;
@@ -84,6 +93,8 @@ const initialState: State = {
   orders: [],
   notificationPrefs: { orderUpdates: true, priceDrops: true, offers: false },
   sampleOrderSeeded: false,
+  serviceRecords: [],
+  mechanicLinks: {},
 };
 
 function clampQty(offerId: string, qty: number): number {
@@ -101,7 +112,7 @@ export const useAppStore = create<State & Actions>()(
       signIn: (user) => set({ user }),
       updateUser: (patch) => set((s) => (s.user ? { user: { ...s.user, ...patch } } : s)),
       // Remote mode: the garage and addresses belong to the account, so they leave with it.
-      signOut: () => set(isRemote ? { user: null, vehicles: [], selectedVehicleId: null, addresses: [] } : { user: null }),
+      signOut: () => set(isRemote ? { user: null, vehicles: [], selectedVehicleId: null, addresses: [], mechanicLinks: {} } : { user: null }),
 
       addVehicle: (input) => {
         const vehicle: Vehicle = { ...input, id: makeId('veh'), addedAt: Date.now() };
@@ -115,6 +126,13 @@ export const useAppStore = create<State & Actions>()(
           return { vehicles, selectedVehicleId };
         }),
       selectVehicle: (id) => set({ selectedVehicleId: id }),
+      updateVehicle: (id, patch) => set((s) => ({ vehicles: s.vehicles.map((v) => (v.id === id ? { ...v, ...patch } : v)) })),
+      addServiceRecord: (input) => {
+        const record: LocalServiceRecord = { ...input, id: makeId('svc'), createdAt: Date.now() };
+        set((s) => ({ serviceRecords: [record, ...s.serviceRecords] }));
+        return record;
+      },
+      saveMechanicLink: (reviewId, url) => set((s) => ({ mechanicLinks: { ...s.mechanicLinks, [reviewId]: url } })),
 
       addToCart: (offerId, qty = 1) =>
         set((s) => {

@@ -102,6 +102,9 @@ export default function RootLayout() {
               <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
               <Stack.Screen name="sign-in" options={{ presentation: 'modal' }} />
               <Stack.Screen name="garage/add" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="garage/odometer" options={sheet([0.55])} />
+              <Stack.Screen name="maintenance/done" options={sheet([0.75, 0.95])} />
+              <Stack.Screen name="mechanic/new" options={{ presentation: 'modal' }} />
               <Stack.Screen name="address/edit" options={{ presentation: 'modal' }} />
               <Stack.Screen name="vehicle-switcher" options={sheet()} />
               <Stack.Screen name="search-filters" options={sheet([0.8, 0.98])} />

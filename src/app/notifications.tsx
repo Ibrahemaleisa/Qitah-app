@@ -97,12 +97,21 @@ function RemoteInbox() {
         <ListGroup>
           {items.map((n, i) => {
             const orderId = typeof n.data?.orderId === 'string' ? n.data.orderId : undefined;
+            const reviewId = typeof n.data?.mechanicReviewId === 'string' ? n.data.mechanicReviewId : undefined;
+            const vehicleId = typeof n.data?.vehicleId === 'string' ? n.data.vehicleId : undefined;
+            const open = orderId
+              ? () => router.push(`/order/${orderId}`)
+              : reviewId
+                ? () => router.push({ pathname: '/mechanic/[id]', params: { id: reviewId } })
+                : vehicleId
+                  ? () => router.push({ pathname: '/maintenance/[vehicleId]', params: { vehicleId } })
+                  : undefined;
             const at = new Date(n.createdAt).getTime();
             return (
               <Pressable
                 key={n.id}
-                onPress={orderId ? () => router.push(`/order/${orderId}`) : undefined}
-                disabled={!orderId}
+                onPress={open}
+                disabled={!open}
                 accessibilityLabel={`${n.title}. ${n.body}`}
                 style={{ flexDirection: 'row', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md, borderBottomWidth: i === items.length - 1 ? 0 : 1, borderBottomColor: colors.line }}
               >

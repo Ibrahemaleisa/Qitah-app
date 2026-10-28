@@ -12,7 +12,7 @@ export function vehicleLabel(vehicle: Vehicle, lang: Lang): string {
 }
 
 export function vehicleSpec(vehicle: Vehicle): string {
-  return `${vehicle.trim} · ${vehicle.engine}`;
+  return [vehicle.trim, vehicle.engine].filter(Boolean).join(' · ');
 }
 
 /** ISO 3779: 17 characters, excluding I, O and Q. */

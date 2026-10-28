@@ -33,9 +33,12 @@ export type Vehicle = {
   makeId: string;
   modelId: string;
   year: number;
+  /** Not used by fitment and no longer asked for; "" when unknown. */
   trim: string;
   engine: string;
   vin?: string;
+  /** Last odometer reading the customer entered (km). */
+  odometerKm?: number;
   addedAt: number;
 };
 

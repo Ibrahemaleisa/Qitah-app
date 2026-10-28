@@ -77,7 +77,99 @@ export type ApiSeller = {
 export type SnapshotResponse = { generatedAt: string; products: ApiProduct[]; sellers: ApiSeller[] };
 
 // ── customer
-export type ApiVehicle = { id: string; modelId: string; year: number; trim: string; engine: string; vin?: string; addedAt: number };
+export type ApiVehicle = { id: string; modelId: string; year: number; trim?: string; engine: string; vin?: string; odometerKm?: number; odometerUpdatedAt?: string; addedAt: number };
+
+// ── garage: offline VIN decode
+export type VinDecodeResponse = {
+  valid: boolean;
+  make?: { id: string; name: L10n };
+  manufacturer?: string;
+  modelYear?: number;
+  wmi?: string;
+  region?: string;
+  checkDigit?: 'ok' | 'mismatch' | 'not_applicable';
+  confidence: 'high' | 'medium' | 'low' | 'none';
+  reasons: string[];
+  note: string;
+  noteAr: string;
+};
+
+// ── maintenance
+export type ApiServiceStatus = 'due' | 'soon' | 'ok' | 'unknown';
+export type ApiKitLine = {
+  componentKey: string;
+  component: L10n;
+  productId: string;
+  offerId: string;
+  name: L10n;
+  brand: string;
+  partNumber: string;
+  priceHalalas: number;
+  available: number;
+  quantity: number;
+  fit: 'catalog' | 'universal';
+};
+export type ApiMaintenanceService = {
+  serviceCode: string;
+  templateId: string;
+  name: L10n;
+  note: L10n;
+  intervalKm: number | null;
+  intervalMonths: number | null;
+  variants: { code: string; name: L10n; intervalKm: number }[];
+  status: ApiServiceStatus;
+  nextDueKm: number | null;
+  nextDueAt: string | null;
+  remainingKm: number | null;
+  remainingDays: number | null;
+  lastRecord: { id: string; doneAtKm: number | null; doneAt: string; variant: string | null; source: string } | null;
+  kit: { lines: ApiKitLine[]; missing: { key: string; name: L10n }[]; totalHalalas: number };
+};
+export type ApiMaintenance = {
+  vehicle: { id: string; modelId: string; year: number; engine: string; odometerKm: number | null; odometerUpdatedAt: string | null };
+  disclaimer: L10n;
+  services: ApiMaintenanceService[];
+  proposals: { orderItemId: string; serviceCode: string; service: L10n; product: L10n; deliveredAt: string | null }[];
+};
+export type ServiceRecordInput = { serviceCode: string; doneAtKm?: number; doneAt?: string; variant?: string; orderItemId?: string };
+
+// ── send to my mechanic
+export type MechanicFit = 'catalog' | 'seller' | 'universal' | 'unverified' | 'no_vehicle';
+export type ApiMechanicDecision = { offerId: string; decision: 'APPROVED' | 'ALTERNATIVE'; text?: string; partNumber?: string; alternativeOfferId?: string };
+export type ApiMechanicLine = {
+  offerId: string;
+  productId: string;
+  quantity: number;
+  nameAr: string;
+  nameEn: string;
+  brand: string;
+  partNumber: string;
+  oemReferences: string[];
+  origin: 'oem' | 'aftermarket';
+  condition: string;
+  warrantyMonths: number;
+  sellerAr: string;
+  sellerEn: string;
+  fit: MechanicFit;
+  alternatives: { offerId: string; condition: string; warrantyMonths: number; sellerAr: string; sellerEn: string; city: string }[];
+  decision: ApiMechanicDecision | null;
+};
+export type ApiMechanicReview = {
+  id: string;
+  status: 'PENDING' | 'APPROVED' | 'CHANGES_SUGGESTED';
+  createdAt: string;
+  expiresAt: string;
+  expired: boolean;
+  respondedAt: string | null;
+  note: string | null;
+  vehicle: { modelId: string; makeAr: string; makeEn: string; modelAr: string; modelEn: string; year: number; engine: string; vin: string | null } | null;
+  lines: ApiMechanicLine[];
+  mechanicNote: string | null;
+  workshop: { name: string | null; phone: string | null } | null;
+  approvedLines: { offerId: string; quantity: number }[];
+  /** Only in the create response: the shareable link (the token is never stored in clear). */
+  url?: string;
+};
 export type ApiAddress = {
   id: string;
   kind: 'home' | 'workshop' | string;

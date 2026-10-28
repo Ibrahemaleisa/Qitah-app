@@ -146,6 +146,12 @@ export default function Cart() {
           </Animated.View>
         ))}
       </View>
+      <View style={{ marginTop: space.lg, gap: space.xs }}>
+        <Button label={s.mechanic.fromCart} variant="secondary" size="md" icon="tool" onPress={() => router.push('/mechanic/new')} />
+        <Text variant="caption" color="textTertiary" align="center">
+          {s.mechanic.sendHint}
+        </Text>
+      </View>
     </Screen>
   );
 }

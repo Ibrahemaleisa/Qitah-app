@@ -10,6 +10,7 @@ import { useCatalogVersion } from '@/catalog/remote-catalog';
 import { isRemote } from '@/config/env';
 import { allCategories } from '@/data/catalog';
 import { SampleBadge } from '@/features/badges';
+import { MaintenanceCard } from '@/features/MaintenanceCard';
 import { orderStatusVisuals } from '@/features/orderVisuals';
 import { ProductCard } from '@/features/ProductCard';
 import { VehicleCard } from '@/features/VehicleCard';
@@ -118,6 +119,8 @@ export default function Home() {
         <View style={{ marginTop: space.md }}>
           <VehicleCard vehicle={vehicle} />
         </View>
+
+        {vehicle ? <MaintenanceCard vehicle={vehicle} /> : null}
 
         {activeOrder ? (
           <Pressable

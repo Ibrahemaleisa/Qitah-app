@@ -13,7 +13,7 @@ import { useAppStore } from '@/store/app-store';
  * a guest's local garage/addresses are uploaded once on sign-in.
  */
 
-const isLocalId = (id: string) => /^(veh|addr)-/.test(id);
+export const isLocalId = (id: string) => /^(veh|addr)-/.test(id);
 const makeIdFor = (modelId: string) => getModel(modelId)?.makeId;
 
 export async function requestOtp(phone: string) {
@@ -54,6 +54,16 @@ export function isSignedIn() {
 }
 
 // ── garage
+/** Trim is not used by fitment: only sent when known. */
+const vehicleBody = (v: Omit<Vehicle, 'id' | 'addedAt'>) => ({
+  modelId: v.modelId,
+  year: v.year,
+  engine: v.engine,
+  ...(v.trim ? { trim: v.trim } : {}),
+  ...(v.vin ? { vin: v.vin } : {}),
+  ...(v.odometerKm != null ? { odometerKm: v.odometerKm } : {}),
+});
+
 export async function pullVehicles() {
   const { vehicles } = await meApi.vehicles();
   useAppStore.getState().setVehicles(vehicles.map((v) => toVehicle(v, makeIdFor)));
@@ -62,10 +72,21 @@ export async function pullVehicles() {
 export async function addVehicle(input: Omit<Vehicle, 'id' | 'addedAt'>): Promise<Vehicle> {
   const store = useAppStore.getState();
   if (!isRemote || !store.user) return store.addVehicle(input);
-  const created = await meApi.addVehicle({ modelId: input.modelId, year: input.year, trim: input.trim, engine: input.engine, ...(input.vin ? { vin: input.vin } : {}) });
+  const created = await meApi.addVehicle(vehicleBody(input));
   const vehicle = toVehicle(created, makeIdFor);
   useAppStore.getState().upsertVehicle({ ...vehicle, makeId: vehicle.makeId || input.makeId });
   return vehicle;
+}
+
+/** Odometer from the garage (PATCH on the account, or kept on the device). */
+export async function updateOdometer(id: string, odometerKm: number | null) {
+  const store = useAppStore.getState();
+  if (isRemote && store.user && !isLocalId(id)) {
+    const v = await meApi.updateVehicle(id, { odometerKm });
+    useAppStore.getState().updateVehicle(id, { odometerKm: v.odometerKm ?? undefined });
+    return;
+  }
+  store.updateVehicle(id, { odometerKm: odometerKm ?? undefined });
 }
 
 export async function removeVehicle(id: string) {
@@ -123,7 +144,7 @@ export async function syncAfterSignIn() {
   // Upload the guest garage and addresses (local ids) once, then adopt the server's lists.
   for (const v of store.vehicles.filter((x) => isLocalId(x.id))) {
     try {
-      await meApi.addVehicle({ modelId: v.modelId, year: v.year, trim: v.trim, engine: v.engine, ...(v.vin ? { vin: v.vin } : {}) });
+      await meApi.addVehicle(vehicleBody(v));
     } catch {
       // A vehicle the server rejects (unknown model/spec) stays out of the account rather than blocking sign-in.
     }

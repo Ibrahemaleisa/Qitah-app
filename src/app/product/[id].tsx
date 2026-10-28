@@ -24,6 +24,8 @@ import { enterFade } from '@/theme/motion';
 import { colors, gutter, radius, space } from '@/theme/tokens';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
+import { Icon } from '@/ui/Icon';
+import { Pressable } from '@/ui/Pressable';
 import { EmptyState } from '@/ui/EmptyState';
 import { IconButton } from '@/ui/IconButton';
 import { RatingInline } from '@/ui/Rating';
@@ -154,6 +156,25 @@ export default function ProductScreen() {
         <View style={{ marginTop: space.md }}>
           <FitPanel product={product} vehicle={vehicle} status={listing.fit} />
         </View>
+
+        {best ? (
+          <Pressable
+            onPress={() => router.push({ pathname: '/mechanic/new', params: { offerId: best.id } })}
+            haptics="tap"
+            accessibilityLabel={s.mechanic.send}
+            accessibilityHint={s.mechanic.sendHint}
+            style={{ marginTop: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}
+          >
+            <Icon name="tool" size={20} color="heading" />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="bodyStrong">{s.mechanic.send}</Text>
+              <Text variant="caption" color="textSecondary">
+                {s.mechanic.sendHint}
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={18} color="textTertiary" />
+          </Pressable>
+        ) : null}
 
         <Section
           title={s.product.offers}

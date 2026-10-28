@@ -70,6 +70,7 @@ export default function Account() {
           <ListRow icon="car" title={s.account.vehicles} value={vehicles ? String(vehicles) : undefined} onPress={() => router.push('/garage')} />
           <ListRow icon="map-pin" title={s.account.addresses} value={addresses ? String(addresses) : undefined} onPress={() => router.push('/addresses')} />
           <ListRow icon="heart" title={s.account.favorites} value={favorites ? String(favorites) : undefined} onPress={() => router.push('/favorites')} />
+          <ListRow icon="tool" title={s.mechanic.reviews} onPress={() => router.push('/mechanic')} />
           <ListRow icon="package" title={s.account.orders} value={orders ? String(orders) : undefined} onPress={() => router.navigate('/orders')} last />
         </ListGroup>
         <ListGroup>

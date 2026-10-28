@@ -19,7 +19,8 @@ import { Text } from '@/ui/Text';
 import { toast } from '@/ui/Toast';
 
 export default function EditAddress() {
-  const params = useLocalSearchParams<{ id?: string; kind?: DeliveryDestination }>();
+  // workshopName / phone: prefilled from a mechanic review ("deliver to the workshop").
+  const params = useLocalSearchParams<{ id?: string; kind?: DeliveryDestination; workshopName?: string; phone?: string }>();
   const { s, tx } = useI18n();
   const user = useAppStore((st) => st.user);
   const existing = useAppStore((st) => st.addresses.find((a) => a.id === params.id));
@@ -27,13 +28,13 @@ export default function EditAddress() {
 
   const [kind, setKind] = useState<DeliveryDestination>(existing?.kind ?? params.kind ?? 'home');
   const [label, setLabel] = useState(existing?.label ?? '');
-  const [workshopName, setWorkshopName] = useState(existing?.workshopName ?? '');
+  const [workshopName, setWorkshopName] = useState(existing?.workshopName ?? params.workshopName ?? '');
   const [city, setCity] = useState<CityId>(existing?.city ?? 'riyadh');
   const [district, setDistrict] = useState(existing?.district ?? '');
   const [street, setStreet] = useState(existing?.street ?? '');
   const [details, setDetails] = useState(existing?.details ?? '');
   const [contactName, setContactName] = useState(existing?.contactName ?? user?.name ?? '');
-  const [phone, setPhone] = useState(existing?.phone?.replace('+966', '') ?? user?.phone?.replace('+966', '') ?? '');
+  const [phone, setPhone] = useState(existing?.phone?.replace('+966', '') ?? params.phone?.replace('+966', '') ?? user?.phone?.replace('+966', '') ?? '');
   const [submitted, setSubmitted] = useState(false);
 
   const required = (v: string) => (submitted && !v.trim() ? s.addresses.required : undefined);

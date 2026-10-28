@@ -6,6 +6,7 @@ import { VehicleRow } from '@/features/VehicleRow';
 import { useI18n } from '@/i18n';
 import { apiErrorMessage } from '@/lib/api-errors';
 import { confirmAction } from '@/lib/confirm';
+import { formatKm } from '@/lib/odometer';
 import { removeVehicle } from '@/services/remote/account';
 import { useAppStore } from '@/store/app-store';
 import { enterUp, layoutMove } from '@/theme/motion';
@@ -48,6 +49,21 @@ export default function Garage() {
                 onSelect={() => selectVehicle(v.id)}
                 onRemove={() => confirmAction(s.garage.removeConfirm, s.common.remove, s.common.cancel, () => removeVehicle(v.id).catch((e) => toast(apiErrorMessage(s, e), 'alert-circle')))}
               />
+              <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.sm }}>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    label={v.odometerKm != null ? s.garage2.km(formatKm(v.odometerKm)) : s.garage2.noOdometer}
+                    accessibilityHint={s.garage2.updateOdometer}
+                    variant="secondary"
+                    size="sm"
+                    icon="trending-up"
+                    onPress={() => router.push({ pathname: '/garage/odometer', params: { id: v.id } })}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button label={s.garage2.maintenance} variant="secondary" size="sm" icon="tool" onPress={() => router.push({ pathname: '/maintenance/[vehicleId]', params: { vehicleId: v.id } })} />
+                </View>
+              </View>
             </Animated.View>
           ))}
         </View>

@@ -157,9 +157,10 @@ export function toVehicle(v: ApiVehicle, makeIdForModel: (modelId: string) => st
     makeId: makeIdForModel(v.modelId) ?? '',
     modelId: v.modelId,
     year: v.year,
-    trim: v.trim,
+    trim: v.trim ?? '',
     engine: v.engine,
     vin: v.vin,
+    odometerKm: typeof v.odometerKm === 'number' ? v.odometerKm : undefined,
     addedAt: v.addedAt,
   };
 }
