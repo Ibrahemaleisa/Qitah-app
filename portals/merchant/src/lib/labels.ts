@@ -147,3 +147,23 @@ export const ACTION_AR: Record<string, string> = {
 export const ACTOR_AR: Record<string, string> = { merchant: "فريق المتجر", ops: "فريق قطعة", customer: "العميل", system: "النظام" };
 
 export const label = (map: Record<string, string>, value: string | null | undefined) => (value ? (map[value] ?? value) : "—");
+
+export const FRESHNESS_AR: Record<string, string> = {
+  fresh: "محدَّث",
+  stale: "بحاجة لتأكيد",
+  hidden: "مخفي عن العملاء",
+};
+
+export const SCORECARD_WARNING_AR: Record<string, string> = {
+  OUT_OF_STOCK_HIGH: "رفض بسبب نفاد المخزون أعلى من 3%",
+  FRESHNESS_LOW: "أقل من 90% من عروضك مؤكدة حديثاً",
+  ACCEPTANCE_LOW: "نسبة القبول أقل من 90%",
+  ON_TIME_LOW: "التجهيز في الموعد أقل من 90%",
+  BAD_RETURNS_HIGH: "مرتجعات (قطعة خطأ / غير مطابقة) أعلى من 5%",
+};
+
+export const COMMISSION_SOURCE_AR: Record<string, string> = {
+  rule: "حسب الفئة",
+  merchant: "نسبة متفق عليها",
+  default: "النسبة الافتراضية",
+};

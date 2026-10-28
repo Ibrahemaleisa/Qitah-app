@@ -139,6 +139,9 @@ export const ACCOUNT_LABEL: Record<string, string> = {
   SHIPPING_PAYABLE: 'مستحقات الشحن',
   PAYOUTS: 'المدفوعات للتجار',
   SUSPENSE: 'حساب معلّق',
+  GUARANTEE_EXPENSE: 'تكلفة ضمان قطعة',
+  PAYMENT_FEES: 'رسوم مزود الدفع',
+  MERCHANT_RESERVE: 'محجوز من التاجر (صرف مبكر)',
 };
 
 export const POSTING_LABEL: Record<string, string> = {
@@ -146,6 +149,10 @@ export const POSTING_LABEL: Record<string, string> = {
   PAYMENT_CAPTURED_UNFULFILLABLE: 'تحصيل دفع متأخر (يُسترد)',
   REFUND_SUCCEEDED: 'استرداد ناجح',
   PAYOUT: 'تحويل للتاجر',
+  PAYMENT_FEE: 'رسوم مزود الدفع',
+  RESERVE_HOLD: 'حجز احتياطي (صرف مبكر)',
+  RESERVE_RELEASE: 'إفراج عن المحجوز',
+  RETURN_SHIPPING: 'شحن الإرجاع',
 };
 
 export const RETURN_REASON_LABEL: Record<string, string> = {
@@ -251,3 +258,19 @@ const EVENT: Record<string, string> = {
   'offer.updated': 'تحديث عرض',
 };
 export const eventLabel = (type: string) => EVENT[type] ?? type;
+
+// ───────── merchant economics
+export const WARNING_LABEL: Record<string, string> = {
+  OUT_OF_STOCK_HIGH: 'رفض لنفاد المخزون > 3%',
+  FRESHNESS_LOW: 'نضارة المخزون < 90%',
+  ACCEPTANCE_LOW: 'قبول < 90%',
+  ON_TIME_LOW: 'تجهيز في الموعد < 90%',
+  BAD_RETURNS_HIGH: 'مرتجعات قطعة خطأ/غير مطابقة > 5%',
+};
+export const ORIGIN_LABEL: Record<string, string> = { OEM: 'أصلي', AFTERMARKET: 'تجاري' };
+export const CONDITION_LABEL: Record<string, string> = { NEW: 'جديد', USED: 'مستعمل', REFURBISHED: 'مُجدَّد' };
+export const CHANNEL_LABEL: Record<string, string> = { B2C: 'أفراد (B2C)', B2B: 'ورش (B2B)', ANY: 'الكل' };
+export const CADENCE_LABEL: Record<string, string> = { WEEKLY: 'أسبوعية', DAILY: 'يومية' };
+export const RATE_SOURCE_LABEL: Record<string, string> = { rule: 'قاعدة', merchant: 'نسبة التاجر المتفق عليها', default: 'النسبة الافتراضية للمنصة' };
+export const bpsLabel = (bps: number | null | undefined) => (bps === null || bps === undefined ? '—' : `${(bps / 100).toFixed(bps % 100 ? 2 : 0)}%`);
+export const pct = (ratio: number | null | undefined) => (ratio === null || ratio === undefined ? '—' : `${(ratio * 100).toFixed(1)}%`);

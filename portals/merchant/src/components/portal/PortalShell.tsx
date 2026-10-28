@@ -24,6 +24,8 @@ const NAV: NavItem[] = [
   { href: "/returns", label: "المرتجعات", perm: "returns" },
   { href: "/locations", label: "الفروع ومواقع الاستلام", perm: "locations.manage" },
   { href: "/settlements", label: "المستحقات والتسويات", perm: "settlements" },
+  { href: "/scorecard", label: "أداء المتجر" },
+  { href: "/commission", label: "نسب العمولة" },
   { href: "/staff", label: "فريق العمل", perm: "staff" },
   { href: "/notifications", label: "الإشعارات" },
   { href: "/activity", label: "سجل النشاط", perm: "activity" },

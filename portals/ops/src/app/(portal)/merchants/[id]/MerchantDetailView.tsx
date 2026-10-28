@@ -6,20 +6,43 @@ import { useState } from 'react';
 
 import { useSession } from '@/components/Session';
 import { useToast } from '@/components/Toasts';
-import { Async, Card, ConfirmButton, DateTime, Dialog, Empty, Field, KV, Money, PageHead, StatusChip } from '@/components/ui';
+import { Async, Card, Chip, ConfirmButton, DateTime, Dialog, Empty, Field, KV, Money, PageHead, StatusChip } from '@/components/ui';
 import { api, post } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { cityName, formatMinutes } from '@/lib/format';
 import { useAction, useApi } from '@/lib/hooks';
-import { DOC_TYPE_LABEL, MEMBER_ROLE_LABEL, statusLabel } from '@/lib/labels';
-import type { MerchantDetail } from '@/lib/types';
+import { bpsLabel, CADENCE_LABEL, DOC_TYPE_LABEL, MEMBER_ROLE_LABEL, pct, statusLabel, WARNING_LABEL } from '@/lib/labels';
+import type { MerchantDetail, Scorecard } from '@/lib/types';
 
 type Decision = 'approve' | 'reject' | 'suspend';
 
 export function MerchantDetailView() {
   const { id } = useParams<{ id: string }>();
   const state = useApi<MerchantDetail>(`v1/ops/merchants/${id}`, { live: (e) => e.entityType === 'merchant' && e.entityId === id });
-  const { isAdmin } = useSession();
+  const { isAdmin, has } = useSession();
+  const scorecard = useApi<Scorecard>(`v1/ops/merchants/${id}/scorecard`);
+  const [econ, setEcon] = useState<{ bps: string; cadence: 'WEEKLY' | 'DAILY'; trusted: boolean } | null>(null);
+  const [econPending, setEconPending] = useState(false);
+
+  async function saveEconomics() {
+    if (!econ) return;
+    let commissionBps: number | null = null;
+    if (econ.bps.trim()) {
+      const n = Number(econ.bps.trim());
+      if (!Number.isInteger(n) || n < 0 || n > 5000) {
+        push({ tone: 'danger', title: 'العمولة يجب أن تكون عدداً صحيحاً بين 0 و5000 نقطة أساس، أو فارغة لاستخدام قواعد العمولة' });
+        return;
+      }
+      commissionBps = n;
+    }
+    setEconPending(true);
+    const r = await run('economics', () => api(`v1/ops/merchants/${id}/economics`, { method: 'PATCH', body: { commissionBps, settlementCadence: econ.cadence, trustedForEarlyPayout: econ.trusted } }), 'حُدّثت إعدادات العمولة والتسوية');
+    setEconPending(false);
+    if (r) {
+      setEcon(null);
+      state.reload();
+    }
+  }
   const { run } = useAction();
   const { push } = useToast();
   const [dialog, setDialog] = useState<Decision | null>(null);
@@ -29,7 +52,7 @@ export function MerchantDetailView() {
 
   const open = (d: Decision) => {
     setReason('');
-    setBps(state.data ? String(state.data.commissionBps) : '');
+    setBps(state.data && state.data.commissionBps !== null ? String(state.data.commissionBps) : '');
     setDialog(d);
   };
 
@@ -129,7 +152,7 @@ export function MerchantDetailView() {
                       ['التخصص', m.specialtyAr || null],
                       ['البريد', <bdi key="e">{m.contactEmail}</bdi>],
                       ['الجوال', <bdi key="p" className="num">{m.contactPhone}</bdi>],
-                      ['العمولة', <span className="num" key="c">{(m.commissionBps / 100).toFixed(2)}% ({m.commissionBps} bps)</span>],
+                      ['العمولة', m.commissionBps === null ? <span key="c">حسب قواعد العمولة (الفئة / الأصل / الحالة)</span> : <span className="num" key="c">{(m.commissionBps / 100).toFixed(2)}% ({m.commissionBps} bps) — متفق عليها</span>],
                       ['مهلة القبول', formatMinutes(m.slaAcceptMinutes)],
                       ['مهلة التجهيز', formatMinutes(m.slaReadyMinutes)],
                       ['توصيل للورش', m.supportsWorkshopDelivery ? 'نعم' : 'لا'],
@@ -260,12 +283,62 @@ export function MerchantDetailView() {
                 </Card>
               </div>
               <div className="stack">
+                <Card
+                  title="العمولة والتسوية"
+                  actions={
+                    has('FINANCE') ? (
+                      <button
+                        className="btn btn-sm"
+                        data-testid="edit-economics"
+                        onClick={() => setEcon({ bps: m.commissionBps === null ? '' : String(m.commissionBps), cadence: m.settlementCadence ?? 'WEEKLY', trusted: !!m.trustedForEarlyPayout })}
+                      >
+                        تعديل
+                      </button>
+                    ) : null
+                  }
+                >
+                  <KV
+                    items={[
+                      ['العمولة', m.commissionBps === null ? 'قواعد العمولة' : `${bpsLabel(m.commissionBps)} متفق عليها`],
+                      ['دورة التسوية', CADENCE_LABEL[m.settlementCadence ?? 'WEEKLY']],
+                      ['صرف مبكر بعد التوصيل', m.trustedForEarlyPayout ? (m.settlementCadence === 'DAILY' ? 'مفعّل (مع حجز احتياطي)' : 'موثوق — يتطلب دورة يومية') : 'لا'],
+                    ]}
+                  />
+                  <p className="muted small" style={{ marginBlockStart: 8 }}>
+                    <Link href="/commission">قواعد العمولة</Link>
+                  </p>
+                </Card>
+                <Card title="بطاقة الأداء (30 يوماً)" actions={<Link href="/performance">كل التجار</Link>}>
+                  <Async state={scorecard}>
+                    {(sc) => (
+                      <>
+                        <KV
+                          items={[
+                            ['درجة الجودة', <strong key="q" className={`num ${sc.qualityScore < 70 ? 'neg' : ''}`}>{sc.qualityScore} / 100</strong>],
+                            ['الطلبات', <span key="n" className="num">{sc.d30.received}</span>],
+                            ['القبول', pct(sc.d30.acceptanceRate)],
+                            ['رفض لنفاد المخزون', pct(sc.d30.outOfStockRate)],
+                            ['تجهيز في الموعد', pct(sc.d30.onTimeReadyRate)],
+                            ['مرتجعات خطأ / غير مطابق', pct(sc.d30.badReturnRate)],
+                            ['متوسط القبول', sc.d30.avgAcceptMinutes === null ? '—' : `${sc.d30.avgAcceptMinutes} د`],
+                            ['نضارة المخزون', `${pct(sc.offers.freshnessRate)} (${sc.offers.stale} قديمة)`],
+                          ]}
+                        />
+                        <div className="row gap-sm wrap" style={{ marginBlockStart: 8 }}>
+                          {sc.warnings.length ? sc.warnings.map((w) => <Chip key={w} tone="danger">{WARNING_LABEL[w] ?? w}</Chip>) : <Chip tone="success">لا تنبيهات</Chip>}
+                        </div>
+                      </>
+                    )}
+                  </Async>
+                </Card>
+
                 <Card title="الرصيد (من دفتر الأستاذ)">
                   <KV
                     items={[
                       ['مستحق للتاجر', <Money key="p" h={m.balance.payableHalalas} />],
                       ['عمولة المنصة', <Money key="c" h={m.balance.commissionHalalas} />],
                       ['المحوّل للتاجر', <Money key="o" h={m.balance.paidOutHalalas} />],
+                      ['محجوز (صرف مبكر)', <Money key="r" h={m.balance.reserveHeldHalalas ?? 0} />],
                     ]}
                   />
                 </Card>
@@ -291,6 +364,25 @@ export function MerchantDetailView() {
                 </Card>
               </div>
             </div>
+
+            <Dialog open={econ !== null} onClose={() => setEcon(null)} title={`العمولة والتسوية — ${m.displayNameAr}`} submitLabel="حفظ" pending={econPending} onSubmit={saveEconomics}>
+              {econ ? (
+                <>
+                  <Field label="نسبة متفق عليها (نقاط أساس) — اختياري" hint="فارغ = قواعد العمولة حسب الفئة والأصل والحالة. 1000 = 10%. تنطبق على طلبات الأفراد وتتقدم على قواعد المنصة العامة.">
+                    <input inputMode="numeric" dir="ltr" value={econ.bps} onChange={(e) => setEcon({ ...econ, bps: e.target.value })} name="economicsBps" />
+                  </Field>
+                  <Field label="دورة التسوية التلقائية">
+                    <select value={econ.cadence} onChange={(e) => setEcon({ ...econ, cadence: e.target.value as 'WEEKLY' | 'DAILY' })} name="cadence">
+                      <option value="WEEKLY">أسبوعية</option>
+                      <option value="DAILY">يومية</option>
+                    </select>
+                  </Field>
+                  <label className="check">
+                    <input type="checkbox" checked={econ.trusted} onChange={(e) => setEcon({ ...econ, trusted: e.target.checked })} name="trusted" /> تاجر موثوق للصرف المبكر (مع الدورة اليومية: يُصرف بعد التوصيل مع حجز نسبة حتى انتهاء نافذة الإرجاع)
+                  </label>
+                </>
+              ) : null}
+            </Dialog>
 
             <Dialog
               open={dialog !== null}

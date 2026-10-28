@@ -18,10 +18,12 @@ const NAV: NavItem[] = [
   { href: '/tower', label: 'برج التحكم', key: 't', match: (p) => p.startsWith('/tower') },
   { href: '/exceptions', label: 'الاستثناءات', key: 'e' },
   { href: '/orders', label: 'الطلبات', key: 'o' },
-  { href: '/merchants', label: 'التجار', key: 'm' },
+  { href: '/merchants', label: 'التجار', key: 'm', match: (p) => p.startsWith('/merchants') },
+  { href: '/performance', label: 'أداء التجار', key: 'p' },
   { href: '/part-requests', label: 'طلبات القطع', key: 'q' },
   { href: '/returns', label: 'المرتجعات', key: 'r' },
   { href: '/finance', label: 'المالية', key: 'f', role: 'FINANCE' },
+  { href: '/commission', label: 'قواعد العمولة', key: 'c', role: 'FINANCE' },
   { href: '/audit', label: 'سجل التدقيق', key: 'a' },
   { href: '/staff', label: 'فريق العمليات', key: 's', role: 'OPS_ADMIN' },
 ];
