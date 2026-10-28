@@ -507,6 +507,7 @@ model CheckoutPlan {
   createdAt      DateTime @default(now())
 
   @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model ShippingQuote {
@@ -523,6 +524,8 @@ model ShippingQuote {
   sandbox          Boolean
   expiresAt        DateTime
   createdAt        DateTime @default(now())
+
+  @@index([expiresAt])
 }
 
 // ───────────────────────────────────────────── orders
@@ -596,6 +599,7 @@ model Order {
 
   @@unique([customerId, idempotencyKey])
   @@index([status, createdAt])
+  @@index([status, paymentExpiresAt])
   @@index([customerId, createdAt])
 }
 
@@ -630,6 +634,7 @@ model MerchantOrder {
 
   @@index([merchantId, status, createdAt])
   @@index([orderId])
+  @@index([slaBreached, status])
 }
 
 model OrderItem {
@@ -842,6 +847,7 @@ model Refund {
   returnCase ReturnCase? @relation(fields: [returnCaseId], references: [id])
 
   @@index([orderId])
+  @@index([status])
 }
 
 // ───────────────────────────────────────────── returns
@@ -870,6 +876,7 @@ model ReturnCase {
   inspectionNote  String?
   restock         Boolean      @default(false)
   refundHalalas   Int          @default(0)
+  inspectedAt     DateTime?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
@@ -932,6 +939,7 @@ model LedgerEntry {
 
   @@index([postingId])
   @@index([merchantId, account])
+  @@index([merchantOrderId, account])
   @@index([orderId])
 }
 
@@ -1016,6 +1024,7 @@ model AuditEvent {
   createdAt   DateTime @default(now())
 
   @@index([entityType, entityId])
+  @@index([entityId])
   @@index([merchantId, createdAt])
   @@index([createdAt])
 }
@@ -1046,4 +1055,5 @@ model DomainEvent {
 
   @@index([status, availableAt])
   @@index([createdAt])
+  @@index([customerId, id])
 }

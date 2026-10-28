@@ -57,7 +57,14 @@ export async function handlePaymentWebhook(ctx: Ctx, event: PaymentWebhookEvent)
   }
 }
 
+/**
+ * Locks Order then Payment — the same order used by expiry and cancellation — so a capture can never
+ * interleave with an expiry that releases the stock (which would leave a PAID order with no stock held).
+ */
 async function lockPayment(tx: Tx, providerPaymentId: string) {
+  const found = await tx.payment.findFirst({ where: { providerPaymentId }, select: { orderId: true } });
+  if (!found) return null;
+  await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${found.orderId} FOR UPDATE`;
   const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Payment" WHERE "providerPaymentId" = ${providerPaymentId} FOR UPDATE`;
   if (!rows.length) return null;
   return tx.payment.findUniqueOrThrow({ where: { id: rows[0].id }, include: { order: { include: { merchantOrders: true } } } });
@@ -172,12 +179,15 @@ export async function createRefund(
     actor: Actor;
   },
 ) {
+  // Serialise refunds per payment so parallel requests cannot both pass the "refundable" check.
+  await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${input.payment.id} FOR UPDATE`;
   const existing = await tx.refund.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
   if (existing) return existing;
   if (!Number.isSafeInteger(input.amountHalalas) || input.amountHalalas <= 0) throw badRequest('INVALID_AMOUNT', 'Refund amount must be positive');
-  if (!['CAPTURED', 'PARTIALLY_REFUNDED'].includes(input.payment.status)) throw conflict('NOT_REFUNDABLE', 'Payment is not captured');
-  const pending = await tx.refund.aggregate({ where: { paymentId: input.payment.id, status: 'PENDING' }, _sum: { amountHalalas: true } });
-  const refundable = input.payment.capturedHalalas - input.payment.refundedHalalas - (pending._sum.amountHalalas ?? 0);
+  const current = await tx.payment.findUniqueOrThrow({ where: { id: input.payment.id } });
+  if (!['CAPTURED', 'PARTIALLY_REFUNDED'].includes(current.status)) throw conflict('NOT_REFUNDABLE', 'Payment is not captured');
+  const pending = await tx.refund.aggregate({ where: { paymentId: current.id, status: 'PENDING' }, _sum: { amountHalalas: true } });
+  const refundable = current.capturedHalalas - current.refundedHalalas - (pending._sum.amountHalalas ?? 0);
   if (input.amountHalalas > refundable) throw conflict('REFUND_EXCEEDS_CAPTURED', `At most ${refundable} halalas can be refunded`, { refundable });
   const allocated = input.allocation.reduce((s, a) => s + a.items + a.shipping, 0);
   if (input.allocation.length && allocated !== input.amountHalalas) throw new Error('Refund allocation does not sum to amount');

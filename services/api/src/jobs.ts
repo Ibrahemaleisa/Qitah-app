@@ -74,6 +74,18 @@ export async function relayOutbox(sqs?: { client: SQSClient; queueUrl: string })
   return batch.length;
 }
 
+/** Retention: expired checkout plans/quotes after 1 day, processed outbox events after 30 days. */
+export async function purgeExpired(now = new Date()) {
+  const day = new Date(now.getTime() - 86_400_000);
+  const month = new Date(now.getTime() - 30 * 86_400_000);
+  const [plans, quotes, events] = await Promise.all([
+    prisma.checkoutPlan.deleteMany({ where: { expiresAt: { lt: day } } }),
+    prisma.shippingQuote.deleteMany({ where: { expiresAt: { lt: day } } }),
+    prisma.domainEvent.deleteMany({ where: { status: 'DONE', createdAt: { lt: month } } }),
+  ]);
+  return plans.count + quotes.count + events.count;
+}
+
 export async function deliverOverHttp(baseUrl: string, d: Delivery) {
   const res = await fetch(new URL(d.url, baseUrl), { method: 'POST', body: d.body, headers: d.headers });
   return res.status;
@@ -91,5 +103,6 @@ export async function runAllJobs(ctx: Ctx, opts: { sqs?: { client: SQSClient; qu
     out.sandboxRefundsSettled = deliveries.length;
   }
   out.outbox = await relayOutbox(opts.sqs);
+  out.purged = await purgeExpired();
   return out;
 }

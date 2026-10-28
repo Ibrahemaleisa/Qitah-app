@@ -62,7 +62,7 @@ export function appEnvironment(p: AppEnvironmentProps): Record<string, string> {
     AUTH_MODE: 'cognito',
     COGNITO_REGION: c.region,
     COGNITO_USER_POOL_ID: p.cognitoUserPoolId,
-    // Forward-compatible: the API verifies a single issuer today (see REGION/DEPLOYMENT docs).
+    // The API selects the pool by token issuer and accepts both (customers + staff/merchants).
     COGNITO_USER_POOL_IDS: p.cognitoUserPoolIds.join(','),
     COGNITO_CLIENT_IDS: p.cognitoClientIds.join(','),
     PAYMENT_PROVIDER: 'sandbox',
@@ -72,6 +72,8 @@ export function appEnvironment(p: AppEnvironmentProps): Record<string, string> {
     JOBS_QUEUE_URL: p.jobsQueueUrl,
     UPLOADS_BUCKET: p.uploadsBucketName,
     AWS_REGION: c.region,
+    // CloudFront → ALB: trust exactly these two hops for client IPs (rate limiting).
+    TRUST_PROXY_HOPS: '2',
     ...databaseEnvironment(c),
   };
   if (c.app.reservationMinutes) env.RESERVATION_MINUTES = String(c.app.reservationMinutes);

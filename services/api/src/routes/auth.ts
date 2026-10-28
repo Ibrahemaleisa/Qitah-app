@@ -43,12 +43,16 @@ export async function authRoutes(app: FastifyInstance, deps: Deps) {
     localOnly();
     const body = parse(z.object({ phone: saudiPhone, code: z.string().regex(/^\d{6}$/), name: z.string().min(2).max(80).optional() }), req.body);
     const challenge = await prisma.otpChallenge.findFirst({ where: { phone: body.phone, consumedAt: null }, orderBy: { createdAt: 'desc' } });
-    if (!challenge || challenge.expiresAt < new Date() || challenge.attempts >= OTP_MAX_ATTEMPTS) throw unauthorized('Code expired; request a new one');
-    if (challenge.codeHash !== sha256(`${body.phone}:${body.code}`)) {
-      await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
-      throw unauthorized('Incorrect code');
-    }
-    await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } });
+    if (!challenge || challenge.expiresAt < new Date()) throw unauthorized('Code expired; request a new one');
+    // Count the attempt atomically first, so parallel guesses cannot exceed the cap.
+    const counted = await prisma.otpChallenge.updateMany({
+      where: { id: challenge.id, consumedAt: null, attempts: { lt: OTP_MAX_ATTEMPTS } },
+      data: { attempts: { increment: 1 } },
+    });
+    if (!counted.count) throw unauthorized('Code expired; request a new one');
+    if (challenge.codeHash !== sha256(`${body.phone}:${body.code}`)) throw unauthorized('Incorrect code');
+    const consumed = await prisma.otpChallenge.updateMany({ where: { id: challenge.id, consumedAt: null }, data: { consumedAt: new Date() } });
+    if (!consumed.count) throw unauthorized('Code already used');
     const user = await prisma.user.upsert({ where: { phone: body.phone }, update: {}, create: { phone: body.phone, name: body.name } });
     if (user.status !== 'ACTIVE') throw unauthorized('Account unavailable');
     if (body.name && !user.name) await prisma.user.update({ where: { id: user.id }, data: { name: body.name } });

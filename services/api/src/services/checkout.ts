@@ -186,18 +186,19 @@ export async function checkout(
   const existing = await prisma.order.findUnique({ where: { customerId_idempotencyKey: { customerId: userId, idempotencyKey: input.idempotencyKey } } });
   if (existing) return finishCheckout(ctx, existing.id, input.paymentMethod);
 
-  let orderId: string;
-  try {
-    orderId = await withTx((tx) => createOrderFromPlan(ctx, tx, userId, input));
-  } catch (e) {
-    // A concurrent duplicate submit won the race on (customerId, idempotencyKey): return its order.
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const orderId = await withTx((tx) => createOrderFromPlan(ctx, tx, userId, input));
+      return finishCheckout(ctx, orderId, input.paymentMethod);
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
+      // A concurrent duplicate submit won the race on (customerId, idempotencyKey): return its order.
       const winner = await prisma.order.findUnique({ where: { customerId_idempotencyKey: { customerId: userId, idempotencyKey: input.idempotencyKey } } });
       if (winner) return finishCheckout(ctx, winner.id, input.paymentMethod);
+      // Otherwise an order/suborder number collided: retry with a fresh number.
+      if (attempt >= 3) throw e;
     }
-    throw e;
   }
-  return finishCheckout(ctx, orderId, input.paymentMethod);
 }
 
 async function finishCheckout(ctx: Ctx, orderId: string, method: string) {

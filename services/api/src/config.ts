@@ -29,6 +29,8 @@ const schema = z.object({
   RESERVATION_MINUTES: z.coerce.number().int().positive().default(30),
   RETURN_WINDOW_DAYS: z.coerce.number().int().positive().default(7),
   /** Multiplies per-route rate limits (tests/load tests raise it; never lower than 1 in production). */
+  /** Number of trusted reverse-proxy hops in front of the API (CloudFront → ALB = 2). */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   RATE_LIMIT_SCALE: z.coerce.number().int().min(1).max(10_000).default(1),
 });
 

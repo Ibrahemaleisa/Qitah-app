@@ -59,10 +59,16 @@ export async function createLabel(ctx: Ctx, actor: Actor, shipmentId: string) {
   if (s.direction === 'OUTBOUND' && !['READY_FOR_PICKUP', 'PACKING'].includes(s.merchantOrder.status)) {
     throw conflict('NOT_READY', 'Merchant has not marked the order ready');
   }
+  // Claim the shipment before buying a label so a double click cannot buy two labels.
+  const claim = `claim:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  const claimed = await prisma.shipment.updateMany({ where: { id: shipmentId, status: 'PENDING', carrierShipmentId: null }, data: { carrierShipmentId: claim } });
+  if (!claimed.count) throw conflict('LABEL_IN_PROGRESS', 'A label is already being created for this shipment');
   const addr = s.order.addressSnapshot as Record<string, string>;
   const loc = { name: s.merchantOrder.merchant.displayNameAr, city: s.originLocation.city, district: s.originLocation.district, street: s.originLocation.street, phone: s.originLocation.contactPhone };
   const cust = { name: addr.contactName, city: addr.city, district: addr.district, street: addr.street, phone: addr.phone };
-  const created = await ctx.carrier.createShipment({
+  let created;
+  try {
+    created = await ctx.carrier.createShipment({
     shipmentId: s.id,
     serviceCode: s.serviceCode,
     origin: s.direction === 'OUTBOUND' ? loc : cust,
@@ -70,6 +76,10 @@ export async function createLabel(ctx: Ctx, actor: Actor, shipmentId: string) {
     weightGrams: s.weightGrams,
     reference: s.merchantOrder.number,
   });
+  } catch (e) {
+    await prisma.shipment.updateMany({ where: { id: shipmentId, carrierShipmentId: claim }, data: { carrierShipmentId: null } });
+    throw e;
+  }
   return withTx(async (tx) => {
     const locked = await lockShipment(tx, shipmentId);
     if (locked.status !== 'PENDING') throw conflict('INVALID_TRANSITION', `Shipment is ${locked.status}`);

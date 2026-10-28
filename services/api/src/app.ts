@@ -31,7 +31,8 @@ declare module 'fastify' {
 export async function buildApp(config: Config, overrides: Partial<Ctx> = {}) {
   const app = Fastify({
     logger: config.NODE_ENV === 'test' ? false : { level: 'info', redact: ['req.headers.authorization', 'req.headers.cookie'] },
-    trustProxy: true,
+    // Only trust X-Forwarded-For from known proxy hops; a client cannot spoof its IP to dodge rate limits.
+    trustProxy: (_address: string, hop: number) => hop < config.TRUST_PROXY_HOPS,
     bodyLimit: 2 * 1024 * 1024,
   });
   const ctx = { ...createContext(config), ...overrides };

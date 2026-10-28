@@ -132,7 +132,7 @@ export async function customerRoutes(app: FastifyInstance, deps: Deps) {
   });
 
   // ── checkout
-  app.post('/v1/checkout/plan', async (req) => {
+  app.post('/v1/checkout/plan', rateLimit(ctx.config.RATE_LIMIT_SCALE, 30, '1 minute'), async (req) => {
     const p = await requireUser(req);
     const body = parse(
       z.object({ addressId: z.string(), lines: z.array(z.object({ offerId: z.string(), quantity: z.number().int().min(1).max(20) })).min(1).max(30) }),

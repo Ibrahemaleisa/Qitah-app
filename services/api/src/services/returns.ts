@@ -20,6 +20,8 @@ export async function requestReturn(
 ) {
   if (!input.items.length) throw badRequest('NO_ITEMS', 'Select at least one item');
   return withTx(async (tx) => {
+    // Serialise return requests per order so the same quantity cannot be claimed twice.
+    await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${orderId} AND "customerId" = ${userId} FOR UPDATE`;
     const order = await tx.order.findFirst({ where: { id: orderId, customerId: userId }, include: { items: { include: { merchantOrder: true, returnItems: { include: { returnCase: true } } } } } });
     if (!order) throw notFound('Order');
     const cutoff = Date.now() - ctx.config.RETURN_WINDOW_DAYS * 86_400_000;
@@ -135,6 +137,9 @@ export async function inspectReturn(
   const orderId = await withTx(async (tx) => {
     const rc = await lockReturn(tx, id, merchantId);
     if (rc.status !== 'RECEIVED') throw conflict('INVALID_TRANSITION', `Return is ${rc.status}`);
+    // The case stays RECEIVED until the refund webhook lands; never inspect (and restock) twice.
+    if (rc.inspectedAt) throw conflict('ALREADY_INSPECTED', 'This return was already inspected');
+    await tx.returnCase.update({ where: { id }, data: { inspectedAt: new Date() } });
     if (!input.accept) {
       await tx.returnCase.update({ where: { id }, data: { status: 'CLOSED', inspectionNote: input.note } });
       await notify(tx, { audience: 'CUSTOMER', userId: rc.customerId, type: 'return.inspection_failed', title: `المرتجع ${rc.number}`, body: `لم يجتز المرتجع الفحص${input.note ? `: ${input.note}` : ''}`, data: { orderId: rc.orderId } });
