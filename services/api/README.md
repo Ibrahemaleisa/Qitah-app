@@ -32,6 +32,7 @@ Seeded logins (sandbox only) share the password `Qitah-Sandbox-2026!` (override 
 | Schema & constraints | `prisma/schema.prisma`, `prisma/migrations/*` (CHECK constraints, append-only ledger trigger) |
 | Auth & RBAC | `src/auth/*` — local JWT (sandbox OTP, staff passwords) or Amazon Cognito JWT; merchant-scoped roles OWNER/MANAGER/STAFF; platform roles OPS_AGENT/OPS_ADMIN/FINANCE |
 | Catalog & fitment | `src/services/catalog.ts`, `routes/catalog.ts` |
+| Search | `src/search/lexicon.ts` (colloquial Arabic/English part dictionary + query/vehicle parser, byte-identical copy in the app at `src/lib/search/lexicon.ts`), `src/services/search.ts` (ranked SQL, pg_trgm) |
 | Inventory | `src/services/inventory.ts` — atomic conditional reservations, commit on verified payment, adjustments ledger |
 | Smart cart | `src/domain/optimizer.ts` — deterministic landed-cost optimisation over offers × shipping groups × carrier services |
 | Checkout & orders | `src/services/checkout.ts`, `orders.ts` — server-priced plans, idempotent checkout, merchant suborders, fulfilment groups |
@@ -42,7 +43,28 @@ Seeded logins (sandbox only) share the password `Qitah-Sandbox-2026!` (override 
 | Realtime & jobs | `routes/events.ts` (polling + SSE over the outbox), `src/jobs.ts`, `src/worker.ts` |
 
 ## API surface (all JSON; money in halalas)
-- Public: `GET /health`, `GET /ready`, `GET /v1/catalog/{reference,snapshot,products,products/:id,offers,sellers/:id}`, `POST /v1/merchant-applications`
+- Public: `GET /health`, `GET /ready`, `GET /v1/catalog/{reference,snapshot,search,products,products/:id,offers,sellers/:id}`, `POST /v1/merchant-applications`
+
+### `GET /v1/catalog/search`
+Understands colloquial part names (كفرات، قربة، هوبات، بوجيهات…) and vehicles typed in the query ("فلتر زيت كامري 2022").
+
+| Param | Meaning |
+| --- | --- |
+| `q` | Free text, part number or both (≤100 chars). |
+| `modelId`, `year`, `engine` — or `vehicle=modelId:year:engine` | The customer's selected vehicle. A model/year typed in `q` overrides it (and drops the engine unless model and year match). |
+| `fitsOnly` | `true` → only parts whose fitment data covers the vehicle (catalog, seller-reported or universal-by-spec). Others are still counted in `counts.other`. |
+| `categoryId`, `origin=oem,aftermarket`, `condition=new,used,refurbished`, `inStock` | Filters. |
+| `sort` | `relevance` (default), `priceAsc`, `priceDesc`, `fastest`. |
+| `cursor`, `limit` (1–50, default 20) | Keyset paging: pass back `nextCursor`. |
+
+Response: `{ items, nextCursor, total, counts: { fits, other }, interpretation, didYouMean, fallback, suggestions: { categoryIds } }`.
+- `items[]` — the same product shape as `GET /v1/catalog/products/:id` → `product`, plus `match: { fit, group: 'fits' | 'other', partNumber }`. `fit` is `catalogMatch | sellerReported | bySpecification | noData | noVehicle`, or `listedForModel | listedForMake` when the vehicle is only a model (no year) or a make — never "fits your car" without a year.
+- `interpretation` — `{ concepts: [{ id, label, categoryId, carried, term }], conceptGroups, freeTokens, partNumber, partNumbers, year, queryVehicle, vehicle: { source, makeId, modelId, year, engine, scope, yearOutOfRange, label }, withoutVehicle, unsupported: [{ id, label }] }`. `unsupported` lists parts Qitah doesn't carry yet (tires, clutch, transmission, A/C compressor, starter) so the app can offer "request this part"; `withoutVehicle` is the query minus the vehicle words (what removing the vehicle chip searches).
+- `fallback` — `null`, or `{ mode: 'corrected', query }` (one-edit spelling fix from the lexicon), `{ mode: 'relaxed' }` (concepts kept, extra words dropped), `{ mode: 'similar' }` (pg_trgm word similarity).
+- Ranking: exact MPN > exact OEM reference > part-number prefix > contained; then fits before not-confirmed (when a vehicle is known); concept matches; trigram similarity; fitment tier catalog > seller > by-spec.
+
+`GET /v1/catalog/products` keeps its `{ total, items }` + `limit/offset` contract and delegates to the same search.
+After changing `src/search/lexicon.ts`, copy it to the app and run `npm run db:backfill-search` to rebuild `Product.searchText`.
 - Auth: `POST /v1/auth/{otp/request,otp/verify,login,refresh,logout}`, `GET|PATCH /v1/me`
 - Customer: `/v1/me/{vehicles,addresses,cart,notifications}`, `POST /v1/checkout/plan`, `POST /v1/checkout`, `GET /v1/orders[/:id]`, `POST /v1/orders/:id/{payment,cancel,returns}`
 - Merchant (`/v1/merchants/:merchantId/...`): profile, verification, dashboard, locations, staff, catalog/products, offers (+stock, adjustments, CSV import), orders (+accept/pack/ready/reject), returns (+approve/reject/receive/inspect), settlements, notifications, activity
