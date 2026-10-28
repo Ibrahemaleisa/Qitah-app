@@ -148,6 +148,8 @@ export class DataStack extends Stack {
         log_min_duration_statement: '1000',
         log_connections: '1',
         log_disconnections: '1',
+        // OLTP: LLVM JIT compiles catalog/search queries for 50–300 ms that run in tens of ms (load test, services/api/scripts/loadtest).
+        jit: '0',
       },
     });
 

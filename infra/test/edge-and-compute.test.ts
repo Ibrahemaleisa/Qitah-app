@@ -94,6 +94,37 @@ describe.each(['staging', 'production'] as const)('Network / edge / compute (%s)
     else expect(cfg.WebACLId).toBeUndefined();
   });
 
+  test('CloudFront: public catalog GETs are cached by path + query string (+ Origin), never by or with Authorization', () => {
+    const t = template(api);
+    t.hasResourceProperties('AWS::CloudFront::CachePolicy', {
+      CachePolicyConfig: Match.objectLike({
+        Name: `qitah-${env}-public-catalog`,
+        DefaultTTL: 0, // only what the API marks cacheable (honours origin Cache-Control)
+        MinTTL: 0,
+        MaxTTL: 86400,
+        ParametersInCacheKeyAndForwardedToOrigin: Match.objectLike({
+          QueryStringsConfig: { QueryStringBehavior: 'all' },
+          CookiesConfig: { CookieBehavior: 'none' },
+          HeadersConfig: { HeaderBehavior: 'whitelist', Headers: ['Origin'] },
+          EnableAcceptEncodingGzip: true,
+          EnableAcceptEncodingBrotli: true,
+        }),
+      }),
+    });
+    const dist = Object.values(resources(api)).find((r) => r.Type === 'AWS::CloudFront::Distribution')!;
+    const cfg = dist.Properties?.DistributionConfig as { CacheBehaviors: Array<Record<string, unknown>> };
+    expect(cfg.CacheBehaviors).toHaveLength(1);
+    const catalog = cfg.CacheBehaviors[0];
+    expect(catalog.PathPattern).toBe('/v1/catalog/*');
+    expect(catalog.ViewerProtocolPolicy).toBe('https-only');
+    expect(catalog.AllowedMethods).toEqual(['GET', 'HEAD', 'OPTIONS']);
+    expect(catalog.CachedMethods).toEqual(['GET', 'HEAD']);
+    // No origin request policy: Authorization / cookies are not forwarded on cacheable responses.
+    expect(catalog.OriginRequestPolicyId).toBeUndefined();
+    const policy = JSON.stringify(Object.values(resources(api)).find((r) => r.Type === 'AWS::CloudFront::CachePolicy'));
+    expect(policy).not.toContain('Authorization');
+  });
+
   test('WAF web ACL (production) uses managed rule groups and a rate limit', () => {
     const edge = stage(env).stacks.edge;
     if (!prod) {

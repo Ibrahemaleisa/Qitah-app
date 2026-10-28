@@ -161,8 +161,38 @@ export class ApiStack extends Stack {
         })
       : new origins.LoadBalancerV2Origin(this.alb, { ...originProps, protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY });
 
+    // Public catalog GETs (/v1/catalog/*: reference, home, products, search, changes…) are cacheable at the edge.
+    // Cache key = path + every query string + Origin (so a cached CORS response is only served to the origin it
+    // was produced for; native apps send none). Authorization and cookies are neither in the key nor forwarded,
+    // so no user-specific response can ever be cached or leak. Default TTL 0 = only what the API marks
+    // cacheable with Cache-Control (reference 1 h, products 60 s, home 5 min, search 30 s, changes no-store).
+    const catalogCachePolicy = new cloudfront.CachePolicy(this, 'CatalogCachePolicy', {
+      cachePolicyName: `qitah-${config.envName}-public-catalog`,
+      comment: 'Qitah public catalog: path + query string (+ Origin for CORS), honours origin Cache-Control',
+      defaultTtl: Duration.seconds(0),
+      minTtl: Duration.seconds(0),
+      maxTtl: Duration.days(1),
+      headerBehavior: cloudfront.CacheHeaderBehavior.allowList('Origin'),
+      queryStringBehavior: cloudfront.CacheQueryStringBehavior.all(),
+      cookieBehavior: cloudfront.CacheCookieBehavior.none(),
+      enableAcceptEncodingGzip: true,
+      enableAcceptEncodingBrotli: true,
+    });
+
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
       comment: `Qitah ${config.envName} API`,
+      additionalBehaviors: {
+        '/v1/catalog/*': {
+          origin: apiOrigin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+          cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+          cachePolicy: catalogCachePolicy,
+          // No origin request policy: only the cache-key values (query string, Origin) reach the API.
+          responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
+          compress: true,
+        },
+      },
       defaultBehavior: {
         origin: apiOrigin,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,

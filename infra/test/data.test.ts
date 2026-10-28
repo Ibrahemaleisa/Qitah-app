@@ -31,7 +31,7 @@ describe.each(['staging', 'production'] as const)('Data stack (%s)', (env) => {
   });
 
   test('parameter group forces SSL', () => {
-    t.hasResourceProperties('AWS::RDS::DBParameterGroup', { Parameters: Match.objectLike({ 'rds.force_ssl': '1' }) });
+    t.hasResourceProperties('AWS::RDS::DBParameterGroup', { Parameters: Match.objectLike({ 'rds.force_ssl': '1', jit: '0' }) });
   });
 
   test('DB credentials are generated into Secrets Manager with the data key', () => {
