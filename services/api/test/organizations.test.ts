@@ -415,3 +415,43 @@ test('retail checkout is unaffected by workshop accounts', async () => {
   assert.equal((await c.post(`/v1/orders/${order.orderId}/payment`, { method: 'NET_TERMS' })).status, 400);
   assert.equal((await c.ok<any>('GET', '/v1/me/orgs')).orgs.length, 0);
 });
+
+test('workshop orders use B2B commission; NET_TERMS has no PSP fee; card org orders pay fees; both reconcile', async () => {
+  const owner = await customer(app, phone());
+  const orgId = await approvedWorkshop(owner, { limitHalalas: 5_000_000 });
+  const addr = await addAddress(owner, 'riyadh', 'workshop');
+  const [offer] = await stockedOffers(1);
+  const b2bRule = await prisma.commissionRule.findFirstOrThrow({ where: { channel: 'B2B', merchantId: null, active: true } });
+
+  // NET_TERMS workshop order
+  const p1 = await planFor(owner, addr.id, [{ offerId: offer.id, quantity: 1 }]);
+  const r1 = await checkoutRaw(owner, { planId: p1.planId, paymentMethod: 'NET_TERMS', buyerOrgId: orgId });
+  assert.equal(r1.status, 200, JSON.stringify(r1.body));
+  const item1 = await prisma.orderItem.findFirstOrThrow({ where: { orderId: r1.body.orderId } });
+  assert.equal(item1.commissionBps, b2bRule.bps, 'org order resolves the B2B tier');
+  const pay1 = await prisma.payment.findFirstOrThrow({ where: { orderId: r1.body.orderId } });
+  assert.equal(pay1.feeHalalas ?? 0, 0, 'no payment-provider fee on credit');
+  const rec1 = await ops.ok<any>('GET', `/v1/ops/orders/${r1.body.orderId}/reconcile`);
+  assert.equal(rec1.reconciled, true, JSON.stringify(rec1.issues));
+
+  // Card-paid workshop order: B2B commission + provider fee
+  const p2 = await planFor(owner, addr.id, [{ offerId: offer.id, quantity: 1 }]);
+  const r2 = await checkoutRaw(owner, { planId: p2.planId, paymentMethod: 'mada', buyerOrgId: orgId });
+  assert.equal(r2.status, 200, JSON.stringify(r2.body));
+  await payOnSandboxPage(app, r2.body.payment.redirectUrl);
+  const item2 = await prisma.orderItem.findFirstOrThrow({ where: { orderId: r2.body.orderId } });
+  assert.equal(item2.commissionBps, b2bRule.bps);
+  const pay2 = await prisma.payment.findFirstOrThrow({ where: { orderId: r2.body.orderId, status: 'CAPTURED' } });
+  assert.ok((pay2.feeHalalas ?? 0) > 0, 'card capture records a fee');
+  const rec2 = await ops.ok<any>('GET', `/v1/ops/orders/${r2.body.orderId}/reconcile`);
+  assert.equal(rec2.reconciled, true, JSON.stringify(rec2.issues));
+
+  // Retail order of the same offer stays on the B2C tier
+  const retail = await customer(app, phone());
+  const raddr = await addAddress(retail);
+  const p3 = await planFor(retail, raddr.id, [{ offerId: offer.id, quantity: 1 }]);
+  const r3 = await checkoutRaw(retail, { planId: p3.planId, paymentMethod: 'mada' });
+  const item3 = await prisma.orderItem.findFirstOrThrow({ where: { orderId: r3.body.orderId } });
+  assert.notEqual(item3.commissionBps, b2bRule.bps, 'retail is not B2B');
+  await assertBalancedLedger();
+});

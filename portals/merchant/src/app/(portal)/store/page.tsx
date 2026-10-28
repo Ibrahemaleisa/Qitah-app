@@ -36,7 +36,8 @@ export default function StorePage() {
                 <Item k="المدينة" v={cityAr(p.city)} />
                 <Item k="جوال التواصل" v={p.contactPhone} ltr />
                 <Item k="بريد التواصل" v={p.contactEmail} ltr />
-                <Item k="عمولة قطعة" v={`${(p.commissionBps / 100).toFixed(1)}%`} />
+                <Item k="عمولة قطعة" v={p.commissionBps === null ? "حسب الفئة ونوع القطعة (صفحة نسب العمولة)" : `${(p.commissionBps / 100).toFixed(1)}% (نسبة متفق عليها)`} />
+                <Item k="دورة التسوية" v={p.settlementCadence === "DAILY" ? (p.trustedForEarlyPayout ? "يومية — صرف مبكر بعد التوصيل" : "يومية") : "أسبوعية"} />
                 <Item k="مهلة القبول / التجهيز" v={`${Math.round(p.slaAcceptMinutes / 60)} س / ${Math.round(p.slaReadyMinutes / 60)} س`} />
                 {p.approvedAt && <Item k="تاريخ الاعتماد" v={formatDate(p.approvedAt)} />}
               </dl>

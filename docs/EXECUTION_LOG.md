@@ -13,6 +13,47 @@ Goal (committee): ≥40% of GMV from workshop accounts. Before this, "workshop" 
 - **Ops portal**: الورش (list/detail: approve/reject/suspend/reinstate, set/freeze credit, record repayments), overdue receivables, workshop leads (from `MechanicReview` workshop name/phone).
 - **Verification**: API 87/87 (5 new in `test/organizations.test.ts`; the concurrent over-limit test was checked to fail without the credit-row lock), app jest 25 suites / 241, ops portal build + typecheck + lint.
 
+## 2026-10-28: Wave 3: merchant economics and supply quality
+Built in one worktree. Schema changes are in a single migration, `*_merchant_economics`. Details: `services/api/README.md` § Merchant economics.
+
+**Commission rules.** `CommissionRule` holds merchant, category, origin, condition, channel, priority and validity. Commission is resolved per order line, and the most specific rule wins.
+- `Merchant.commissionBps` is now nullable. It means a negotiated B2C rate that ranks above platform tiers.
+- Seeded tiers: aftermarket 10/12%, OEM 7%, accessories 13%, B2B 5%.
+- Refunds reverse commission at each line's own rate.
+- `orderChannel()` is the single hook for workshop B2B; it returns B2C today.
+
+**Payment fees.**
+- `PAYMENT_FEES` is posted at capture from a per-method env table (sandbox values are estimates).
+- `reconcileOrder` expects clearing = captured − refunded − fees.
+- Ops sees the contribution margin per order.
+
+**Automatic settlement.**
+- The worker drafts settlements WEEKLY or DAILY, idempotently through `JobRunMark`.
+- Trusted DAILY merchants are paid right after delivery. 10% goes into `MERCHANT_RESERVE` and is released after the return window, net of later refunds.
+- Approval and paid status stay manual.
+
+**Freshness.**
+- `Offer.lastConfirmedAt`: an offer goes stale after 7 days (flagged and ranked lower) and hidden after 21.
+- Merchants get a one-click confirm and daily reminders.
+- Same-day orders have a 15-minute accept SLA.
+
+**Scorecard.**
+- 30/90-day metrics and a documented 0–100 `qualityScore`, cached on Merchant.
+- The score breaks ties in offer order. Search ranking is unchanged.
+
+**Portals.**
+- Merchant: scorecard, commission rates, payouts and reserve, freshness banner.
+- Ops: commission rules, merchant performance, economics editing, margins.
+
+**Verification.**
+- API: 92/92, including 10 new tests in `test/economics.test.ts`; tsc and build pass.
+- Both portals: build, tsc and lint pass.
+- Smoke against a live stack: ops 24/24, merchant 14/14.
+
+**Open items for the merge.**
+- Map `buyerOrgId` → B2B in `orderChannel`.
+- `search.ts` does not apply the freshness hide filter (min price/offer count in search results can include hidden offers). The owner of search and the read model should add `lastConfirmedAt >= now − FRESHNESS_HIDE_DAYS`.
+
 ## 2026-10-28: Evaluation committee + waves 1–2
 **Committee** (5 independent members, reports in `docs/strategy/committee/`, synthesis in `docs/strategy/COMMITTEE_REPORT.md`).
 - "60% of all market sales" isn't measurable or achievable in 3–5 years: online is about 5% of a $5–7B parts market.

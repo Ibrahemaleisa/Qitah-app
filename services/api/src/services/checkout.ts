@@ -6,7 +6,10 @@ import { DEFAULT_SAME_DAY_CUTOFF_MIN, sameDayEligible } from '../domain/delivery
 import { optimizeCart, type Candidate, type LineRequest, type PlanOption } from '../domain/optimizer.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { orderNumber } from '../lib/ids.js';
-import { applyBps, vatOfInclusive } from '../lib/money.js';
+import { vatOfInclusive } from '../lib/money.js';
+import { blendedBps, lineCommission } from '../domain/commission.js';
+import { hiddenBefore } from '../domain/freshness.js';
+import { loadCommissionRules, orderChannel, resolveLine } from './commission.js';
 import { emit } from './events.js';
 import { reserve } from './inventory.js';
 import { privateOfferWhere } from './partRequests.js';
@@ -46,7 +49,11 @@ const purchasable = (workshop: boolean, userId: string): Prisma.OfferWhereInput 
   status: 'ACTIVE',
   merchant: { status: 'APPROVED', ...(workshop ? { supportsWorkshopDelivery: true } : {}) },
   location: { active: true },
-  OR: [{ visibility: 'PUBLIC', product: { status: 'ACTIVE' } }, { ...privateOfferWhere(userId), product: { status: { in: ['ACTIVE', 'DRAFT'] } } }],
+  OR: [
+    // Public offers not confirmed for FRESHNESS_HIDE_DAYS are hidden until the merchant reconfirms (merchant economics).
+    { visibility: 'PUBLIC', product: { status: 'ACTIVE' }, lastConfirmedAt: { gte: hiddenBefore() } },
+    { ...privateOfferWhere(userId), product: { status: { in: ['ACTIVE', 'DRAFT'] } } },
+  ],
 });
 
 /** Offers a user may reference at all (cart lines, plan inputs): public ones and their own private ones. */
@@ -323,13 +330,19 @@ async function createOrderFromPlan(
   });
 
   const merchantIds = [...new Set(plan.groups.map((g) => g.merchantId))].sort();
+  // Commission is resolved per LINE (category / origin / condition differ within one merchant order).
+  const rules = await loadCommissionRules(tx, merchantIds);
+  const channel = orderChannel(order);
+  const commissionOf = (offerId: string, lineTotal: number) => {
+    const o = byId.get(offerId)!;
+    const r = resolveLine(ctx.config.COMMISSION_DEFAULT_BPS, rules, o.merchant, { categoryId: o.product.categoryId, origin: o.product.origin, condition: o.condition }, channel, now);
+    return { commissionBps: r.bps, commissionHalalas: lineCommission(lineTotal, r.bps), commissionRuleId: r.ruleId };
+  };
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   for (const [mi, merchantId] of merchantIds.entries()) {
     const groups = plan.groups.map((g, gi) => ({ g, quoteId: plan.quoteIds[gi] })).filter(({ g }) => g.merchantId === merchantId);
-    const merchant = byId.get(groups[0].g.lines[0].offerId)!.merchant;
     const itemsHalalas = groups.reduce((s, { g }) => s + g.lines.reduce((x, l) => x + l.unitPriceHalalas * l.quantity, 0), 0);
-    // TODO(commission-rules): the sales channel is known here: `input.buyerOrgId ? 'B2B' : 'B2C'` (also persisted as
-    // Order.buyerOrgId). Commission rules (CommissionRule.channel) are built separately and should pick the rate here.
+    const commissionHalalas = groups.reduce((s, { g }) => s + g.lines.reduce((x, l) => x + commissionOf(l.offerId, l.unitPriceHalalas * l.quantity).commissionHalalas, 0), 0);
     const mo = await tx.merchantOrder.create({
       data: {
         number: `${number}-${letters[mi]}`,
@@ -337,8 +350,9 @@ async function createOrderFromPlan(
         merchantId,
         itemsHalalas,
         shippingHalalas: groups.reduce((s, { g }) => s + g.rate.amountHalalas, 0),
-        commissionBps: merchant.commissionBps,
-        commissionHalalas: applyBps(itemsHalalas, merchant.commissionBps),
+        // Display rate only (Σ line commission / Σ items); ledger and refunds use the per-line rates.
+        commissionBps: blendedBps(itemsHalalas, commissionHalalas),
+        commissionHalalas,
       },
     });
     for (const { g, quoteId } of groups) {
@@ -369,6 +383,7 @@ async function createOrderFromPlan(
             quantity: l.quantity,
             unitPriceHalalas: l.unitPriceHalalas,
             lineTotalHalalas: l.unitPriceHalalas * l.quantity,
+            ...commissionOf(o.id, l.unitPriceHalalas * l.quantity),
             productNameAr: o.product.nameAr,
             productNameEn: o.product.nameEn,
             partNumber: o.product.partNumber,
@@ -397,6 +412,7 @@ async function createOrderFromPlan(
       amountHalalas: plan.totalHalalas,
       debit: 'CUSTOMER_RECEIVABLE',
       actor: { userId, type: 'customer' },
+      sameDayAcceptMinutes: ctx.config.SLA_SAME_DAY_ACCEPT_MINUTES,
       now,
       orderData: { creditDueAt: new Date(now.getTime() + credit.termsDays * 86_400_000) },
     });

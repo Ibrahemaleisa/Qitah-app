@@ -117,14 +117,20 @@ function OrderView({ o, now, reload }: { o: MerchantOrder; now: number; reload: 
                     {i.quantity}
                   </td>
                   <td className="whitespace-nowrap">{formatSar(i.unitPriceHalalas)}</td>
-                  <td className="whitespace-nowrap">{formatSar(i.lineTotalHalalas)}</td>
+                  <td className="whitespace-nowrap">
+                    {formatSar(i.lineTotalHalalas)}
+                    {i.commissionBps !== undefined && <p className="text-xs text-slate">عمولة {(i.commissionBps / 100).toFixed(1)}%</p>}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
           <dl className="grid gap-1 border-t border-line px-4 py-3 text-sm sm:max-w-sm sm:ms-auto">
             <Row k="قيمة القطع" v={formatSar(o.itemsHalalas)} />
-            <Row k={`عمولة قطعة (${(o.commissionBps / 100).toFixed(1)}%)`} v={`- ${formatSar(o.commissionHalalas)}`} />
+            <Row
+              k={`عمولة قطعة (${new Set(o.items.map((i) => i.commissionBps)).size > 1 ? "متوسط " : ""}${(o.commissionBps / 100).toFixed(1)}%)`}
+              v={`- ${formatSar(o.commissionHalalas)}`}
+            />
             <Row k="صافي مستحقك" v={formatSar(net)} strong />
             <Row k="الشحن (تدفعه قطعة للناقل)" v={formatSar(o.shippingHalalas)} muted />
           </dl>

@@ -94,7 +94,7 @@ export function MerchantsView() {
                           <td className="end num">{m._count.offers}</td>
                           <td className="end num">{m._count.locations ?? '—'}</td>
                           <td className="end num">{m._count.merchantOrders}</td>
-                          <td className="num">{(m.commissionBps / 100).toFixed(2)}%</td>
+                          <td className="num">{m.commissionBps === null ? <span className="muted">حسب القواعد</span> : `${(m.commissionBps / 100).toFixed(2)}%`}</td>
                           <td>
                             <DateTime iso={m.createdAt} />
                           </td>

@@ -32,6 +32,10 @@ unmatched rows go to a review queue rather than creating duplicate products.
 
 - Every record carries `sourceUpdatedAt`; offers older than a merchant-specific `FreshnessPolicy` are hidden or
   flagged as stale in the customer app.
+  **Implemented (platform-wide policy, wave 3):** `Offer.lastConfirmedAt` is set by stock/price updates, CSV
+  import, order acceptance and the "confirm all stock" action. Offers are stale after `FRESHNESS_STALE_DAYS`
+  (flagged, ranked lower) and hidden after `FRESHNESS_HIDE_DAYS`. See `services/api/README.md`. Per-merchant
+  policies and `InventorySource` connectors are still not implemented.
 - Out-of-order updates are resolved by source timestamp (`stale_update`), concurrent dashboard edits are
   surfaced for review (`concurrent_edit`).
 - Checkout places short-lived **stock reservations** (`StockReservationService`); visible stock = merchant

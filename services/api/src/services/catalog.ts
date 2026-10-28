@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 import { prisma, type Db } from '../db.js';
+import { hiddenBefore, offerFreshness } from '../domain/freshness.js';
 import { notFound } from '../lib/errors.js';
 import { normalizePartNumber, normalizeText } from '../lib/text.js';
 import { conceptSearchTerms, productConcepts } from '../search/lexicon.js';
@@ -42,16 +43,24 @@ export async function refreshSearchText(db: Db, productId: string) {
   return true;
 }
 
-/** Public listing filter. PRIVATE offers (accepted part-request quotes) never appear in catalog, search, snapshot or seller pages. */
+/**
+ * Public listing filter. PRIVATE offers (accepted part-request quotes) never appear in catalog, search, snapshot or seller pages.
+ * Offers not confirmed for FRESHNESS_HIDE_DAYS are hidden until reconfirmed (domain/freshness.ts). The cutoff is a getter so
+ * every query (and every `...publicOfferWhere` spread) evaluates it at call time.
+ */
 export const publicOfferWhere: Prisma.OfferWhereInput = {
   visibility: 'PUBLIC',
   status: 'ACTIVE',
   merchant: { status: 'APPROVED' },
   location: { active: true },
+  get lastConfirmedAt() {
+    return { gte: hiddenBefore() };
+  },
 };
 
-const offerInclude = { inventory: true, location: true } satisfies Prisma.OfferInclude;
-type OfferRow = Prisma.OfferGetPayload<{ include: typeof offerInclude }>;
+const offerInclude = { inventory: true, location: true, merchant: { select: { qualityScore: true } } } satisfies Prisma.OfferInclude;
+// `merchant` is optional so callers with their own include (e.g. private part-request offers) can reuse the presenter.
+type OfferRow = Prisma.OfferGetPayload<{ include: { inventory: true; location: true } }> & { merchant?: { qualityScore: number | null } };
 
 export function presentOffer(o: OfferRow) {
   return {
@@ -68,7 +77,31 @@ export function presentOffer(o: OfferRow) {
     noteAr: o.noteAr,
     noteEn: o.noteEn,
     updatedAt: o.updatedAt.toISOString(),
+    /** Freshness: `stale` offers are still purchasable but ranked below fresh ones ("آخر تأكيد للمخزون"). */
+    lastConfirmedAt: o.lastConfirmedAt.toISOString(),
+    stale: offerFreshness(o.lastConfirmedAt) !== 'fresh',
+    /** Seller's cached 0–100 quality score (null until first computed). */
+    qualityScore: o.merchant?.qualityScore ?? null,
   };
+}
+
+type PresentedOffer = ReturnType<typeof presentOffer>;
+
+/** A merchant without a computed score ranks as the scorecard's neutral prior (80). */
+const NEUTRAL_QUALITY = 80;
+
+/**
+ * Offer comparison order: in stock first, fresh before stale, then cheapest, then the seller's quality score as the
+ * tiebreaker (higher first), then id for stability.
+ */
+export function compareOffers(a: PresentedOffer, b: PresentedOffer) {
+  return (
+    Number(b.available > 0) - Number(a.available > 0) ||
+    Number(a.stale) - Number(b.stale) ||
+    a.priceHalalas - b.priceHalalas ||
+    (b.qualityScore ?? NEUTRAL_QUALITY) - (a.qualityScore ?? NEUTRAL_QUALITY) ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
 }
 
 export const productInclude = {
@@ -76,7 +109,7 @@ export const productInclude = {
   fitments: true,
   offers: { where: publicOfferWhere, include: offerInclude },
 } satisfies Prisma.ProductInclude;
-type ProductRow = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
+type ProductRow = Prisma.ProductGetPayload<{ include: { identifiers: true; fitments: true } }> & { offers: OfferRow[] };
 
 export function presentProduct(p: ProductRow) {
   return {
@@ -103,7 +136,7 @@ export function presentProduct(p: ProductRow) {
     weightGrams: p.weightGrams,
     /** No verified reviews exist yet: ratings are intentionally null rather than invented. */
     rating: null,
-    offers: p.offers.map(presentOffer),
+    offers: p.offers.map(presentOffer).sort(compareOffers),
   };
 }
 
@@ -135,6 +168,8 @@ export async function presentSellers(merchantIds: string[]) {
     supportsWorkshopDelivery: m.supportsWorkshopDelivery,
     specialty: { ar: m.specialtyAr, en: m.specialtyEn },
     active: m.status === 'APPROVED',
+    /** 0–100 merchant quality score (scorecard; formula in domain/scorecard.ts). */
+    qualityScore: m.qualityScore,
   }));
 }
 
@@ -159,7 +194,10 @@ export async function catalogSnapshot() {
 /** Public live price/stock lookup: private offers are excluded (the owner reads them via /v1/me/private-offers). */
 export async function offersByIds(ids: string[]) {
   const rows = await prisma.offer.findMany({ where: { id: { in: ids }, visibility: 'PUBLIC' }, include: { ...offerInclude, merchant: true } });
-  return rows.map((o) => ({ ...presentOffer(o), purchasable: o.status === 'ACTIVE' && o.merchant.status === 'APPROVED' && o.location.active }));
+  return rows.map((o) => ({
+    ...presentOffer(o),
+    purchasable: o.status === 'ACTIVE' && o.merchant.status === 'APPROVED' && o.location.active && o.lastConfirmedAt >= hiddenBefore(),
+  }));
 }
 
 export async function referenceData() {

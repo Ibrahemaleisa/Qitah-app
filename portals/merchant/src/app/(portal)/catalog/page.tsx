@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { FreshnessBanner } from "@/components/catalog/FreshnessBanner";
 import { EditOfferDialog, HistoryDialog, StockEditor } from "@/components/catalog/OfferTools";
 import { useMerchant } from "@/components/portal/MerchantContext";
 import { Badge, EmptyState, LoadState, PageHeader, Pager, StatusBadge } from "@/components/ui/bits";
-import { formatSar } from "@/lib/format";
-import { CONDITION_AR, label, OFFER_STATUS_AR } from "@/lib/labels";
+import { formatDate, formatSar } from "@/lib/format";
+import { CONDITION_AR, FRESHNESS_AR, label, OFFER_STATUS_AR } from "@/lib/labels";
 import type { Offer, Paged } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
@@ -55,6 +56,8 @@ export default function CatalogPage() {
           )
         }
       />
+
+      <FreshnessBanner onConfirmed={offers.reload} />
 
       <div className="mb-4 flex flex-wrap gap-2">
         <label className="min-w-[14rem] flex-1">
@@ -141,6 +144,12 @@ export default function CatalogPage() {
                     </td>
                     <td>
                       <StatusBadge status={o.status} labels={OFFER_STATUS_AR} />
+                      {o.status === "ACTIVE" && o.freshness && o.freshness !== "fresh" && (
+                        <div className="mt-1" data-testid="offer-freshness" data-freshness={o.freshness}>
+                          <Badge tone={o.freshness === "hidden" ? "danger" : "warning"}>{label(FRESHNESS_AR, o.freshness)}</Badge>
+                        </div>
+                      )}
+                      {o.lastConfirmedAt && <p className="mt-1 whitespace-nowrap text-xs text-slate">آخر تأكيد {formatDate(o.lastConfirmedAt)}</p>}
                     </td>
                     <td>
                       <div className="flex gap-1">

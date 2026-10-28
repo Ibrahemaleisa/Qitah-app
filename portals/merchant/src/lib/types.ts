@@ -51,7 +51,10 @@ export type MerchantProfile = {
   contactPhone: string;
   status: MerchantStatus;
   statusReason: string | null;
-  commissionBps: number;
+  /** Negotiated merchant-wide B2C rate; null = commission tiers per category (see /commission). */
+  commissionBps: number | null;
+  settlementCadence?: "WEEKLY" | "DAILY";
+  trustedForEarlyPayout?: boolean;
   slaAcceptMinutes: number;
   slaReadyMinutes: number;
   approvedAt: string | null;
@@ -67,7 +70,7 @@ export type Dashboard = {
   lowStockOffers: number;
   activeOffers: number;
   performance: { deliveredOrders: number; slaBreaches: number; rejectionRate: number | null };
-  balance: { payableHalalas: number; commissionHalalas: number; paidOutHalalas: number };
+  balance: { payableHalalas: number; commissionHalalas: number; paidOutHalalas: number; reserveHeldHalalas?: number };
 };
 
 export type MerchantOrderStatus =
@@ -88,6 +91,9 @@ export type OrderItem = {
   quantity: number;
   unitPriceHalalas: number;
   lineTotalHalalas: number;
+  /** Commission resolved for this line at checkout (category / origin / condition). */
+  commissionBps?: number;
+  commissionHalalas?: number;
   productNameAr: string;
   productNameEn: string;
   partNumber: string;
@@ -183,6 +189,9 @@ export type Offer = {
   noteAr: string | null;
   status: "ACTIVE" | "PAUSED" | "ARCHIVED";
   updatedAt: string;
+  /** Last stock/price confirmation; drives freshness (stale after 7 days, hidden after 21). */
+  lastConfirmedAt?: string;
+  freshness?: Freshness;
   product: { id: string; nameAr: string; nameEn: string; partNumber: string; brand: string; categoryId: string };
   inventory: { onHand: number; reserved: number } | null;
   location: { id: string; name: string; city: string };
@@ -251,11 +260,98 @@ export type Settlement = {
   commissionHalalas: number;
   refundsHalalas: number;
   netHalalas: number;
+  reserveHeldHalalas?: number;
+  reserveReleasedHalalas?: number;
+  automatic?: boolean;
   payoutReference: string | null;
   approvedAt: string | null;
   paidAt: string | null;
   createdAt: string;
-  lines: { id: string; grossHalalas: number; commissionHalalas: number; refundsHalalas: number; netHalalas: number; merchantOrder: { number: string } }[];
+  lines: {
+    id: string;
+    kind?: "SALE" | "RESERVE_RELEASE";
+    grossHalalas: number;
+    commissionHalalas: number;
+    refundsHalalas: number;
+    netHalalas: number;
+    reserveHalalas?: number;
+    merchantOrder: { number: string };
+  }[];
+};
+
+export type PayoutOverview = {
+  cadence: "WEEKLY" | "DAILY";
+  earlyPayout: boolean;
+  reserveBps: number;
+  returnWindowDays: number;
+  /** Riyadh date (YYYY-MM-DD) of the next automatic settlement run. */
+  nextSettlementDate: string;
+  eligibleNetHalalas: number;
+  eligibleOrders: number;
+  eligibleReserveHalalas: number;
+  reserveHeldHalalas: number;
+  inReviewHalalas: number;
+  inReviewSettlements: number;
+};
+
+export type Freshness = "fresh" | "stale" | "hidden";
+
+export type FreshnessSummary = {
+  staleDays: number;
+  hideDays: number;
+  active: number;
+  fresh: number;
+  stale: number;
+  hidden: number;
+  staleWithin48h: number;
+  freshnessRate: number | null;
+};
+
+export type RateCell = { bps: number; source: "rule" | "merchant" | "default"; ruleId: string | null; ruleName: string | null; validTo: string | null };
+
+export type CommissionRates = {
+  merchantCommissionBps: number | null;
+  defaultBps: number;
+  categories: {
+    categoryId: string;
+    nameAr: string;
+    nameEn: string;
+    rates: { origin: "OEM" | "AFTERMARKET"; condition: "NEW" | "USED" | "REFURBISHED"; b2c: RateCell; b2b: RateCell }[];
+  }[];
+};
+
+export type WindowMetrics = {
+  days: number;
+  received: number;
+  accepted: number;
+  rejected: number;
+  outOfStockRejected: number;
+  ready: number;
+  readyOnTime: number;
+  delivered: number;
+  badReturns: number;
+  customerCancelled: number;
+  acceptanceRate: number | null;
+  outOfStockRate: number | null;
+  cancellationRate: number | null;
+  onTimeReadyRate: number | null;
+  badReturnRate: number | null;
+  avgAcceptMinutes: number | null;
+};
+
+export type ScorecardWarning = "OUT_OF_STOCK_HIGH" | "FRESHNESS_LOW" | "ACCEPTANCE_LOW" | "ON_TIME_LOW" | "BAD_RETURNS_HIGH";
+
+export type Scorecard = {
+  merchantId: string;
+  generatedAt: string;
+  d30: WindowMetrics;
+  d90: WindowMetrics;
+  offers: { active: number; fresh: number; stale: number; freshnessRate: number | null; staleAfterDays: number; hiddenAfterDays: number };
+  qualityScore: number;
+  components: { stock: number; freshness: number; acceptance: number; onTime: number; returns: number; speed: number };
+  weights: { stock: number; freshness: number; acceptance: number; onTime: number; returns: number; speed: number };
+  thresholds: { outOfStockRate: number; freshnessRate: number; acceptanceRate: number; onTimeReadyRate: number; badReturnRate: number };
+  warnings: ScorecardWarning[];
 };
 
 export type Notification = { id: string; type: string; title: string; body: string; data: Record<string, unknown>; readAt: string | null; createdAt: string };
