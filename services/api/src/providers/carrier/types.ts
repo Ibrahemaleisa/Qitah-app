@@ -8,6 +8,8 @@ export type ParcelGroup = {
   maxDimsCm: [number, number, number];
   handling: Handling;
   itemCount: number;
+  /** Planning hint, not sent to the carrier: false when same-day cannot be honoured (cutoff passed / merchant cannot dispatch today). */
+  sameDayEligible?: boolean;
 };
 
 export type RateQuote = {

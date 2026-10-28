@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 
-import { Client, customer, addAddress, login, payOnSandboxPage, prisma, resetDatabase, sendPaymentEvent, settleSandboxRefunds, startApp } from './helpers.js';
+import { Client, uploadReturnPhoto, customer, addAddress, login, payOnSandboxPage, prisma, resetDatabase, sendPaymentEvent, settleSandboxRefunds, startApp } from './helpers.js';
 
 /**
  * The Phase 1 acceptance journey, end to end through the HTTP API against PostgreSQL:
@@ -155,12 +155,20 @@ test('full marketplace lifecycle is persisted and traceable', async () => {
 
   // 16. Customer initiates a return of one unit of the new product
   const item = view.items.find((i: any) => i.offerId === newOffer.id);
-  view = await c.ok<any>('POST', `/v1/orders/${order.orderId}/returns`, { items: [{ orderItemId: item.id, quantity: 1 }], reason: 'damaged', note: 'cracked' });
+  const noPhoto = await c.post(`/v1/orders/${order.orderId}/returns`, { items: [{ orderItemId: item.id, quantity: 1 }], reason: 'damaged', note: 'cracked' });
+  assert.equal(noPhoto.status, 400, 'damaged returns need a photo');
+  const photo = await uploadReturnPhoto(c);
+  view = await c.ok<any>('POST', `/v1/orders/${order.orderId}/returns`, { items: [{ orderItemId: item.id, quantity: 1 }], reason: 'damaged', note: 'cracked', photoKeys: [photo] });
   const rc = view.returns[0];
   assert.equal(rc.status, 'REQUESTED');
   await merchant.ok('POST', `/v1/merchants/${mid}/returns/${rc.id}/approve`, {});
   const returnShipment = await prisma.shipment.findFirstOrThrow({ where: { returnCaseId: rc.id } });
   assert.equal(returnShipment.direction, 'RETURN');
+  assert.equal(returnShipment.paidBy, 'MERCHANT', 'damaged on arrival: the merchant pays the return');
+  assert.ok(returnShipment.costHalalas > 0, 'return shipping carries a real sandbox quote');
+  const merchantReturns = await merchant.ok<any>('GET', `/v1/merchants/${mid}/returns`);
+  assert.equal(merchantReturns.items[0].photos.length, 1);
+  assert.match(merchantReturns.items[0].photos[0].url, /\/v1\/uploads\/local\?/);
   await ops.ok('POST', `/v1/ops/shipments/${returnShipment.id}/label`);
   await ops.ok('POST', `/v1/ops/shipments/${returnShipment.id}/pickup`, { windowStart: new Date(Date.now() + 3600e3).toISOString(), windowEnd: new Date(Date.now() + 7200e3).toISOString() });
   await ops.ok('POST', `/v1/ops/shipments/${returnShipment.id}/sandbox-event`, { status: 'PICKED_UP' });
@@ -191,7 +199,8 @@ test('full marketplace lifecycle is persisted and traceable', async () => {
   const commissionAfterRefund = mo.commissionHalalas - Math.floor((12000 * 900 + 5000) / 10000);
   assert.equal(s.grossHalalas, 30000);
   assert.equal(s.commissionHalalas, commissionAfterRefund);
-  assert.equal(s.netHalalas, 30000 - 12000 - commissionAfterRefund);
+  // The merchant-paid return label is charged against this suborder's payable.
+  assert.equal(s.netHalalas, 30000 - 12000 - commissionAfterRefund - returnShipment.costHalalas);
   await finance.ok('POST', `/v1/ops/settlements/${s.id}/approve`);
   await finance.ok('POST', `/v1/ops/settlements/${s.id}/paid`, { payoutReference: 'SANDBOX-TRANSFER-1' });
   const balance = await merchant.ok<any>('GET', `/v1/merchants/${mid}/settlements`);

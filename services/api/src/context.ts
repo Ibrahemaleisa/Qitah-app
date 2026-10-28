@@ -10,6 +10,8 @@ export type Ctx = {
   carrier: CarrierAdapter;
   payments: PaymentProvider;
   uploads: Uploads;
+  /** Injectable clock (same-day cutoffs, delivery estimates). */
+  clock: () => Date;
 };
 
 export function createContext(config: Config): Ctx {
@@ -18,5 +20,6 @@ export function createContext(config: Config): Ctx {
     carrier: new SandboxCarrier(config.PUBLIC_BASE_URL),
     payments: new SandboxPaymentProvider(config.PUBLIC_BASE_URL, config.PAYMENT_WEBHOOK_SECRET),
     uploads: createUploads(config),
+    clock: () => new Date(),
   };
 }

@@ -5,6 +5,7 @@ import { prisma, withTx, type Tx } from '../db.js';
 import { assertTransition, COLLECTED, MERCHANT_ORDER_TRANSITIONS, RETURN_TRANSITIONS, SHIPMENT_TRANSITIONS } from '../domain/states.js';
 import { conflict, notFound } from '../lib/errors.js';
 import { audit, emit, notify, type Actor } from './events.js';
+import { post } from './ledger.js';
 import { recomputeOrderStatus } from './orders.js';
 
 const CUSTOMER_COPY: Partial<Record<ShipmentStatus, string>> = {
@@ -84,12 +85,36 @@ export async function createLabel(ctx: Ctx, actor: Actor, shipmentId: string) {
     const locked = await lockShipment(tx, shipmentId);
     if (locked.status !== 'PENDING') throw conflict('INVALID_TRANSITION', `Shipment is ${locked.status}`);
     await tx.shipment.update({ where: { id: shipmentId }, data: { ...created, status: 'LABEL_CREATED' } });
+    await postReturnShippingCost(tx, locked);
     await tx.shipmentEvent.create({
       data: { shipmentId, status: 'LABEL_CREATED', description: ctx.carrier.sandbox ? 'Sandbox label created (not valid for real shipping)' : 'Label created', source: 'OPS', actorUserId: actor.userId, occurredAt: new Date() },
     });
     await audit(tx, actor, { action: 'shipment.label_created', entityType: 'shipment', entityId: shipmentId, merchantId: locked.merchantOrder.merchantId, data: { trackingNumber: created.trackingNumber } });
     await emit(tx, { type: 'shipment.updated', entityType: 'shipment', entityId: shipmentId, orderId: locked.orderId, customerId: locked.order.customerId, merchantIds: [locked.merchantOrder.merchantId], payload: { status: 'LABEL_CREATED' } });
     return tx.shipment.findUniqueOrThrow({ where: { id: shipmentId } });
+  });
+}
+
+/**
+ * The carrier charges for a reverse label when it is bought. Qitah-paid (fit guarantee) labels are booked to
+ * GUARANTEE_EXPENSE; merchant-paid labels are charged to the merchant's payable. Customer-paid labels are
+ * deducted from the customer's refund instead (see returns.computeReturnRefund).
+ */
+async function postReturnShippingCost(
+  tx: Tx,
+  s: { id: string; direction: string; paidBy: string; costHalalas: number; orderId: string; merchantOrderId: string; merchantOrder: { merchantId: string } },
+) {
+  if (s.direction !== 'RETURN' || s.costHalalas <= 0 || s.paidBy === 'CUSTOMER') return;
+  const ref = { merchantId: s.merchantOrder.merchantId, merchantOrderId: s.merchantOrderId };
+  await post(tx, {
+    type: 'RETURN_SHIPPING',
+    refType: 'shipment',
+    refId: s.id,
+    orderId: s.orderId,
+    lines: [
+      { account: s.paidBy === 'PLATFORM' ? 'GUARANTEE_EXPENSE' : 'MERCHANT_PAYABLE', amountHalalas: s.costHalalas, ...ref },
+      { account: 'SHIPPING_PAYABLE', amountHalalas: -s.costHalalas, ...ref },
+    ],
   });
 }
 

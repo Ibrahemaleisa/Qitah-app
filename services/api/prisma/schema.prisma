@@ -329,6 +329,8 @@ model PickupLocation {
   contactPhone String
   latitude     Float?
   longitude    Float?
+  /// Same-day cutoff, minutes after midnight Riyadh time (default 14:00). Orders after it miss same-day delivery.
+  sameDayCutoffMinutes Int     @default(840)
   active       Boolean         @default(true)
   createdAt    DateTime        @default(now())
   merchant     Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
@@ -653,6 +655,8 @@ model OrderItem {
   condition          Condition
   art                String
   status             OrderItemStatus @default(ACTIVE)
+  /// Server-computed fit at checkout: {vehicle, status, guaranteed, fitmentIds, vin}. Drives the fit guarantee.
+  fitSnapshot        Json?
   createdAt          DateTime        @default(now())
 
   order         Order            @relation(fields: [orderId], references: [id])
@@ -712,6 +716,13 @@ enum ShipmentStatus {
   RETURNED_TO_SENDER
 }
 
+/// Who bears a shipment's carrier cost (outbound: the customer paid it at checkout).
+enum ShipmentPayer {
+  CUSTOMER
+  PLATFORM
+  MERCHANT
+}
+
 enum EventSource {
   CARRIER
   OPS
@@ -738,6 +749,7 @@ model Shipment {
   pickupWindowEnd    DateTime?
   weightGrams        Int
   costHalalas        Int
+  paidBy             ShipmentPayer     @default(CUSTOMER)
   exceptionReason    String?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
@@ -876,6 +888,12 @@ model ReturnCase {
   inspectionNote  String?
   restock         Boolean      @default(false)
   refundHalalas   Int          @default(0)
+  /// Every line in the case is covered by the fit guarantee (ضمان قطعة).
+  guaranteed      Boolean      @default(false)
+  /// Private upload keys (customers/<id>/return/...) — required for `damaged`.
+  photoKeys       String[]     @default([])
+  /// Customer declared the item unopened (required for `changedMind`).
+  unopened        Boolean      @default(false)
   inspectedAt     DateTime?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -912,6 +930,8 @@ enum LedgerAccount {
   SHIPPING_PAYABLE
   PAYOUTS
   SUSPENSE
+  /// Platform-funded fit-guarantee cost (outbound shipping refunded + return shipping).
+  GUARANTEE_EXPENSE
 }
 
 enum SettlementStatus {

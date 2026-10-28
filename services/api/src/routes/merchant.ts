@@ -13,7 +13,9 @@ import { audit, emit, type Actor } from '../services/events.js';
 import * as finance from '../services/finance.js';
 import { acceptMerchantOrder, markReady, rejectMerchantOrder, startPacking } from '../services/fulfillment.js';
 import { setOnHand } from '../services/inventory.js';
-import { decideReturn, inspectReturn, markReturnReceived } from '../services/returns.js';
+import { readFitSnapshot, needsMerchantConfirmation } from '../domain/fit.js';
+import { decideReturn, inspectReturn, markReturnReceived, returnPhotoUrls } from '../services/returns.js';
+import { presentFit } from '../services/trust.js';
 import { issueSession } from './auth.js';
 
 const productBody = z.object({
@@ -61,6 +63,8 @@ const locationBody = z.object({
   contactPhone: saudiPhone,
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
+  /** Same-day cutoff, minutes after midnight Riyadh time (e.g. 840 = 14:00). */
+  sameDayCutoffMinutes: z.number().int().min(0).max(1440).optional(),
 });
 
 /** "123.45" → 12345 without floating point. */
@@ -546,7 +550,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
   // ── orders
   const moInclude = {
     items: true,
-    order: { select: { id: true, number: true, addressSnapshot: true, createdAt: true, paidAt: true, status: true } },
+    order: { select: { id: true, number: true, addressSnapshot: true, vehicleSnapshot: true, createdAt: true, paidAt: true, status: true } },
     groups: { include: { originLocation: { select: { id: true, name: true, city: true } } } },
     shipments: { include: { events: { orderBy: { occurredAt: 'asc' } } }, orderBy: { createdAt: 'asc' } },
     returnCases: { include: { items: true } },
@@ -559,6 +563,24 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     return { city: a.city, district: a.district, kind: a.kind };
   }
 
+  /**
+   * Merchant view of a suborder: the customer's vehicle (incl. VIN) and each line's server-computed fit, with
+   * seller-reported / unknown fits flagged so the merchant can double-check before packing.
+   */
+  function presentMo<T extends { status: MerchantOrderStatus; order: { addressSnapshot: Prisma.JsonValue; vehicleSnapshot: Prisma.JsonValue }; items: { fitSnapshot: Prisma.JsonValue }[] }>(mo: T) {
+    const items = mo.items.map((i) => {
+      const snap = readFitSnapshot(i.fitSnapshot);
+      return { ...i, fit: presentFit(i.fitSnapshot), fitNeedsConfirmation: needsMerchantConfirmation(snap) };
+    });
+    return {
+      ...mo,
+      items,
+      vehicle: mo.order.vehicleSnapshot ?? null,
+      fitNeedsConfirmation: items.some((i) => i.fitNeedsConfirmation),
+      order: { ...mo.order, addressSnapshot: redactAddress(mo) },
+    };
+  }
+
   app.get('/v1/merchants/:merchantId/orders', async (req) => {
     const merchantId = mid(req);
     await requireMerchant(req, merchantId);
@@ -569,7 +591,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
       prisma.merchantOrder.count({ where }),
       prisma.merchantOrder.findMany({ where, include: moInclude, orderBy: { createdAt: 'desc' }, take: q.limit, skip: q.offset }),
     ]);
-    return { total, items: rows.map((m) => ({ ...m, order: { ...m.order, addressSnapshot: redactAddress(m) } })) };
+    return { total, items: rows.map(presentMo) };
   });
 
   app.get('/v1/merchants/:merchantId/orders/:id', async (req) => {
@@ -578,7 +600,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     const { id } = parse(z.object({ id: z.string() }), req.params);
     const m = await prisma.merchantOrder.findFirst({ where: { id, merchantId, status: { not: 'PENDING_PAYMENT' } }, include: moInclude });
     if (!m) throw notFound('Merchant order');
-    return { ...m, order: { ...m.order, addressSnapshot: redactAddress(m) } };
+    return presentMo(m);
   });
 
   const action = (name: string, fn: (actor: Actor, id: string, merchantId: string, body: unknown) => Promise<unknown>) =>
@@ -606,7 +628,16 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
-    return { items: rows };
+    return {
+      items: await Promise.all(
+        rows.map(async (r) => ({
+          ...r,
+          photos: await returnPhotoUrls(ctx, r.photoKeys),
+          returnShipping: r.shipments.filter((s) => s.direction === 'RETURN').map((s) => ({ id: s.id, status: s.status, costHalalas: s.costHalalas, paidBy: s.paidBy })),
+          items: r.items.map((i) => ({ ...i, fit: presentFit(i.orderItem.fitSnapshot) })),
+        })),
+      ),
+    };
   });
 
   const returnAction = (name: string, fn: (actor: Actor, id: string, merchantId: string, body: unknown) => Promise<unknown>) =>
@@ -616,8 +647,8 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
       const { id } = parse(z.object({ id: z.string() }), req.params);
       return fn(actorOf(p.userId), id, merchantId, req.body ?? {});
     });
-  returnAction('approve', (a, id, m, b) => decideReturn(a, id, true, parse(z.object({ note: z.string().max(300).optional() }), b).note, m));
-  returnAction('reject', (a, id, m, b) => decideReturn(a, id, false, parse(z.object({ note: z.string().min(2).max(300) }), b).note, m));
+  returnAction('approve', (a, id, m, b) => decideReturn(ctx, a, id, true, parse(z.object({ note: z.string().max(300).optional() }), b).note, m));
+  returnAction('reject', (a, id, m, b) => decideReturn(ctx, a, id, false, parse(z.object({ note: z.string().min(2).max(300) }), b).note, m));
   returnAction('receive', (a, id, m) => markReturnReceived(a, id, m));
   returnAction('inspect', (a, id, m, b) =>
     inspectReturn(ctx, a, id, parse(z.object({ accept: z.boolean(), restock: z.boolean().default(false), refundHalalas: z.number().int().positive().optional(), note: z.string().max(300).optional() }), b), m),
