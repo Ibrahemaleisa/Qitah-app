@@ -125,6 +125,10 @@ export const ACTION_AR: Record<string, string> = {
   "return.received": "استلام مرتجع",
   "return.inspection_accepted": "قبول فحص مرتجع",
   "return.inspection_rejected": "رفض فحص مرتجع",
+  "part_quote.submitted": "تقديم عرض على طلب قطعة",
+  "part_quote.updated": "تعديل عرض على طلب قطعة",
+  "part_quote.withdrawn": "سحب عرض على طلب قطعة",
+  "part_quote.accepted": "قبول العميل عرضاً على طلب قطعة",
 };
 
 export const ACTOR_AR: Record<string, string> = { merchant: "فريق المتجر", ops: "فريق قطعة", customer: "العميل", system: "النظام" };

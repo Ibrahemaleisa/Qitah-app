@@ -19,6 +19,7 @@ const NAV: NavItem[] = [
   { href: '/exceptions', label: 'الاستثناءات', key: 'e' },
   { href: '/orders', label: 'الطلبات', key: 'o' },
   { href: '/merchants', label: 'التجار', key: 'm' },
+  { href: '/part-requests', label: 'طلبات القطع', key: 'q' },
   { href: '/returns', label: 'المرتجعات', key: 'r' },
   { href: '/finance', label: 'المالية', key: 'f', role: 'FINANCE' },
   { href: '/audit', label: 'سجل التدقيق', key: 'a' },

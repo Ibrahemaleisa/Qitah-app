@@ -168,6 +168,14 @@ export const MEMBER_ROLE_LABEL: Record<string, string> = { OWNER: 'المالك'
 export const PAYMENT_METHOD_LABEL: Record<string, string> = { mada: 'مدى', card: 'بطاقة', applePay: 'Apple Pay', stcPay: 'STC Pay' };
 
 const AUDIT: Record<string, string> = {
+  'part_request.created': 'طلب قطعة جديد',
+  'part_request.cancelled': 'إلغاء طلب قطعة',
+  'part_request.expired': 'انتهاء طلب قطعة',
+  'part_quote.submitted': 'عرض تاجر على طلب قطعة',
+  'part_quote.updated': 'تعديل عرض على طلب قطعة',
+  'part_quote.withdrawn': 'سحب عرض على طلب قطعة',
+  'part_quote.accepted': 'قبول عرض على طلب قطعة',
+  'product.draft_from_part_request': 'منتج مسودة من طلب قطعة',
   'merchant.approved': 'اعتماد التاجر',
   'merchant.rejected': 'رفض التاجر',
   'merchant.suspended': 'إيقاف التاجر',
@@ -209,6 +217,7 @@ const AUDIT: Record<string, string> = {
 export const auditLabel = (action: string) => AUDIT[action] ?? action;
 
 export const ENTITY_LABEL: Record<string, string> = {
+  part_request: 'طلب قطعة',
   order: 'طلب',
   merchant_order: 'طلب فرعي',
   shipment: 'شحنة',
@@ -224,6 +233,9 @@ export const ENTITY_LABEL: Record<string, string> = {
 };
 
 const EVENT: Record<string, string> = {
+  'part_request.created': 'طلب قطعة جديد',
+  'part_request.quoted': 'عرض على طلب قطعة',
+  'part_quote.accepted': 'قبول عرض طلب قطعة',
   'shipment.updated': 'تحديث شحنة',
   'merchant_order.updated': 'تحديث طلب فرعي',
   'merchant.updated': 'تحديث تاجر',
