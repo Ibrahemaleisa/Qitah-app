@@ -28,6 +28,9 @@ export async function localUploadRoutes(app: FastifyInstance, deps: Deps) {
     const ext = q.key.split('.').pop();
     reply.type(ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : 'image/jpeg');
     reply.header('content-disposition', 'inline');
+    // The signed, short-lived URL is the capability; photos (part requests / quotes) are embedded as
+    // <img> by the app and the portals on other origins, which helmet's default CORP would block.
+    if (ext !== 'pdf') reply.header('cross-origin-resource-policy', 'cross-origin');
     return uploads.readLocal(q.key);
   });
 }

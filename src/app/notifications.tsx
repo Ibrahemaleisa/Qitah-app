@@ -99,8 +99,11 @@ function RemoteInbox() {
             const orderId = typeof n.data?.orderId === 'string' ? n.data.orderId : undefined;
             const reviewId = typeof n.data?.mechanicReviewId === 'string' ? n.data.mechanicReviewId : undefined;
             const vehicleId = typeof n.data?.vehicleId === 'string' ? n.data.vehicleId : undefined;
+            const partRequestId = typeof n.data?.partRequestId === 'string' ? n.data.partRequestId : undefined;
             const open = orderId
               ? () => router.push(`/order/${orderId}`)
+              : partRequestId
+                ? () => router.push(`/part-requests/${partRequestId}`)
               : reviewId
                 ? () => router.push({ pathname: '/mechanic/[id]', params: { id: reviewId } })
                 : vehicleId

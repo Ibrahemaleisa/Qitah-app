@@ -11,7 +11,7 @@ import { isRecentLocalAction, publish } from "@/lib/useApi";
 import { useMerchant } from "./MerchantContext";
 
 /** Event types the API emits to merchants (services/api/src/services/*.ts → emit()). */
-const EVENT_TYPES = ["order.paid", "merchant_order.updated", "offer.updated", "return.updated", "shipment.updated", "merchant.updated", "merchant.applied", "refund.succeeded"];
+const EVENT_TYPES = ["order.paid", "merchant_order.updated", "offer.updated", "return.updated", "shipment.updated", "merchant.updated", "merchant.applied", "refund.succeeded", "part_request.created", "part_request.closed", "part_quote.accepted"];
 const POLL_MS = 30_000;
 
 export type RealtimeMode = "connecting" | "live" | "polling";
@@ -38,7 +38,11 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     const handle = (e: DomainEvent) => {
       publish({ type: e.type, entityId: e.entityId, payload: e.payload });
-      if (e.type === "order.paid") {
+      if (e.type === "part_request.created") {
+        toast({ tone: "info", title: "طلب قطعة جديد", body: "عميل يبحث عن قطعة تناسب متجرك. قدّم عرضك خلال 15 دقيقة.", href: `/part-requests/${e.entityId}` });
+      } else if (e.type === "part_quote.accepted") {
+        toast({ tone: "success", title: "فاز عرضك", body: "اختار العميل عرضك على طلب القطعة.", href: `/part-requests/${e.entityId}` });
+      } else if (e.type === "order.paid") {
         toast({ tone: "info", title: "طلب جديد", body: "وصل طلب مدفوع بانتظار قبولك.", href: "/orders?status=NEW" });
       } else if (e.type === "merchant_order.updated" && !isRecentLocalAction(e.entityId)) {
         const to = typeof e.payload?.to === "string" ? e.payload.to : undefined;

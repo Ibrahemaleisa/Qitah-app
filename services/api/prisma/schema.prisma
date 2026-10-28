@@ -400,6 +400,11 @@ model Offer {
   status           OfferStatus @default(ACTIVE)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
+  /// PRIVATE offers come from an accepted part-request quote (see "part requests (RFQ)" at the end):
+  /// never listed publicly, purchasable only by `privateForUserId`, and only until the quote's `validUntil`.
+  visibility       OfferVisibility @default(PUBLIC)
+  privateForUserId String?
+  partQuote        PartQuote?
 
   merchant     Merchant               @relation(fields: [merchantId], references: [id])
   product      Product                @relation(fields: [productId], references: [id])
@@ -413,6 +418,7 @@ model Offer {
   @@unique([merchantId, sku])
   @@index([productId, status])
   @@index([merchantId, status])
+  @@index([privateForUserId])
 }
 
 /// available = onHand - reserved. Both guarded by CHECK constraints.
@@ -1177,4 +1183,118 @@ model MaintenanceReminder {
   vehicle     GarageVehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
   @@unique([vehicleId, serviceCode, cycleKey])
+}
+
+// ───────────────────────────────────────────── part requests (RFQ)
+// "اطلب قطعة": a customer describes a part they cannot find (text, photos, part number, vehicle);
+// matching merchants answer with quotes; accepting one creates a PRIVATE Offer for that customer so the
+// normal checkout / payment / fulfilment / returns / settlement flow is reused unchanged.
+// Customer, merchant, location and product ids are plain columns (validated in services/partRequests.ts)
+// so this block does not add back-relations to models other agents edit in parallel.
+
+enum OfferVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum PartRequestStatus {
+  OPEN
+  QUOTED
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+enum PartQuoteStatus {
+  ACTIVE
+  WITHDRAWN
+  ACCEPTED
+  /// Closed without being chosen (another quote won, or the customer cancelled the request).
+  DECLINED
+  EXPIRED
+}
+
+enum PartPreference {
+  ANY
+  NEW
+  USED
+  OEM
+  AFTERMARKET
+}
+
+model PartRequest {
+  id                 String            @id @default(cuid())
+  number             String            @unique
+  customerId         String
+  garageVehicleId    String?
+  makeId             String
+  modelId            String
+  year               Int
+  engine             String?
+  vin                String?
+  description        String
+  partNumber         String?
+  quantity           Int               @default(1)
+  /// Private upload keys under customers/<customerId>/part-request/ (served only via short-lived signed URLs).
+  photoKeys          String[]
+  /// ANY | NEW | USED
+  preferredCondition PartPreference    @default(ANY)
+  /// ANY | OEM | AFTERMARKET
+  preferredOrigin    PartPreference    @default(ANY)
+  addressId          String?
+  city               String
+  status             PartRequestStatus @default(OPEN)
+  expiresAt          DateTime
+  /// Set once, by the first quote: time-to-first-quote = firstQuotedAt - createdAt (target: ≥70% within 15 min).
+  firstQuotedAt      DateTime?
+  acceptedQuoteId    String?           @unique
+  acceptedAt         DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  quotes PartQuote[]
+
+  @@index([customerId, createdAt])
+  @@index([status, city])
+  @@index([status, makeId])
+  @@index([status, expiresAt])
+  @@index([createdAt])
+}
+
+model PartQuote {
+  id              String          @id @default(cuid())
+  requestId       String
+  merchantId      String
+  locationId      String
+  /// Existing catalog product, or the DRAFT product created when a free-text quote is accepted.
+  productId       String?
+  partName        String?
+  brand           String?
+  partNumber      String?
+  categoryId      String?
+  origin          PartOrigin?
+  condition       Condition
+  priceHalalas    Int
+  quantity        Int             @default(1)
+  warrantyMonths  Int             @default(0)
+  dispatchDaysMin Int             @default(0)
+  dispatchDaysMax Int             @default(1)
+  note            String?
+  photoKey        String?
+  validUntil      DateTime
+  status          PartQuoteStatus @default(ACTIVE)
+  offerId         String?         @unique
+  createdById     String?
+  acceptedAt      DateTime?
+  withdrawnAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  request PartRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  offer   Offer?      @relation(fields: [offerId], references: [id])
+
+  @@unique([requestId, merchantId])
+  @@index([merchantId, status])
+  @@index([status, validUntil])
 }

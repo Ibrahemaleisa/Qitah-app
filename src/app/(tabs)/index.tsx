@@ -12,6 +12,7 @@ import { allCategories } from '@/data/catalog';
 import { SampleBadge } from '@/features/badges';
 import { MaintenanceCard } from '@/features/MaintenanceCard';
 import { orderStatusVisuals } from '@/features/orderVisuals';
+import { PartRequestHomeCard } from '@/features/PartRequestEntry';
 import { ProductCard } from '@/features/ProductCard';
 import { VehicleCard } from '@/features/VehicleCard';
 import type { PartArtKind } from '@/domain/types';
@@ -119,6 +120,7 @@ export default function Home() {
         <View style={{ marginTop: space.md }}>
           <VehicleCard vehicle={vehicle} />
         </View>
+        <PartRequestHomeCard />
 
         {vehicle ? <MaintenanceCard vehicle={vehicle} /> : null}
 

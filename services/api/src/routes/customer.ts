@@ -5,11 +5,12 @@ import type { Deps } from '../app.js';
 import { prisma } from '../db.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { cityId, parse, rateLimit } from '../lib/http.js';
-import { checkout, PAYMENT_METHODS, planCheckout } from '../services/checkout.js';
+import { checkout, PAYMENT_METHODS, planCheckout, visibleTo } from '../services/checkout.js';
 import { cancelOrderByCustomer } from '../services/fulfillment.js';
 import { loadOrder, orderInclude, presentCustomerOrder } from '../services/orderView.js';
 import { initiatePayment } from '../services/payments.js';
 import { RETURN_REASONS, requestReturn } from '../services/returns.js';
+import { CUSTOMER_UPLOAD_PURPOSES, customerUploadPrefix } from '../services/uploads.js';
 
 const addressBody = z.object({
   kind: z.enum(['home', 'workshop']),
@@ -171,7 +172,7 @@ export async function customerRoutes(app: FastifyInstance, deps: Deps) {
   app.put('/v1/me/cart', async (req) => {
     const p = await requireUser(req);
     const { lines } = parse(z.object({ lines: z.array(z.object({ offerId: z.string(), qty: z.number().int().min(1).max(50) })).max(50) }), req.body);
-    const offers = await prisma.offer.findMany({ where: { id: { in: lines.map((l) => l.offerId) } }, select: { id: true } });
+    const offers = await prisma.offer.findMany({ where: { id: { in: lines.map((l) => l.offerId) }, ...visibleTo(p.userId) }, select: { id: true } });
     const valid = lines.filter((l) => offers.some((o) => o.id === l.offerId));
     await prisma.$transaction(async (tx) => {
       const cart = await tx.cart.upsert({ where: { userId: p.userId }, update: {}, create: { userId: p.userId } });
@@ -259,17 +260,18 @@ export async function customerRoutes(app: FastifyInstance, deps: Deps) {
     return presentCustomerOrder(await loadOrder(id, { customerId: p.userId }));
   });
 
-  // ── private uploads (return photos). Keys are scoped to the customer: customers/<userId>/<purpose>/...
+  // ── private uploads (return and part-request photos), scoped to a hashed per-customer folder.
   app.post('/v1/me/uploads', rateLimit(ctx.config.RATE_LIMIT_SCALE, 30, '10 minutes'), async (req) => {
     const p = await requireUser(req);
-    const body = parse(z.object({ purpose: z.enum(['return']), contentType: z.string(), sizeBytes: z.number().int(), fileName: z.string().min(1).max(200) }), req.body);
-    return ctx.uploads.createUpload({ prefix: `customers/${p.userId}/${body.purpose}`, contentType: body.contentType, sizeBytes: body.sizeBytes, fileName: body.fileName });
+    const body = parse(z.object({ purpose: z.enum(CUSTOMER_UPLOAD_PURPOSES), contentType: z.string().max(60), sizeBytes: z.number().int(), fileName: z.string().min(1).max(200) }), req.body);
+    if (!['image/jpeg', 'image/png'].includes(body.contentType)) throw badRequest('UNSUPPORTED_TYPE', 'Upload a JPEG or PNG photo');
+    return ctx.uploads.createUpload({ prefix: customerUploadPrefix(p.userId, body.purpose).replace(/\/$/, ''), contentType: body.contentType, sizeBytes: body.sizeBytes, fileName: body.fileName });
   });
 
   app.get('/v1/me/uploads', async (req) => {
     const p = await requireUser(req);
     const { key } = parse(z.object({ key: z.string().max(300) }), req.query);
-    if (!key.startsWith(`customers/${p.userId}/`)) throw notFound('File');
+    if (!CUSTOMER_UPLOAD_PURPOSES.some((purpose) => key.startsWith(customerUploadPrefix(p.userId, purpose)))) throw notFound('File');
     return { url: await ctx.uploads.downloadUrl(key) };
   });
 

@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PartArt } from '@/brand/PartArt';
 import { allCategories, getCategory } from '@/data/catalog';
 import type { CategoryId } from '@/domain/types';
+import { PartRequestSearchCta } from '@/features/PartRequestEntry';
 import { ProductRow } from '@/features/ProductCard';
 import { useCatalogSearch, type CatalogSearchState } from '@/features/search/useCatalogSearch';
 import { useI18n } from '@/i18n';
@@ -294,7 +295,7 @@ export default function Search() {
           </View>
         </View>
       ) : null}
-      {/* RFQ CTA slot — the "request this part" component (built separately) goes here. */}
+      <PartRequestSearchCta query={query} />
       {interpretation.didYouMean || conceptCategories.length ? (
         <View style={{ marginBottom: space.lg, gap: space.sm }}>
           <Text variant="headline">{s.search2.suggestions}</Text>

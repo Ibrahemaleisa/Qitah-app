@@ -41,6 +41,7 @@ Seeded logins (sandbox only) share the password `Qitah-Sandbox-2026!` (override 
 | Returns & refunds | `src/services/returns.ts` — return cases, reverse shipments, inspection, partial refunds |
 | Finance | `src/services/ledger.ts`, `finance.ts` — double-entry ledger, settlements/payouts, per-order reconciliation |
 | Realtime & jobs | `routes/events.ts` (polling + SSE over the outbox), `src/jobs.ts`, `src/worker.ts` |
+| Part requests (RFQ) | `src/services/partRequests.ts`, `routes/partRequests.ts` — customer requests (photos via signed URLs), one quote per merchant, accepting creates a PRIVATE offer (buyer-only, expires with the quote) that reuses checkout → payments → fulfilment → returns → settlements; DRAFT product for free-text quotes; expiry job; ops metrics (share answered within 15 min) |
 
 ## API surface (all JSON; money in halalas)
 - Public: `GET /health`, `GET /ready`, `GET /v1/catalog/{reference,snapshot,search,products,products/:id,offers,sellers/:id}`, `POST /v1/merchant-applications`
@@ -69,6 +70,8 @@ After changing `src/search/lexicon.ts`, copy it to the app and run `npm run db:b
 - Customer: `/v1/me/{vehicles,addresses,cart,notifications}`, `POST /v1/checkout/plan`, `POST /v1/checkout`, `GET /v1/orders[/:id]`, `POST /v1/orders/:id/{payment,cancel,returns}`
 - Merchant (`/v1/merchants/:merchantId/...`): profile, verification, dashboard, locations, staff, catalog/products, offers (+stock, adjustments, CSV import), orders (+accept/pack/ready/reject), returns (+approve/reject/receive/inspect), settlements, notifications, activity
 - Ops (`/v1/ops/...`): summary, merchants (+approve/reject/suspend/reinstate), orders (+full trace, reconcile, refunds), fulfillment/queue, merchant-orders actions, shipments (+label/pickup/events/sandbox-event), exceptions, returns, settlements (+generate/approve/paid), payments/events, audit, notifications, staff
+- Part requests: customer `POST /v1/me/uploads` (purpose `part-request`), `GET|POST /v1/me/part-requests`, `GET /v1/me/part-requests/:id`, `POST /v1/me/part-requests/:id/{cancel,quotes/:quoteId/accept}`, `GET /v1/me/private-offers`; merchant `GET /v1/merchants/:id/part-requests[/:requestId]`, `POST|PATCH /v1/merchants/:id/part-requests/:requestId/quote`, `POST …/quote/withdraw`, `GET /v1/merchants/:id/part-quotes` (uploads purpose `part-quote`); ops `GET /v1/ops/part-requests[/:id]`.
+  Matching rule (v1): a merchant sees OPEN/QUOTED, unexpired requests whose delivery city is one of its operating cities (store city or an active pickup location) **or** whose vehicle make is fitted by one of its active public offers. Merchants never see the customer's identity or other merchants' quotes.
 - Webhooks: `POST /v1/webhooks/payments/:provider`, `POST /v1/webhooks/carriers/:carrier` (signature-verified)
 - Realtime: `GET /v1/events?scope=customer|merchant|ops&after=` and `GET /v1/events/stream` (SSE)
 - Sandbox only: `/sandbox/pay/:id` (hosted test payment page), `/sandbox/labels/:shipmentId`

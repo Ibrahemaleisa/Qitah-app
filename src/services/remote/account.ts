@@ -7,6 +7,8 @@ import { getModel } from '@/data/vehicles';
 import type { Address, CartLine, Vehicle } from '@/domain/types';
 import { useAppStore } from '@/store/app-store';
 
+import { syncPrivateOffers, watchSignOut } from './partRequests';
+
 /**
  * Remote account state: OTP sign-in, profile, and syncing the garage, addresses and cart with the
  * customer's account. When signed in, the server is the source of truth for vehicles and addresses;
@@ -157,7 +159,7 @@ export async function syncAfterSignIn() {
       // Same: skip invalid guest addresses.
     }
   }
-  await Promise.allSettled([pullVehicles(), pullAddresses(), mergeServerCart()]);
+  await Promise.allSettled([pullVehicles(), pullAddresses(), mergeServerCart(), syncPrivateOffers()]);
 }
 
 let started = false;
@@ -169,6 +171,7 @@ let started = false;
 export function startAccountSync() {
   if (!isRemote || started) return;
   started = true;
+  watchSignOut();
   onSessionExpired(() => {
     useAppStore.getState().signOut();
   });
@@ -180,7 +183,7 @@ export function startAccountSync() {
       useAppStore.getState().signOut();
       return;
     }
-    if (user) await Promise.allSettled([pullVehicles(), pullAddresses(), mergeServerCart()]);
+    if (user) await Promise.allSettled([pullVehicles(), pullAddresses(), mergeServerCart(), syncPrivateOffers()]);
   })().catch(() => {});
 
   let timer: ReturnType<typeof setTimeout> | null = null;

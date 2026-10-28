@@ -9,6 +9,7 @@ import { returnNumber } from '../lib/ids.js';
 import { applyBps } from '../lib/money.js';
 import { audit, emit, notify, type Actor } from './events.js';
 import { restock } from './inventory.js';
+import { customerUploadPrefix } from './uploads.js';
 import { createRefund, submitPendingRefunds, type Allocation } from './payments.js';
 import { isGuaranteed, outboundShippingShare, quoteReturn, returnShippingPayer } from './trust.js';
 
@@ -31,7 +32,7 @@ export type ReturnRequestInput = {
 export function validateReturnRequest(userId: string, input: ReturnRequestInput): string[] {
   const photoKeys = [...new Set(input.photoKeys ?? [])];
   if (photoKeys.length > MAX_RETURN_PHOTOS) throw badRequest('TOO_MANY_PHOTOS', `At most ${MAX_RETURN_PHOTOS} photos`);
-  if (photoKeys.some((k) => !k.startsWith(`customers/${userId}/return/`) || k.includes('..'))) throw badRequest('INVALID_PHOTO', 'Photos must be uploaded through the app');
+  if (photoKeys.some((k) => !k.startsWith(customerUploadPrefix(userId, 'return')) || k.includes('..'))) throw badRequest('INVALID_PHOTO', 'Photos must be uploaded through the app');
   if (input.reason === 'damaged' && photoKeys.length < 1) throw badRequest('PHOTO_REQUIRED', 'Add at least one photo of the damage');
   if (input.reason === 'changedMind' && input.unopened !== true) throw badRequest('UNOPENED_REQUIRED', 'Change-of-mind returns are accepted for unopened items only');
   return photoKeys;

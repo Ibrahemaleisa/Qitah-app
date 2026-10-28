@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize } from 'node:path';
 
-import { hmacSha256, safeEqualHex } from '../auth/crypto.js';
+import { hmacSha256, safeEqualHex, sha256 } from '../auth/crypto.js';
 import type { Config } from '../config.js';
 import { badRequest, forbidden } from '../lib/errors.js';
 
@@ -73,3 +73,13 @@ export function createUploads(config: Config) {
 }
 
 export type Uploads = ReturnType<typeof createUploads>;
+
+export const CUSTOMER_UPLOAD_PURPOSES = ['return', 'part-request'] as const;
+export type CustomerUploadPurpose = (typeof CUSTOMER_UPLOAD_PURPOSES)[number];
+
+/**
+ * Customer upload folder. Merchants see these photos via signed URLs, so the folder uses a one-way hash
+ * instead of the raw user id.
+ */
+export const customerUploadPrefix = (userId: string, purpose: CustomerUploadPurpose) =>
+  `customers/${sha256(`qitah-customer-uploads:${userId}`).slice(0, 24)}/${purpose}/`;

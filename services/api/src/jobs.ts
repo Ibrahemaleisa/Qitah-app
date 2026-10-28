@@ -4,6 +4,7 @@ import type { Ctx } from './context.js';
 import { prisma, withTx } from './db.js';
 import { notify } from './services/events.js';
 import { maintenanceReminders } from './services/maintenance.js';
+import { expirePartRequests } from './services/partRequests.js';
 import { expireUnpaidOrders, submitPendingRefunds } from './services/payments.js';
 import { pendingSandboxRefundWebhooks, type Delivery } from './services/sandboxDelivery.js';
 
@@ -106,6 +107,7 @@ export async function runAllJobs(ctx: Ctx, opts: { sqs?: { client: SQSClient; qu
   out.expired = await expireUnpaidOrders();
   out.sla = await slaMonitor();
   out.pickupDelays = await pickupDelayMonitor();
+  out.partRequestsExpired = await expirePartRequests();
   out.refundsSubmitted = await submitPendingRefunds(ctx);
   if (ctx.payments.sandbox) {
     const deliveries = await pendingSandboxRefundWebhooks(ctx.config.PAYMENT_WEBHOOK_SECRET);

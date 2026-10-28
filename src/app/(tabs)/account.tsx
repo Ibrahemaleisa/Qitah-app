@@ -71,7 +71,8 @@ export default function Account() {
           <ListRow icon="map-pin" title={s.account.addresses} value={addresses ? String(addresses) : undefined} onPress={() => router.push('/addresses')} />
           <ListRow icon="heart" title={s.account.favorites} value={favorites ? String(favorites) : undefined} onPress={() => router.push('/favorites')} />
           <ListRow icon="tool" title={s.mechanic.reviews} onPress={() => router.push('/mechanic')} />
-          <ListRow icon="package" title={s.account.orders} value={orders ? String(orders) : undefined} onPress={() => router.navigate('/orders')} last />
+          <ListRow icon="package" title={s.account.orders} value={orders ? String(orders) : undefined} onPress={() => router.navigate('/orders')} last={!isRemote} />
+          {isRemote ? <ListRow icon="message-square" title={s.partRequest.listTitle} onPress={() => router.push('/part-requests')} last /> : null}
         </ListGroup>
         <ListGroup>
           <ListRow icon="globe" title={s.account.language} value={lang === 'ar' ? s.language.ar : s.language.en} onPress={() => router.push('/language')} />

@@ -18,7 +18,16 @@ export type CatalogData = {
   categories: Category[];
 };
 
+/**
+ * The signed-in customer's PRIVATE offers (accepted part-request quotes), with their products and
+ * sellers. Kept apart from the public snapshot so a catalog refresh never drops them and they never
+ * appear in search, listings or product offer lists — only in lookups (`getOffer`/`getProduct`/
+ * `getSeller`) used by the cart and checkout.
+ */
+export type PrivateCatalog = { products: Product[]; offers: Offer[]; sellers: Seller[] };
+
 type CatalogState = CatalogData & {
+  private: PrivateCatalog;
   status: CatalogStatus;
   error: { code: string; message: string } | null;
   /** Epoch ms of the last successful full refresh (0 = never). */
@@ -29,8 +38,11 @@ type CatalogState = CatalogData & {
 
 export const emptyCatalog: CatalogData = { products: [], offers: [], sellers: [], makes: [], categories: [] };
 
+export const emptyPrivateCatalog: PrivateCatalog = { products: [], offers: [], sellers: [] };
+
 export const useRemoteCatalog = create<CatalogState>()(() => ({
   ...emptyCatalog,
+  private: emptyPrivateCatalog,
   status: 'idle',
   error: null,
   fetchedAt: 0,
@@ -59,12 +71,19 @@ export function catalogIndex(): Index {
     if (list) list.push(o);
     else offersByProduct.set(o.productId, [o]);
   }
+  const products = new Map(s.products.map((p) => [p.id, p]));
+  const offers = new Map(s.offers.map((o) => [o.id, o]));
+  const sellers = new Map(s.sellers.map((x) => [x.id, x]));
+  // Private entries are lookup-only (not in offersByProduct); public data wins on id clashes.
+  for (const p of s.private.products) if (!products.has(p.id)) products.set(p.id, p);
+  for (const o of s.private.offers) if (!offers.has(o.id)) offers.set(o.id, o);
+  for (const x of s.private.sellers) if (!sellers.has(x.id)) sellers.set(x.id, x);
   index = {
     version: s.version,
-    products: new Map(s.products.map((p) => [p.id, p])),
-    offers: new Map(s.offers.map((o) => [o.id, o])),
+    products,
+    offers,
     offersByProduct,
-    sellers: new Map(s.sellers.map((x) => [x.id, x])),
+    sellers,
     makes: new Map(s.makes.map((m) => [m.id, m])),
     models: new Map(s.makes.flatMap((m) => m.models.map((x) => [x.id, x] as const))),
   };
@@ -105,6 +124,45 @@ export function markOffersMissing(ids: string[]) {
     offers: s.offers.map((o) => (missing.has(o.id) ? { ...o, stock: 0, unavailable: true } : o)),
     version: s.version + 1,
   }));
+}
+
+/** True when the offer is one of the customer's private (accepted-quote) offers. */
+export function isPrivateOffer(id: string): boolean {
+  return useRemoteCatalog.getState().private.offers.some((o) => o.id === id);
+}
+
+/**
+ * Replaces the private layer with the server's current list. Private offers the cart may still
+ * reference but the server no longer returns (expired / sold) are kept, flagged unavailable, so the
+ * cart can explain them instead of silently dropping the line.
+ */
+export function setPrivateCatalog(next: PrivateCatalog, keepMissing: string[] = []) {
+  useRemoteCatalog.setState((s) => {
+    const returned = new Set(next.offers.map((o) => o.id));
+    const keep = new Set(keepMissing);
+    const stale = s.private.offers.filter((o) => !returned.has(o.id) && keep.has(o.id)).map((o) => ({ ...o, stock: 0, unavailable: true as const }));
+    const staleProducts = s.private.products.filter((p) => stale.some((o) => o.productId === p.id) && !next.products.some((x) => x.id === p.id));
+    const staleSellers = s.private.sellers.filter((x) => stale.some((o) => o.sellerId === x.id) && !next.sellers.some((y) => y.id === x.id));
+    return {
+      private: { products: [...next.products, ...staleProducts], offers: [...next.offers, ...stale], sellers: [...next.sellers, ...staleSellers] },
+      version: s.version + 1,
+    };
+  });
+}
+
+/** Adds (or refreshes) private entries, e.g. right after accepting a quote. */
+export function addPrivateCatalog(add: PrivateCatalog) {
+  useRemoteCatalog.setState((s) => {
+    const merge = <T extends { id: string }>(a: T[], b: T[]) => [...a.filter((x) => !b.some((y) => y.id === x.id)), ...b];
+    return {
+      private: { products: merge(s.private.products, add.products), offers: merge(s.private.offers, add.offers), sellers: merge(s.private.sellers, add.sellers) },
+      version: s.version + 1,
+    };
+  });
+}
+
+export function clearPrivateCatalog() {
+  useRemoteCatalog.setState((s) => (s.private.offers.length ? { private: emptyPrivateCatalog, version: s.version + 1 } : s));
 }
 
 /** Subscribe in components so catalog-derived values recompute after a refresh. */

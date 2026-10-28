@@ -18,6 +18,7 @@ import { garageRoutes } from './routes/garage.js';
 import { mechanicPublicRoutes } from './routes/mechanic.js';
 import { merchantRoutes, merchantUploadRoutes } from './routes/merchant.js';
 import { opsRoutes } from './routes/ops.js';
+import { partRequestRoutes } from './routes/partRequests.js';
 import { sandboxRoutes } from './routes/sandbox.js';
 import { localUploadRoutes } from './routes/uploads.js';
 import { webhookRoutes } from './routes/webhooks.js';
@@ -92,6 +93,7 @@ export async function buildApp(config: Config, overrides: Partial<Ctx> = {}) {
   await app.register(async (s) => merchantUploadRoutes(s, deps));
   await app.register(async (s) => localUploadRoutes(s, deps));
   await app.register(async (s) => opsRoutes(s, deps));
+  await app.register(async (s) => partRequestRoutes(s, deps));
   await app.register(async (s) => webhookRoutes(s, deps));
   await app.register(async (s) => eventRoutes(s, deps));
   await app.register(async (s) => garageRoutes(s, deps));

@@ -9,6 +9,7 @@ import { orderNumber } from '../lib/ids.js';
 import { applyBps, vatOfInclusive } from '../lib/money.js';
 import { emit } from './events.js';
 import { reserve } from './inventory.js';
+import { privateOfferWhere } from './partRequests.js';
 import { initiatePayment } from './payments.js';
 import { buildFitSnapshot, loadVehicleSnapshots, vehicleForLine, type CheckoutVehicleInput } from './trust.js';
 
@@ -33,12 +34,20 @@ function toCandidate(o: OfferRow, now: Date): Candidate {
   };
 }
 
-const purchasable = (workshop: boolean): Prisma.OfferWhereInput => ({
+/**
+ * Offers this user may buy: public offers on active products, plus the user's OWN private offers
+ * (accepted part-request quotes, possibly on a DRAFT product) while the quote is still valid.
+ * Another user's private offer is never purchasable, plannable or usable as an alternative.
+ */
+const purchasable = (workshop: boolean, userId: string): Prisma.OfferWhereInput => ({
   status: 'ACTIVE',
   merchant: { status: 'APPROVED', ...(workshop ? { supportsWorkshopDelivery: true } : {}) },
   location: { active: true },
-  product: { status: 'ACTIVE' },
+  OR: [{ visibility: 'PUBLIC', product: { status: 'ACTIVE' } }, { ...privateOfferWhere(userId), product: { status: { in: ['ACTIVE', 'DRAFT'] } } }],
 });
+
+/** Offers a user may reference at all (cart lines, plan inputs): public ones and their own private ones. */
+export const visibleTo = (userId: string): Prisma.OfferWhereInput => ({ OR: [{ visibility: 'PUBLIC' }, { visibility: 'PRIVATE', privateForUserId: userId }] });
 
 export type PlanLineInput = { offerId: string; quantity: number };
 
@@ -50,7 +59,7 @@ export async function planCheckout(ctx: Ctx, userId: string, input: { lines: Pla
   if (!address) throw notFound('Address');
   const workshop = address.kind === 'WORKSHOP';
 
-  const selected = await prisma.offer.findMany({ where: { id: { in: [...keys] } }, include: { product: true } });
+  const selected = await prisma.offer.findMany({ where: { id: { in: [...keys] }, ...visibleTo(userId) }, include: { product: true } });
   const bySel = new Map(selected.map((o) => [o.id, o]));
   const missing = input.lines.filter((l) => !bySel.has(l.offerId)).map((l) => l.offerId);
   if (missing.length) throw notFound(`Offer ${missing.join(', ')}`);
@@ -61,7 +70,7 @@ export async function planCheckout(ctx: Ctx, userId: string, input: { lines: Pla
     return { productId, condition: condition as Condition };
   });
   const pool = await prisma.offer.findMany({
-    where: { ...purchasable(workshop), OR: pairs },
+    where: { AND: [purchasable(workshop, userId), { OR: pairs }] },
     include: { location: true, inventory: true, product: true, merchant: true },
   });
 
@@ -238,7 +247,7 @@ async function createOrderFromPlan(
   const plan = planRow.plan as unknown as StoredPlan;
 
   const offerIds = plan.groups.flatMap((g) => g.lines.map((l) => l.offerId));
-  const offers = await tx.offer.findMany({ where: { id: { in: offerIds }, ...purchasable(address.kind === 'WORKSHOP') }, include: { product: { include: { fitments: true } }, merchant: true } });
+  const offers = await tx.offer.findMany({ where: { id: { in: offerIds }, ...purchasable(address.kind === 'WORKSHOP', userId) }, include: { product: { include: { fitments: true } }, merchant: true } });
   const byId = new Map(offers.map((o) => [o.id, o]));
   for (const g of plan.groups) {
     for (const l of g.lines) {

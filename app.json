@@ -62,7 +62,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "تحتاج قطعة إلى الوصول لصورك لإرفاق صور القطعة عند طلب الإرجاع.",
+          "photosPermission": "تحتاج قطعة إلى الوصول لصورك لإرفاق صورة القطعة بطلبك أو بطلب الإرجاع.",
           "cameraPermission": false,
           "microphonePermission": false
         }

@@ -19,6 +19,7 @@ type NavItem = { href: string; label: string; perm?: Permission };
 const NAV: NavItem[] = [
   { href: "/", label: "الرئيسية" },
   { href: "/orders", label: "الطلبات", perm: "orders" },
+  { href: "/part-requests", label: "طلبات القطع", perm: "orders" },
   { href: "/catalog", label: "العروض والمخزون", perm: "stock" },
   { href: "/returns", label: "المرتجعات", perm: "returns" },
   { href: "/locations", label: "الفروع ومواقع الاستلام", perm: "locations.manage" },
