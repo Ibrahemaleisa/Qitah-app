@@ -1,0 +1,467 @@
+[
+  {
+    "name": "north american toyota, valid check digit, position 7 letter → 2010s cycle",
+    "vin": "4T1B11HK8KU123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "toyota",
+      "manufacturer": "Toyota",
+      "modelYear": 2019,
+      "checkDigit": "ok",
+      "confidence": "high",
+      "reasons": [
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "north american toyota, position 7 digit → 1980–2009 cycle",
+    "vin": "5TDZA23C46S123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "toyota",
+      "manufacturer": "Toyota",
+      "modelYear": 2006,
+      "checkDigit": "ok",
+      "confidence": "high",
+      "reasons": [
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "north american VIN with a wrong check digit is rejected",
+    "vin": "4T1B11HK0KU123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": false,
+      "make": null,
+      "manufacturer": null,
+      "modelYear": null,
+      "checkDigit": "mismatch",
+      "confidence": "none",
+      "reasons": [
+        "check_digit_failed"
+      ]
+    }
+  },
+  {
+    "name": "honda (recognised, not in catalog), position 7 digit → 2003",
+    "vin": "1HGCM82633A004352",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": null,
+      "manufacturer": "Honda",
+      "modelYear": 2003,
+      "checkDigit": "ok",
+      "confidence": "low",
+      "reasons": [
+        "make_not_in_catalog"
+      ]
+    }
+  },
+  {
+    "name": "nissan 1N4",
+    "vin": "1N4AL3AP0JC123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "nissan",
+      "manufacturer": "Nissan",
+      "modelYear": 2018,
+      "checkDigit": "ok",
+      "confidence": "high",
+      "reasons": [
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "ford 1FT",
+    "vin": "1FTFW1E55MF123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "ford",
+      "manufacturer": "Ford",
+      "modelYear": 2021,
+      "checkDigit": "ok",
+      "confidence": "high",
+      "reasons": [
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "chevrolet 1GN (Tahoe-style)",
+    "vin": "1GNSKCKC5LR123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "chevrolet",
+      "manufacturer": "Chevrolet",
+      "modelYear": 2020,
+      "checkDigit": "ok",
+      "confidence": "high",
+      "reasons": [
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "gmc 1GK (Yukon-style)",
+    "vin": "1GKS2CKJ2KR123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "gmc",
+      "manufacturer": "GMC",
+      "modelYear": 2019,
+      "checkDigit": "ok",
+      "confidence": "high",
+      "reasons": [
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "hyundai 5NP",
+    "vin": "5NPD84LF8LH123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "hyundai",
+      "manufacturer": "Hyundai",
+      "modelYear": 2020,
+      "checkDigit": "ok",
+      "confidence": "high",
+      "reasons": [
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "kia 5XY",
+    "vin": "5XYP64HC7LG123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "kia",
+      "manufacturer": "Kia",
+      "modelYear": 2020,
+      "checkDigit": "ok",
+      "confidence": "high",
+      "reasons": [
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "ford 3FA",
+    "vin": "3FA6P0H77LR123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "ford",
+      "manufacturer": "Ford",
+      "modelYear": 2020,
+      "checkDigit": "ok",
+      "confidence": "high",
+      "reasons": [
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "lexus 2T2",
+    "vin": "2T2HZMDA8LC123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "lexus",
+      "manufacturer": "Lexus",
+      "modelYear": 2020,
+      "checkDigit": "ok",
+      "confidence": "high",
+      "reasons": [
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "japanese toyota JTD — most recent plausible year",
+    "vin": "JTDBR32E4K0123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "toyota",
+      "manufacturer": "Toyota",
+      "modelYear": 2019,
+      "checkDigit": "ok",
+      "confidence": "medium",
+      "reasons": [
+        "year_estimated",
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "japanese toyota with a non-matching position 9 is still valid (no mandatory check digit)",
+    "vin": "JTDBR32E0K0123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "toyota",
+      "manufacturer": "Toyota",
+      "modelYear": 2019,
+      "checkDigit": "not_applicable",
+      "confidence": "medium",
+      "reasons": [
+        "check_digit_unverified",
+        "year_estimated",
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "japanese toyota JTM, year code F → 2015",
+    "vin": "JTMHV05JXF4123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "toyota",
+      "manufacturer": "Toyota",
+      "modelYear": 2015,
+      "checkDigit": "ok",
+      "confidence": "medium",
+      "reasons": [
+        "year_estimated",
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "korean hyundai KMH",
+    "vin": "KMHD841C7KU123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "hyundai",
+      "manufacturer": "Hyundai",
+      "modelYear": 2019,
+      "checkDigit": "ok",
+      "confidence": "medium",
+      "reasons": [
+        "year_estimated",
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "korean kia KNA",
+    "vin": "KNAG34LAXM5123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "kia",
+      "manufacturer": "Kia",
+      "modelYear": 2021,
+      "checkDigit": "ok",
+      "confidence": "medium",
+      "reasons": [
+        "year_estimated",
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "nissan JN8",
+    "vin": "JN8AY2NC0K9123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "nissan",
+      "manufacturer": "Nissan",
+      "modelYear": 2019,
+      "checkDigit": "ok",
+      "confidence": "medium",
+      "reasons": [
+        "year_estimated",
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "thai toyota MR0 (Hilux plant)",
+    "vin": "MR0FB8CD1K0123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "toyota",
+      "manufacturer": "Toyota",
+      "modelYear": 2019,
+      "checkDigit": "ok",
+      "confidence": "medium",
+      "reasons": [
+        "year_estimated",
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "lexus JTJ",
+    "vin": "JTJHY00W4M4123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "lexus",
+      "manufacturer": "Lexus",
+      "modelYear": 2021,
+      "checkDigit": "ok",
+      "confidence": "medium",
+      "reasons": [
+        "year_estimated",
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "year code V → next model year 2027 is allowed",
+    "vin": "JTDBR32E0V0123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "toyota",
+      "manufacturer": "Toyota",
+      "modelYear": 2027,
+      "checkDigit": "not_applicable",
+      "confidence": "medium",
+      "reasons": [
+        "check_digit_unverified",
+        "year_estimated",
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "year code W → 2028 is too far ahead, so 1998",
+    "vin": "JTDBR32E0W0123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "toyota",
+      "manufacturer": "Toyota",
+      "modelYear": 1998,
+      "checkDigit": "not_applicable",
+      "confidence": "medium",
+      "reasons": [
+        "check_digit_unverified",
+        "year_estimated",
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "year code 0 cannot be decoded",
+    "vin": "JHMCM82600C123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": null,
+      "manufacturer": "Honda",
+      "modelYear": null,
+      "checkDigit": "ok",
+      "confidence": "low",
+      "reasons": [
+        "make_not_in_catalog",
+        "year_unknown"
+      ]
+    }
+  },
+  {
+    "name": "unknown WMI",
+    "vin": "ZZZAB12C0K0123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": null,
+      "manufacturer": null,
+      "modelYear": 2019,
+      "checkDigit": "not_applicable",
+      "confidence": "low",
+      "reasons": [
+        "check_digit_unverified",
+        "unknown_wmi",
+        "year_estimated"
+      ]
+    }
+  },
+  {
+    "name": "lower case, spaces and dashes are normalised",
+    "vin": "jtdbr32e4-k0 123456",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": true,
+      "make": "toyota",
+      "manufacturer": "Toyota",
+      "modelYear": 2019,
+      "checkDigit": "ok",
+      "confidence": "medium",
+      "reasons": [
+        "year_estimated",
+        "model_engine_required"
+      ]
+    }
+  },
+  {
+    "name": "letter O is not allowed",
+    "vin": "JTDBR32E4K012345O",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": false,
+      "make": null,
+      "manufacturer": null,
+      "modelYear": null,
+      "checkDigit": null,
+      "confidence": "none",
+      "reasons": [
+        "invalid_format"
+      ]
+    }
+  },
+  {
+    "name": "16 characters",
+    "vin": "JTDBR32E4K012345",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": false,
+      "make": null,
+      "manufacturer": null,
+      "modelYear": null,
+      "checkDigit": null,
+      "confidence": "none",
+      "reasons": [
+        "invalid_format"
+      ]
+    }
+  },
+  {
+    "name": "empty",
+    "vin": "",
+    "now": "2026-10-28T00:00:00Z",
+    "expect": {
+      "valid": false,
+      "make": null,
+      "manufacturer": null,
+      "modelYear": null,
+      "checkDigit": null,
+      "confidence": "none",
+      "reasons": [
+        "invalid_format"
+      ]
+    }
+  }
+]

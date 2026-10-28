@@ -36,6 +36,20 @@ const presentAddress = (a: { id: string; kind: string; label: string; city: stri
   workshopName: a.workshopName ?? undefined,
 });
 
+const odometerKm = z.number().int().min(0).max(3_000_000);
+
+const presentVehicle = (v: { id: string; modelId: string; year: number; trim: string; engine: string; vin: string | null; odometerKm: number | null; odometerUpdatedAt: Date | null; createdAt: Date }) => ({
+  id: v.id,
+  modelId: v.modelId,
+  year: v.year,
+  trim: v.trim || undefined,
+  engine: v.engine,
+  vin: v.vin ?? undefined,
+  odometerKm: v.odometerKm ?? undefined,
+  odometerUpdatedAt: v.odometerUpdatedAt?.toISOString(),
+  addedAt: v.createdAt.getTime(),
+});
+
 export async function customerRoutes(app: FastifyInstance, deps: Deps) {
   const { requireUser } = deps.guards;
   const { ctx } = deps;
@@ -44,7 +58,7 @@ export async function customerRoutes(app: FastifyInstance, deps: Deps) {
   app.get('/v1/me/vehicles', async (req) => {
     const p = await requireUser(req);
     const rows = await prisma.garageVehicle.findMany({ where: { userId: p.userId, deletedAt: null }, orderBy: { createdAt: 'desc' } });
-    return { vehicles: rows.map((v) => ({ id: v.id, modelId: v.modelId, year: v.year, trim: v.trim, engine: v.engine, vin: v.vin ?? undefined, addedAt: v.createdAt.getTime() })) };
+    return { vehicles: rows.map(presentVehicle) };
   });
 
   app.post('/v1/me/vehicles', async (req) => {
@@ -53,18 +67,54 @@ export async function customerRoutes(app: FastifyInstance, deps: Deps) {
       z.object({
         modelId: z.string().max(60),
         year: z.number().int(),
-        trim: z.string().min(1).max(60),
-        engine: z.string().min(1).max(60),
+        // Trim is not used by fitment: optional, stored as "" when omitted.
+        trim: z.string().max(60).optional(),
+        // Optional only when the model has a single engine.
+        engine: z.string().min(1).max(60).optional(),
         vin: z.string().regex(/^[A-HJ-NPR-Z0-9]{17}$/i).optional(),
+        odometerKm: odometerKm.optional(),
       }),
       req.body,
     );
     const model = await prisma.vehicleModel.findUnique({ where: { id: body.modelId } });
     if (!model) throw notFound('Vehicle model');
     if (body.year < model.yearFrom || body.year > model.yearTo) throw badRequest('INVALID_YEAR', `Model years ${model.yearFrom}–${model.yearTo}`);
-    if (!model.trims.includes(body.trim) || !model.engines.includes(body.engine)) throw badRequest('INVALID_SPEC', 'Unknown trim or engine for this model');
-    const v = await prisma.garageVehicle.create({ data: { ...body, vin: body.vin?.toUpperCase(), userId: p.userId } });
-    return { id: v.id, modelId: v.modelId, year: v.year, trim: v.trim, engine: v.engine, vin: v.vin ?? undefined, addedAt: v.createdAt.getTime() };
+    const trim = body.trim?.trim() ?? '';
+    const engine = body.engine ?? (model.engines.length === 1 ? model.engines[0] : undefined);
+    if (!engine) throw badRequest('ENGINE_REQUIRED', 'Choose the engine for this model');
+    if ((trim && !model.trims.includes(trim)) || !model.engines.includes(engine)) throw badRequest('INVALID_SPEC', 'Unknown trim or engine for this model');
+    const v = await prisma.garageVehicle.create({
+      data: {
+        userId: p.userId,
+        modelId: body.modelId,
+        year: body.year,
+        trim,
+        engine,
+        vin: body.vin?.toUpperCase(),
+        ...(body.odometerKm != null ? { odometerKm: body.odometerKm, odometerUpdatedAt: new Date() } : {}),
+      },
+    });
+    return presentVehicle(v);
+  });
+
+  /** Odometer (and VIN) updates from the garage. */
+  app.patch('/v1/me/vehicles/:id', async (req) => {
+    const p = await requireUser(req);
+    const { id } = parse(z.object({ id: z.string().max(64) }), req.params);
+    const body = parse(
+      z.object({ odometerKm: odometerKm.nullable().optional(), vin: z.string().regex(/^[A-HJ-NPR-Z0-9]{17}$/i).nullable().optional() }).refine((b) => b.odometerKm !== undefined || b.vin !== undefined, 'Nothing to update'),
+      req.body,
+    );
+    const existing = await prisma.garageVehicle.findFirst({ where: { id, userId: p.userId, deletedAt: null } });
+    if (!existing) throw notFound('Vehicle');
+    const v = await prisma.garageVehicle.update({
+      where: { id },
+      data: {
+        ...(body.odometerKm !== undefined ? { odometerKm: body.odometerKm, odometerUpdatedAt: body.odometerKm === null ? null : new Date() } : {}),
+        ...(body.vin !== undefined ? { vin: body.vin?.toUpperCase() ?? null } : {}),
+      },
+    });
+    return presentVehicle(v);
   });
 
   app.delete('/v1/me/vehicles/:id', async (req) => {

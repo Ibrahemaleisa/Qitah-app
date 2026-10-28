@@ -122,13 +122,20 @@ model GarageVehicle {
   userId    String
   modelId   String
   year      Int
-  trim      String
+  /// Not used by fitment; optional in the API (defaults to "").
+  trim      String       @default("")
   engine    String
   vin       String?
   createdAt DateTime     @default(now())
   deletedAt DateTime?
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   model     VehicleModel @relation(fields: [modelId], references: [id])
+
+  // garage/maintenance (see the "garage, maintenance, mechanic reviews" section)
+  odometerKm           Int?
+  odometerUpdatedAt    DateTime?
+  serviceRecords       VehicleServiceRecord[]
+  maintenanceReminders MaintenanceReminder[]
 
   @@index([userId, deletedAt])
 }
@@ -1056,4 +1063,93 @@ model DomainEvent {
   @@index([status, availableAt])
   @@index([createdAt])
   @@index([customerId, id])
+}
+
+// ───────────────────────────────────────────── garage, maintenance, mechanic reviews
+
+enum MechanicReviewStatus {
+  PENDING
+  APPROVED
+  CHANGES_SUGGESTED
+}
+
+enum ServiceRecordSource {
+  MANUAL
+  ORDER
+}
+
+/// "Send to my mechanic": a customer's parts list shared through an unguessable link (no account needed).
+/// Only the SHA-256 of the link token is stored. Workshop contact = lead data entered by the mechanic.
+model MechanicReview {
+  id            String               @id @default(cuid())
+  userId        String
+  vehicleId     String?
+  tokenHash     String               @unique
+  status        MechanicReviewStatus @default(PENDING)
+  /// {vehicle, lines:[{offerId, productId, qty, nameAr, nameEn, brand, partNumber, condition, fit, alternatives}]}
+  snapshot      Json
+  note          String?
+  /// [{offerId, decision: APPROVED|ALTERNATIVE, text?, partNumber?, offerId?}]
+  decisions     Json?
+  mechanicNote  String?
+  workshopName  String?
+  workshopPhone String?
+  expiresAt     DateTime
+  respondedAt   DateTime?
+  createdAt     DateTime             @default(now())
+
+  @@index([userId, createdAt])
+  @@index([workshopPhone])
+}
+
+/// Generic maintenance guidance (not manufacturer data). makeId/modelId narrow a template when set.
+model MaintenanceTemplate {
+  id             String   @id
+  serviceCode    String
+  makeId         String?
+  modelId        String?
+  nameAr         String
+  nameEn         String
+  noteAr         String   @default("")
+  noteEn         String   @default("")
+  intervalKm     Int?
+  intervalMonths Int?
+  /// [{code, nameAr, nameEn, intervalKm}] e.g. synthetic vs conventional oil.
+  variants       Json     @default("[]")
+  /// Parts that make the kit: [{key, nameAr, nameEn, categoryIds, keywords, excludeKeywords?, primary?}]
+  components     Json     @default("[]")
+  categoryIds    String[]
+  keywords       String[]
+  sort           Int      @default(0)
+  active         Boolean  @default(true)
+
+  @@index([serviceCode])
+}
+
+model VehicleServiceRecord {
+  id          String              @id @default(cuid())
+  vehicleId   String
+  serviceCode String
+  variant     String?
+  doneAtKm    Int?
+  doneAt      DateTime
+  source      ServiceRecordSource @default(MANUAL)
+  orderItemId String?
+  createdAt   DateTime            @default(now())
+  vehicle     GarageVehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleId, orderItemId])
+  @@index([vehicleId, serviceCode, doneAt])
+}
+
+/// Idempotency for maintenance reminders: one in-app notification per vehicle, service and due cycle.
+model MaintenanceReminder {
+  id          String        @id @default(cuid())
+  vehicleId   String
+  serviceCode String
+  cycleKey    String
+  createdAt   DateTime      @default(now())
+  vehicle     GarageVehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleId, serviceCode, cycleKey])
 }

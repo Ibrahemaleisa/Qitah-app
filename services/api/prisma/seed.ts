@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { hashPassword } from '../src/auth/crypto.js';
+import { GENERIC_MAINTENANCE_TEMPLATES } from '../src/lib/maintenance.js';
 import { normalizePartNumber } from '../src/lib/text.js';
 import { buildSearchText } from '../src/services/catalog.js';
 
@@ -224,11 +225,31 @@ async function main() {
     });
   }
 
-  // Demo customer with a garage vehicle and two addresses
+  // Generic maintenance guidance (labelled "check your owner's manual"; no manufacturer intervals invented)
+  for (const t of GENERIC_MAINTENANCE_TEMPLATES) {
+    await prisma.maintenanceTemplate.create({
+      data: {
+        id: t.id, serviceCode: t.serviceCode, makeId: t.makeId ?? null, modelId: t.modelId ?? null, nameAr: t.nameAr, nameEn: t.nameEn, noteAr: t.noteAr, noteEn: t.noteEn,
+        intervalKm: t.intervalKm ?? null, intervalMonths: t.intervalMonths ?? null, variants: t.variants, components: t.components as object[],
+        categoryIds: [...new Set(t.components.flatMap((c) => c.categoryIds))], keywords: [...new Set(t.components.flatMap((c) => c.keywords))], sort: t.sort,
+      },
+    });
+  }
+
+  // Demo customer with a garage vehicle (odometer + one service record, so maintenance has data) and two addresses
+  const monthsAgo = (n: number) => new Date(Date.now() - n * 30 * 86_400_000);
   await prisma.user.create({
     data: {
       phone: '+966500000001', name: 'عميل تجريبي',
-      vehicles: { create: [{ modelId: 'camry', year: 2022, trim: 'GLE', engine: '2.5L I4' }, { modelId: 'patrol', year: 2020, trim: 'LE', engine: '4.0L V6' }] },
+      vehicles: {
+        create: [
+          {
+            modelId: 'camry', year: 2022, trim: 'GLE', engine: '2.5L I4', odometerKm: 48_500, odometerUpdatedAt: new Date(),
+            serviceRecords: { create: [{ serviceCode: 'OIL_CHANGE', variant: 'SYNTHETIC', doneAtKm: 39_800, doneAt: monthsAgo(5) }] },
+          },
+          { modelId: 'patrol', year: 2020, trim: 'LE', engine: '4.0L V6' },
+        ],
+      },
       addresses: {
         create: [
           { kind: 'HOME', label: 'المنزل', city: 'riyadh', district: 'الملقا', street: 'شارع أنس بن مالك', contactName: 'عميل تجريبي', phone: '+966500000001' },

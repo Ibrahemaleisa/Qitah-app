@@ -1,0 +1,269 @@
+[
+  {
+    "name": "no record and no odometer → unknown",
+    "serviceCode": "OIL_CHANGE",
+    "odometerKm": null,
+    "last": null,
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "unknown",
+      "intervalKm": 10000,
+      "nextDueKm": null,
+      "nextDueAt": null,
+      "remainingKm": null,
+      "remainingDays": null,
+      "cycleKey": "initial"
+    }
+  },
+  {
+    "name": "new car below the first interval is tracked from zero → ok",
+    "serviceCode": "OIL_CHANGE",
+    "odometerKm": 3000,
+    "last": null,
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "ok",
+      "intervalKm": 10000,
+      "nextDueKm": 10000,
+      "nextDueAt": null,
+      "remainingKm": 7000,
+      "remainingDays": null,
+      "cycleKey": "initial"
+    }
+  },
+  {
+    "name": "new car close to the first interval → soon",
+    "serviceCode": "OIL_CHANGE",
+    "odometerKm": 9500,
+    "last": null,
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "soon",
+      "intervalKm": 10000,
+      "nextDueKm": 10000,
+      "nextDueAt": null,
+      "remainingKm": 500,
+      "remainingDays": null,
+      "cycleKey": "initial"
+    }
+  },
+  {
+    "name": "no record and odometer past the interval → unknown (history not known)",
+    "serviceCode": "OIL_CHANGE",
+    "odometerKm": 25000,
+    "last": null,
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "unknown",
+      "intervalKm": 10000,
+      "nextDueKm": null,
+      "nextDueAt": null,
+      "remainingKm": null,
+      "remainingDays": null,
+      "cycleKey": "initial"
+    }
+  },
+  {
+    "name": "recent oil change → ok",
+    "serviceCode": "OIL_CHANGE",
+    "odometerKm": 45000,
+    "last": {
+      "id": "r1",
+      "doneAtKm": 40000,
+      "doneAt": "2026-08-28T00:00:00.000Z"
+    },
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "ok",
+      "intervalKm": 10000,
+      "nextDueKm": 50000,
+      "nextDueAt": "2027-02-28T00:00:00.000Z",
+      "remainingKm": 5000,
+      "remainingDays": 123,
+      "cycleKey": "r:r1"
+    }
+  },
+  {
+    "name": "km interval reached → due",
+    "serviceCode": "OIL_CHANGE",
+    "odometerKm": 50500,
+    "last": {
+      "id": "r2",
+      "doneAtKm": 40000,
+      "doneAt": "2026-08-28T00:00:00.000Z"
+    },
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "due",
+      "intervalKm": 10000,
+      "nextDueKm": 50000,
+      "nextDueAt": "2027-02-28T00:00:00.000Z",
+      "remainingKm": -500,
+      "remainingDays": 123,
+      "cycleKey": "r:r2"
+    }
+  },
+  {
+    "name": "time interval reached without km → due",
+    "serviceCode": "OIL_CHANGE",
+    "odometerKm": null,
+    "last": {
+      "id": "r3",
+      "doneAtKm": null,
+      "doneAt": "2026-03-28T00:00:00.000Z"
+    },
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "due",
+      "intervalKm": 10000,
+      "nextDueKm": null,
+      "nextDueAt": "2026-09-28T00:00:00.000Z",
+      "remainingKm": null,
+      "remainingDays": -30,
+      "cycleKey": "r:r3"
+    }
+  },
+  {
+    "name": "time interval within 30 days → soon",
+    "serviceCode": "OIL_CHANGE",
+    "odometerKm": null,
+    "last": {
+      "id": "r4",
+      "doneAtKm": null,
+      "doneAt": "2026-05-15T00:00:00.000Z"
+    },
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "soon",
+      "intervalKm": 10000,
+      "nextDueKm": null,
+      "nextDueAt": "2026-11-15T00:00:00.000Z",
+      "remainingKm": null,
+      "remainingDays": 18,
+      "cycleKey": "r:r4"
+    }
+  },
+  {
+    "name": "conventional oil uses the 5,000 km variant → soon",
+    "serviceCode": "OIL_CHANGE",
+    "odometerKm": 44500,
+    "last": {
+      "id": "r5",
+      "doneAtKm": 40000,
+      "doneAt": "2026-09-28T00:00:00.000Z",
+      "variant": "CONVENTIONAL"
+    },
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "soon",
+      "intervalKm": 5000,
+      "nextDueKm": 45000,
+      "nextDueAt": "2027-03-28T00:00:00.000Z",
+      "remainingKm": 500,
+      "remainingDays": 151,
+      "cycleKey": "r:r5"
+    }
+  },
+  {
+    "name": "brake pads have no time interval: unknown without odometer",
+    "serviceCode": "BRAKE_PADS",
+    "odometerKm": null,
+    "last": {
+      "id": "r6",
+      "doneAtKm": 20000,
+      "doneAt": "2025-01-01T00:00:00.000Z"
+    },
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "unknown",
+      "intervalKm": 20000,
+      "nextDueKm": 40000,
+      "nextDueAt": null,
+      "remainingKm": null,
+      "remainingDays": null,
+      "cycleKey": "r:r6"
+    }
+  },
+  {
+    "name": "iridium plugs: 100,000 km interval → soon at 120,000",
+    "serviceCode": "SPARK_PLUGS",
+    "odometerKm": 120000,
+    "last": {
+      "id": "r7",
+      "doneAtKm": 30000,
+      "doneAt": "2022-01-01T00:00:00.000Z",
+      "variant": "IRIDIUM"
+    },
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "soon",
+      "intervalKm": 100000,
+      "nextDueKm": 130000,
+      "nextDueAt": null,
+      "remainingKm": 10000,
+      "remainingDays": null,
+      "cycleKey": "r:r7"
+    }
+  },
+  {
+    "name": "standard plugs: 40,000 km interval → due at 120,000",
+    "serviceCode": "SPARK_PLUGS",
+    "odometerKm": 120000,
+    "last": {
+      "id": "r8",
+      "doneAtKm": 30000,
+      "doneAt": "2022-01-01T00:00:00.000Z",
+      "variant": "STANDARD"
+    },
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "due",
+      "intervalKm": 40000,
+      "nextDueKm": 70000,
+      "nextDueAt": null,
+      "remainingKm": -50000,
+      "remainingDays": null,
+      "cycleKey": "r:r8"
+    }
+  },
+  {
+    "name": "coolant after 25 months → due",
+    "serviceCode": "COOLANT",
+    "odometerKm": 30000,
+    "last": {
+      "id": "r9",
+      "doneAtKm": 10000,
+      "doneAt": "2024-09-28T00:00:00.000Z"
+    },
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "due",
+      "intervalKm": 40000,
+      "nextDueKm": 50000,
+      "nextDueAt": "2026-09-28T00:00:00.000Z",
+      "remainingKm": 20000,
+      "remainingDays": -30,
+      "cycleKey": "r:r9"
+    }
+  },
+  {
+    "name": "cabin filter 12 months, km fine → ok",
+    "serviceCode": "CABIN_FILTER",
+    "odometerKm": 60000,
+    "last": {
+      "id": "r10",
+      "doneAtKm": 55000,
+      "doneAt": "2026-04-28T00:00:00.000Z"
+    },
+    "now": "2026-10-28T00:00:00.000Z",
+    "expect": {
+      "status": "ok",
+      "intervalKm": 15000,
+      "nextDueKm": 70000,
+      "nextDueAt": "2027-04-28T00:00:00.000Z",
+      "remainingKm": 10000,
+      "remainingDays": 182,
+      "cycleKey": "r:r10"
+    }
+  }
+]

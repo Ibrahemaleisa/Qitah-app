@@ -3,6 +3,7 @@ import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { Ctx } from './context.js';
 import { prisma, withTx } from './db.js';
 import { notify } from './services/events.js';
+import { maintenanceReminders } from './services/maintenance.js';
 import { expireUnpaidOrders, submitPendingRefunds } from './services/payments.js';
 import { pendingSandboxRefundWebhooks, type Delivery } from './services/sandboxDelivery.js';
 
@@ -91,6 +92,15 @@ export async function deliverOverHttp(baseUrl: string, d: Delivery) {
   return res.status;
 }
 
+/** Maintenance reminders scan the whole garage, so the worker loop runs them at most hourly per process. */
+const MAINTENANCE_EVERY_MS = 3600_000;
+let lastMaintenanceRun = 0;
+export async function maintenanceRemindersThrottled(now = new Date()) {
+  if (now.getTime() - lastMaintenanceRun < MAINTENANCE_EVERY_MS) return 0;
+  lastMaintenanceRun = now.getTime();
+  return maintenanceReminders(now);
+}
+
 export async function runAllJobs(ctx: Ctx, opts: { sqs?: { client: SQSClient; queueUrl: string }; deliver?: (d: Delivery) => Promise<unknown> } = {}) {
   const out: Record<string, number> = {};
   out.expired = await expireUnpaidOrders();
@@ -102,6 +112,7 @@ export async function runAllJobs(ctx: Ctx, opts: { sqs?: { client: SQSClient; qu
     for (const d of deliveries) await (opts.deliver ?? ((x: Delivery) => deliverOverHttp(ctx.config.PUBLIC_BASE_URL, x)))(d);
     out.sandboxRefundsSettled = deliveries.length;
   }
+  out.maintenanceReminders = await maintenanceRemindersThrottled();
   out.outbox = await relayOutbox(opts.sqs);
   out.purged = await purgeExpired();
   return out;
