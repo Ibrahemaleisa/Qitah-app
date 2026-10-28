@@ -96,7 +96,7 @@ test('ranking: exact part number first (MPN, then OEM reference), ahead of conce
 test('fitsOnly with a vehicle: only parts that fit, others counted (for the "show all" toggle) and ranked below', async () => {
   const fits = await search({ q: 'فحمات', ...CAMRY, fitsOnly: true });
   assert.deepEqual(ids(fits).sort(), ['p-camry-pads-ceramic', 'p-camry-pads-oem']);
-  assert.deepEqual(fits.counts, { fits: 2, other: 2 });
+  assert.deepEqual(fits.counts, { fits: 2, other: 2, hidden: 2 });
   assert.equal(fits.total, 2);
   const all = await search({ q: 'فحمات', ...CAMRY, fitsOnly: false });
   assert.equal(all.total, 4);
@@ -105,6 +105,12 @@ test('fitsOnly with a vehicle: only parts that fit, others counted (for the "sho
   // The compact vehicle parameter is equivalent.
   const compact = await search({ q: 'فحمات', vehicle: 'camry:2022:2.5L I4', fitsOnly: true });
   assert.deepEqual(ids(compact), ids(fits));
+  // A typed part number is never hidden by the fit filter: it is shown, flagged as not confirmed.
+  const pn = await search({ q: '43512-X6040', ...CAMRY, fitsOnly: true });
+  assert.deepEqual(ids(pn), ['p-lc-rotor-oem', 'p-lc-rotor-slotted']);
+  assert.deepEqual(pn.items.map((p: any) => p.match.group), ['other', 'other']);
+  assert.equal(pn.total, 2);
+  assert.equal(pn.counts.hidden, 0);
 });
 
 test('fitment tiers are conservative: catalog > seller > by specification; unknown engine is not a fit', async () => {

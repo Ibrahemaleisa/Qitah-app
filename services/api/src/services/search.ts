@@ -203,12 +203,13 @@ function scoredCte(params: SearchParams, c: Criteria, vehicle: ResolvedVehicle |
 }
 
 type Row = { id: string; pn: number; tier: number; grp: number; k1: bigint; k2: bigint };
-type CountRow = { fits: bigint; other: bigint };
+type CountRow = { fits: bigint; other: bigint; pinned: bigint };
 
 async function runQuery(params: SearchParams, c: Criteria, vehicle: ResolvedVehicle | null) {
   const cte = scoredCte(params, c, vehicle);
   const where: Prisma.Sql[] = [];
-  if (params.fitsOnly && vehicle) where.push(Prisma.sql`grp = 0`);
+  // A part number the customer typed is never hidden by the fit filter.
+  if (params.fitsOnly && vehicle) where.push(Prisma.sql`(grp = 0 OR pn > 0)`);
   if (params.cursor) {
     const cur = decodeCursor(params.cursor);
     where.push(
@@ -221,9 +222,9 @@ async function runQuery(params: SearchParams, c: Criteria, vehicle: ResolvedVehi
       SELECT id, pn, tier, grp, k1, k2 FROM scored WHERE ${allOf(where)}
       ORDER BY k1 DESC, k2 DESC, id ASC LIMIT ${params.limit + 1} ${offset}`,
     prisma.$queryRaw<CountRow[]>`WITH ${cte}
-      SELECT count(*) FILTER (WHERE grp = 0) AS fits, count(*) FILTER (WHERE grp = 1) AS other FROM scored`,
+      SELECT count(*) FILTER (WHERE grp = 0) AS fits, count(*) FILTER (WHERE grp = 1) AS other, count(*) FILTER (WHERE grp = 1 AND pn > 0) AS pinned FROM scored`,
   ]);
-  return { rows, fits: Number(counts[0]?.fits ?? 0), other: Number(counts[0]?.other ?? 0) };
+  return { rows, fits: Number(counts[0]?.fits ?? 0), other: Number(counts[0]?.other ?? 0), pinned: Number(counts[0]?.pinned ?? 0) };
 }
 
 function fitLabel(tier: number, vehicle: ResolvedVehicle | null): FitLabel {
@@ -299,8 +300,9 @@ export async function searchProducts(params: SearchParams) {
   return {
     items,
     nextCursor: last ? encodeCursor({ k1: String(last.k1), k2: String(last.k2), id: last.id }) : null,
-    total: params.fitsOnly && vehicle ? result.fits : result.fits + result.other,
-    counts: { fits: result.fits, other: result.other },
+    total: params.fitsOnly && vehicle ? result.fits + result.pinned : result.fits + result.other,
+    /** `hidden`: not-confirmed parts left out by fitsOnly (what "show all" would add). */
+    counts: { fits: result.fits, other: result.other, hidden: params.fitsOnly && vehicle ? result.other - result.pinned : 0 },
     interpretation: {
       query: params.q ?? '',
       partNumber: analysis.partNumber,

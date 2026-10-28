@@ -52,12 +52,12 @@ Understands colloquial part names (كفرات، قربة، هوبات، بوجي
 | --- | --- |
 | `q` | Free text, part number or both (≤100 chars). |
 | `modelId`, `year`, `engine` — or `vehicle=modelId:year:engine` | The customer's selected vehicle. A model/year typed in `q` overrides it (and drops the engine unless model and year match). |
-| `fitsOnly` | `true` → only parts whose fitment data covers the vehicle (catalog, seller-reported or universal-by-spec). Others are still counted in `counts.other`. |
+| `fitsOnly` | `true` → only parts whose fitment data covers the vehicle (catalog, seller-reported or universal-by-spec). Others are counted in `counts.hidden` (for a "show all" toggle); part-number hits stay visible. |
 | `categoryId`, `origin=oem,aftermarket`, `condition=new,used,refurbished`, `inStock` | Filters. |
 | `sort` | `relevance` (default), `priceAsc`, `priceDesc`, `fastest`. |
 | `cursor`, `limit` (1–50, default 20) | Keyset paging: pass back `nextCursor`. |
 
-Response: `{ items, nextCursor, total, counts: { fits, other }, interpretation, didYouMean, fallback, suggestions: { categoryIds } }`.
+Response: `{ items, nextCursor, total, counts: { fits, other, hidden }, interpretation, didYouMean, fallback, suggestions: { categoryIds } }` (`hidden` = not-confirmed parts left out by `fitsOnly`; a typed part number is never hidden).
 - `items[]` — the same product shape as `GET /v1/catalog/products/:id` → `product`, plus `match: { fit, group: 'fits' | 'other', partNumber }`. `fit` is `catalogMatch | sellerReported | bySpecification | noData | noVehicle`, or `listedForModel | listedForMake` when the vehicle is only a model (no year) or a make — never "fits your car" without a year.
 - `interpretation` — `{ concepts: [{ id, label, categoryId, carried, term }], conceptGroups, freeTokens, partNumber, partNumbers, year, queryVehicle, vehicle: { source, makeId, modelId, year, engine, scope, yearOutOfRange, label }, withoutVehicle, unsupported: [{ id, label }] }`. `unsupported` lists parts Qitah doesn't carry yet (tires, clutch, transmission, A/C compressor, starter) so the app can offer "request this part"; `withoutVehicle` is the query minus the vehicle words (what removing the vehicle chip searches).
 - `fallback` — `null`, or `{ mode: 'corrected', query }` (one-edit spelling fix from the lexicon), `{ mode: 'relaxed' }` (concepts kept, extra words dropped), `{ mode: 'similar' }` (pg_trgm word similarity).
