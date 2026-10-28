@@ -97,12 +97,13 @@ function RemoteInbox() {
         <ListGroup>
           {items.map((n, i) => {
             const orderId = typeof n.data?.orderId === 'string' ? n.data.orderId : undefined;
+            const partRequestId = typeof n.data?.partRequestId === 'string' ? n.data.partRequestId : undefined;
             const at = new Date(n.createdAt).getTime();
             return (
               <Pressable
                 key={n.id}
-                onPress={orderId ? () => router.push(`/order/${orderId}`) : undefined}
-                disabled={!orderId}
+                onPress={orderId ? () => router.push(`/order/${orderId}`) : partRequestId ? () => router.push(`/part-requests/${partRequestId}`) : undefined}
+                disabled={!orderId && !partRequestId}
                 accessibilityLabel={`${n.title}. ${n.body}`}
                 style={{ flexDirection: 'row', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md, borderBottomWidth: i === items.length - 1 ? 0 : 1, borderBottomColor: colors.line }}
               >

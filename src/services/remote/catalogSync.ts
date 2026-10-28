@@ -4,8 +4,10 @@ import { toCategory, toMake, toOffer, toProduct, toSeller } from '@/api/adapters
 import { toApiError } from '@/api/client';
 import { catalogApi } from '@/api/endpoints';
 import type { ReferenceResponse, SnapshotResponse } from '@/api/types';
-import { markOffersMissing, mergeOffers, setCatalogData, useRemoteCatalog, type CatalogData } from '@/catalog/remote-catalog';
+import { isPrivateOffer, markOffersMissing, mergeOffers, setCatalogData, useRemoteCatalog, type CatalogData } from '@/catalog/remote-catalog';
 import type { Offer } from '@/domain/types';
+
+import { syncPrivateOffers } from './partRequests';
 
 /**
  * Hydrates the remote catalog from `GET /v1/catalog/reference` + `GET /v1/catalog/snapshot`.
@@ -84,7 +86,10 @@ export function ensureFreshCatalog(): Promise<void> | undefined {
  * Offers the server doesn't know any more are flagged unavailable.
  */
 export async function refreshOffers(ids: string[]): Promise<Offer[]> {
-  const unique = [...new Set(ids)].filter(Boolean);
+  const all = [...new Set(ids)].filter(Boolean);
+  // Private offers (accepted part-request quotes) are not public: they refresh from the account.
+  if (all.some(isPrivateOffer)) await syncPrivateOffers();
+  const unique = all.filter((id) => !isPrivateOffer(id));
   if (!unique.length) return [];
   const chunks: string[][] = [];
   for (let i = 0; i < unique.length; i += 50) chunks.push(unique.slice(i, i + 50));

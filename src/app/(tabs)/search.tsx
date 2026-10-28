@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PartArt } from '@/brand/PartArt';
 import { useCatalogVersion } from '@/catalog/remote-catalog';
 import { allCategories, getCategory } from '@/data/catalog';
+import { PartRequestSearchCta } from '@/features/PartRequestEntry';
 import { ProductRow } from '@/features/ProductCard';
 import { useI18n } from '@/i18n';
 import { webNoOutline } from '@/lib/platform-styles';
@@ -214,6 +215,7 @@ export default function Search() {
             <Text variant="caption" color="textSecondary" align="center" style={{ marginBottom: space.lg }}>
               {s.search.partNumberTip}
             </Text>
+            <PartRequestSearchCta query={deferredQuery} />
             <Text variant="headline" style={{ marginBottom: space.sm }}>
               {s.search.tryPopular}
             </Text>
