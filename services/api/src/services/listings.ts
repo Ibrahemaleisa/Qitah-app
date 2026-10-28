@@ -51,6 +51,7 @@ type ListingRow = {
   offersHash: string;
   nextChangeAt: Date | null;
   catalogFitKeys: string[];
+  searchText: string;
   sellerFitKeys: string[];
 };
 
@@ -116,6 +117,7 @@ async function computeRows(db: Db, ids: string[]): Promise<{ rows: ListingRow[];
       brand: true,
       origin: true,
       universalNoteAr: true,
+      searchText: true,
       fitments: { select: { modelId: true, yearFrom: true, yearTo: true, engines: true, source: true, model: { select: { makeId: true } } } },
     },
   });
@@ -144,6 +146,7 @@ async function computeRows(db: Db, ids: string[]): Promise<{ rows: ListingRow[];
       origin: p.origin,
       universal: p.universalNoteAr != null,
       hasCatalogFitment: p.fitments.some((f) => f.source === 'CATALOG'),
+      searchText: p.searchText,
       catalogFitKeys: fitKeys(p.fitments.filter((f) => f.source === 'CATALOG').map((f) => ({ ...f, makeId: f.model.makeId }))),
       sellerFitKeys: fitKeys(p.fitments.filter((f) => f.source === 'SELLER').map((f) => ({ ...f, makeId: f.model.makeId }))),
       offerCount: list.length,
@@ -172,13 +175,13 @@ function upsertSql(rows: ListingRow[]) {
     (r) => Prisma.sql`(${r.productId}, ${r.status}::"ProductStatus", ${r.listed}, ${r.categoryId}, ${r.brand}, ${r.origin}::"PartOrigin", ${r.universal}, ${r.hasCatalogFitment},
       ${r.offerCount}, ${r.inStockOfferCount}, ${r.totalAvailable}, ${r.minPriceHalalas}::int, ${r.minOfferPriceHalalas}::int, ${r.minInStockPriceHalalas}::int,
       ${r.minDispatchDays}::int, ${r.minInStockDispatchDays}::int, ${r.conditions}::"Condition"[], ${r.inStockConditions}::"Condition"[], ${r.merchantIds}::text[],
-      ${r.originCities}::text[], ${JSON.stringify(r.offers)}::jsonb, ${r.offersHash}, ${r.catalogFitKeys}::text[], ${r.sellerFitKeys}::text[], ${utcTimestamp(r.nextChangeAt)}, now())`,
+      ${r.originCities}::text[], ${JSON.stringify(r.offers)}::jsonb, ${r.offersHash}, ${r.catalogFitKeys}::text[], ${r.sellerFitKeys}::text[], ${utcTimestamp(r.nextChangeAt)}, ${r.searchText}, now())`,
   );
   // Every derived column; the WHERE makes an unchanged row a no-op (no write, no updatedAt bump).
   return Prisma.sql`
     INSERT INTO "ProductListing" ("productId", "status", "listed", "categoryId", "brand", "origin", "universal", "hasCatalogFitment",
       "offerCount", "inStockOfferCount", "totalAvailable", "minPriceHalalas", "minOfferPriceHalalas", "minInStockPriceHalalas",
-      "minDispatchDays", "minInStockDispatchDays", "conditions", "inStockConditions", "merchantIds", "originCities", "offers", "offersHash", "catalogFitKeys", "sellerFitKeys", "nextChangeAt", "updatedAt")
+      "minDispatchDays", "minInStockDispatchDays", "conditions", "inStockConditions", "merchantIds", "originCities", "offers", "offersHash", "catalogFitKeys", "sellerFitKeys", "nextChangeAt", "searchText", "updatedAt")
     VALUES ${Prisma.join(values)}
     ON CONFLICT ("productId") DO UPDATE SET
       "status" = EXCLUDED."status", "listed" = EXCLUDED."listed", "categoryId" = EXCLUDED."categoryId", "brand" = EXCLUDED."brand",
@@ -189,19 +192,19 @@ function upsertSql(rows: ListingRow[]) {
       "minInStockDispatchDays" = EXCLUDED."minInStockDispatchDays", "conditions" = EXCLUDED."conditions",
       "inStockConditions" = EXCLUDED."inStockConditions", "merchantIds" = EXCLUDED."merchantIds", "originCities" = EXCLUDED."originCities",
       "offers" = EXCLUDED."offers", "offersHash" = EXCLUDED."offersHash", "catalogFitKeys" = EXCLUDED."catalogFitKeys",
-      "sellerFitKeys" = EXCLUDED."sellerFitKeys", "nextChangeAt" = EXCLUDED."nextChangeAt", "updatedAt" = now()
+      "sellerFitKeys" = EXCLUDED."sellerFitKeys", "nextChangeAt" = EXCLUDED."nextChangeAt", "searchText" = EXCLUDED."searchText", "updatedAt" = now()
     WHERE ("ProductListing"."status", "ProductListing"."listed", "ProductListing"."categoryId", "ProductListing"."brand", "ProductListing"."origin",
            "ProductListing"."universal", "ProductListing"."hasCatalogFitment", "ProductListing"."offerCount", "ProductListing"."inStockOfferCount",
            "ProductListing"."totalAvailable", "ProductListing"."minPriceHalalas", "ProductListing"."minOfferPriceHalalas",
            "ProductListing"."minInStockPriceHalalas", "ProductListing"."minDispatchDays", "ProductListing"."minInStockDispatchDays",
            "ProductListing"."conditions", "ProductListing"."inStockConditions", "ProductListing"."merchantIds", "ProductListing"."originCities",
-           "ProductListing"."offersHash", "ProductListing"."catalogFitKeys", "ProductListing"."sellerFitKeys", "ProductListing"."nextChangeAt")
+           "ProductListing"."offersHash", "ProductListing"."catalogFitKeys", "ProductListing"."sellerFitKeys", "ProductListing"."nextChangeAt", "ProductListing"."searchText")
       IS DISTINCT FROM
           (EXCLUDED."status", EXCLUDED."listed", EXCLUDED."categoryId", EXCLUDED."brand", EXCLUDED."origin", EXCLUDED."universal",
            EXCLUDED."hasCatalogFitment", EXCLUDED."offerCount", EXCLUDED."inStockOfferCount", EXCLUDED."totalAvailable", EXCLUDED."minPriceHalalas",
            EXCLUDED."minOfferPriceHalalas", EXCLUDED."minInStockPriceHalalas", EXCLUDED."minDispatchDays", EXCLUDED."minInStockDispatchDays",
            EXCLUDED."conditions", EXCLUDED."inStockConditions", EXCLUDED."merchantIds", EXCLUDED."originCities", EXCLUDED."offersHash",
-           EXCLUDED."catalogFitKeys", EXCLUDED."sellerFitKeys", EXCLUDED."nextChangeAt")
+           EXCLUDED."catalogFitKeys", EXCLUDED."sellerFitKeys", EXCLUDED."nextChangeAt", EXCLUDED."searchText")
     RETURNING "productId"`;
 }
 

@@ -33,8 +33,11 @@ import { vehicleFitKeys } from './listings.js';
  * concept matches; trigram similarity (bucketed); fitment tier catalog > seller > by specification;
  * raw similarity; id. Paging is keyset over (k1, k2, id) and also accepts a legacy offset.
  *
- * Indexes (migration *_search_indexes): GIN pg_trgm on Product.searchText serves every LIKE '%…%' and
- * word_similarity; btree text_pattern_ops on ProductIdentifier.normalized serves part-number prefixes.
+ * Data: the scan runs on the ProductListing read model only (migration *_catalog_read_model): its copy of
+ * searchText (GIN pg_trgm, serves every LIKE '%…%' and word_similarity), the public-offer aggregates (exactly
+ * what publicOfferWhere shows, incl. offer freshness), and exploded fitment keys (GIN) for the fit tier. Only
+ * the final page is loaded from Product. btree text_pattern_ops on ProductIdentifier.normalized serves
+ * part-number prefixes. Counts come from window aggregates in the same statement as the page.
  */
 
 export type SortKey = 'relevance' | 'priceAsc' | 'priceDesc' | 'fastest';
@@ -136,26 +139,27 @@ function tierSql(v: ResolvedVehicle | null): Prisma.Sql {
  */
 function similaritySql(simText: string): Prisma.Sql {
   if (!simText) return Prisma.sql`0::real`;
-  return Prisma.sql`(CASE WHEN (' ' || p."searchText" || ' ') LIKE ${`% ${escapeLike(simText)} %`} THEN 1::real ELSE word_similarity(${simText}, p."searchText") END)`;
+  return Prisma.sql`(CASE WHEN (' ' || pl."searchText" || ' ') LIKE ${`% ${escapeLike(simText)} %`} THEN 1::real ELSE word_similarity(${simText}, pl."searchText") END)`;
 }
 
 function scoredCte(params: SearchParams, c: Criteria, vehicle: ResolvedVehicle | null): Prisma.Sql {
-  const pnContains = c.partNumbers.filter((pn) => pn.length >= 4).map((pn) => Prisma.sql`p."searchText" LIKE ${contains(pn)}`);
-  const conceptHit = c.groups.map((g) => anyOf(g.map((id) => Prisma.sql`p."searchText" LIKE ${contains(conceptToken(id))}`)));
-  const freeHit = c.free.map((t) => anyOf(tokenVariants(t).map((v) => Prisma.sql`p."searchText" LIKE ${contains(v)}`)));
+  const pnContains = c.partNumbers.filter((pn) => pn.length >= 4).map((pn) => Prisma.sql`pl."searchText" LIKE ${contains(pn)}`);
+  const conceptHit = c.groups.map((g) => anyOf(g.map((id) => Prisma.sql`pl."searchText" LIKE ${contains(conceptToken(id))}`)));
+  const freeHit = c.free.map((t) => anyOf(tokenVariants(t).map((v) => Prisma.sql`pl."searchText" LIKE ${contains(v)}`)));
 
   let match: Prisma.Sql;
   // With part numbers, candidates = identifier hits ∪ trigram hits: the UNION lets both sides use their
   // index instead of one OR across a LEFT JOIN (which forces a scan of every product).
   let candidates = Prisma.empty;
-  if (c.fuzzy) match = Prisma.sql`word_similarity(${c.simText}, p."searchText") >= 0.4`;
+  // `<%` ⇔ word_similarity(q, t) >= pg_trgm.word_similarity_threshold (set to 0.4 per statement), but GIN-indexable.
+  if (c.fuzzy) match = Prisma.sql`${c.simText} <% pl."searchText"`;
   else {
     const hasText = c.groups.length || c.free.length;
     const textMatch = hasText ? allOf([...conceptHit, ...freeHit]) : c.partNumbers.length ? Prisma.sql`FALSE` : Prisma.sql`TRUE`;
     match = c.partNumbers.length ? Prisma.sql`(ph."productId" IS NOT NULL OR ${anyOf(pnContains)} OR ${textMatch})` : textMatch;
     if (c.partNumbers.length) {
       const textual = [...pnContains, ...(hasText ? [textMatch] : [])];
-      candidates = Prisma.sql`JOIN (SELECT "productId" AS id FROM pn_hits UNION SELECT p.id FROM "Product" p WHERE ${anyOf(textual)}) cand ON cand.id = p.id`;
+      candidates = Prisma.sql`JOIN (SELECT "productId" AS id FROM pn_hits UNION SELECT pl."productId" FROM "ProductListing" pl WHERE ${anyOf(textual)}) cand ON cand.id = pl."productId"`;
     }
   }
 
@@ -196,10 +200,9 @@ function scoredCte(params: SearchParams, c: Criteria, vehicle: ResolvedVehicle |
     dispatch = Prisma.sql`ofr.dispatch`;
   }
 
-  const productFilters: Prisma.Sql[] = [Prisma.sql`p.status = 'ACTIVE'`, match, ...listingFilters];
-  // Category on both tables: the listing's (listed, categoryId, …) index lets a category browse start there.
-  if (params.categoryId) productFilters.push(Prisma.sql`p."categoryId" = ${params.categoryId}`, Prisma.sql`pl."categoryId" = ${params.categoryId}`);
-  if (params.origins?.length) productFilters.push(Prisma.sql`lower(p.origin::text) = ANY(${params.origins})`);
+  const productFilters: Prisma.Sql[] = [Prisma.sql`pl.status = 'ACTIVE'`, match, ...listingFilters];
+  if (params.categoryId) productFilters.push(Prisma.sql`pl."categoryId" = ${params.categoryId}`);
+  if (params.origins?.length) productFilters.push(Prisma.sql`lower(pl.origin::text) = ANY(${params.origins})`);
 
   const sim = similaritySql(c.simText);
   const ch = c.groups.length ? Prisma.sql`(${Prisma.join(conceptHit.map((h) => Prisma.sql`(CASE WHEN ${h} THEN 1 ELSE 0 END)`), ' + ')})` : Prisma.sql`0`;
@@ -218,11 +221,10 @@ function scoredCte(params: SearchParams, c: Criteria, vehicle: ResolvedVehicle |
   return Prisma.sql`
     pn_hits AS (${pnHits}),
     base AS (
-      SELECT p.id, ${pnTier} AS pn, ${ch} AS ch, ${sim} AS sim, ${tierSql(vehicle)} AS tier, ${price} AS price, ${dispatch} AS dispatch
-      FROM "Product" p
+      SELECT pl."productId" AS id, ${pnTier} AS pn, ${ch} AS ch, ${sim} AS sim, ${tierSql(vehicle)} AS tier, ${price} AS price, ${dispatch} AS dispatch
+      FROM "ProductListing" pl
       ${candidates}
-      JOIN "ProductListing" pl ON pl."productId" = p.id
-      LEFT JOIN pn_hits ph ON ph."productId" = p.id
+      LEFT JOIN pn_hits ph ON ph."productId" = pl."productId"
       ${offerJoin}
       WHERE ${allOf(productFilters)}
     ),
@@ -242,11 +244,15 @@ type Row = { id: string; pn: number; tier: number; grp: number; k1: bigint; k2: 
 type CountRow = { fits: bigint; other: bigint; pinned: bigint };
 
 /**
- * Runs one statement with JIT disabled: these are short OLTP queries whose planner cost estimates can
+ * Runs one search statement with JIT disabled: short OLTP queries whose planner cost estimates can
  * cross jit_above_cost, and LLVM compilation then costs more (50–300 ms) than the query itself.
  */
-async function withoutJit<T>(query: Prisma.Sql): Promise<T> {
-  const [, rows] = await prisma.$transaction([prisma.$executeRaw`SET LOCAL jit = off`, prisma.$queryRaw<T>(query)]);
+async function searchStatement<T>(query: Prisma.Sql): Promise<T> {
+  // Transaction-local settings (one round trip): no JIT; the fuzzy fallback's `<%` threshold = 0.4.
+  const [, rows] = await prisma.$transaction([
+    prisma.$executeRaw`SELECT set_config('jit', 'off', true), set_config('pg_trgm.word_similarity_threshold', '0.4', true)`,
+    prisma.$queryRaw<T>(query),
+  ]);
   return rows;
 }
 
@@ -267,7 +273,7 @@ async function runQuery(params: SearchParams, c: Criteria, vehicle: ResolvedVehi
     );
   }
   const offset = !params.cursor && params.offset ? Prisma.sql`OFFSET ${params.offset}` : Prisma.empty;
-  const rows = await withoutJit<(Row & CountRow)[]>(Prisma.sql`WITH ${cte}
+  const rows = await searchStatement<(Row & CountRow)[]>(Prisma.sql`WITH ${cte}
     SELECT id, pn, tier, grp, k1, k2, fits, other, pinned FROM (
       SELECT scored.*, count(*) FILTER (WHERE grp = 0) OVER () AS fits, count(*) FILTER (WHERE grp = 1) OVER () AS other,
         count(*) FILTER (WHERE grp = 1 AND pn > 0) OVER () AS pinned
@@ -276,7 +282,7 @@ async function runQuery(params: SearchParams, c: Criteria, vehicle: ResolvedVehi
     ORDER BY k1 DESC, k2 DESC, id ASC LIMIT ${params.limit + 1} ${offset}`);
   const counts =
     rows[0] ??
-    (await withoutJit<CountRow[]>(Prisma.sql`WITH ${cte}
+    (await searchStatement<CountRow[]>(Prisma.sql`WITH ${cte}
       SELECT count(*) FILTER (WHERE grp = 0) AS fits, count(*) FILTER (WHERE grp = 1) AS other, count(*) FILTER (WHERE grp = 1 AND pn > 0) AS pinned FROM scored`))[0];
   return { rows, fits: Number(counts?.fits ?? 0), other: Number(counts?.other ?? 0), pinned: Number(counts?.pinned ?? 0) };
 }
@@ -343,7 +349,7 @@ export async function searchProducts(params: SearchParams) {
 
   const page = result.rows.slice(0, params.limit);
   const last = result.rows.length > params.limit ? page[page.length - 1] : undefined;
-  const products = page.length ? await prisma.product.findMany({ where: { id: { in: page.map((r) => r.id) } }, include: productInclude }) : [];
+  const products = page.length ? await prisma.product.findMany({ where: { id: { in: page.map((r) => r.id) }, status: 'ACTIVE' }, include: productInclude }) : [];
   const byId = new Map(products.map((p) => [p.id, p]));
   const items = page.flatMap((r) => {
     const p = byId.get(r.id);

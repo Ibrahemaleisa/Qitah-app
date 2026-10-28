@@ -2,6 +2,7 @@
  * Synthetic catalog for load tests: products with realistic Arabic/English names, brands, manufacturer and
  * OEM part numbers, vehicle fitment (catalog- and seller-sourced, engine-restricted, by-specification),
  * merchants with pickup locations across Saudi cities, and 1–5 offers per product with stock (some sold out,
+ * stale or hidden by the freshness policy (≈70% confirmed within a week, 20% stale, 10% unconfirmed > 21 days),
  * paused, used/refurbished, a few suspended merchants). Then derives the ProductListing read model through
  * the application code (timed: that is the backfill throughput) and ANALYZEs.
  *
@@ -221,7 +222,7 @@ async function main() {
         const base = int(t.price[0], t.price[1]);
         const price = condition === 'NEW' ? base : Math.round(base * 0.55);
         const dmin = pick([0, 0, 0, 1, 1, 2, 3]);
-        offers.push([oid, m.id, id, loc.id, `LT-${idx}-${j}`, condition, price, chance(0.2) ? Math.round(price * 1.15) : null, pick([0, 0, 3, 6, 12]), dmin, dmin + pick([1, 1, 2, 3]), chance(0.03) ? 'PAUSED' : 'ACTIVE', 'PUBLIC', created, created]);
+        offers.push([oid, m.id, id, loc.id, `LT-${idx}-${j}`, condition, price, chance(0.2) ? Math.round(price * 1.15) : null, pick([0, 0, 3, 6, 12]), dmin, dmin + pick([1, 1, 2, 3]), chance(0.03) ? 'PAUSED' : 'ACTIVE', 'PUBLIC', created, created, new Date(now.getTime() - (chance(0.7) ? int(0, 6) : chance(0.66) ? int(8, 20) : int(22, 60)) * 86_400_000 - int(0, 86_399_999)).toISOString()]);
         inventory.push([oid, chance(0.15) ? 0 : int(1, 60), 0, created]);
       }
     }
@@ -235,8 +236,8 @@ async function main() {
     await insertRows('ProductFitment', ['id', 'productId', 'modelId', 'yearFrom', 'yearTo', 'engines', 'source', 'createdAt'], ['text', 'text', 'text', 'int', 'int', 'text[]', '"FitmentSource"', 'timestamp'], fitments);
     await insertRows(
       'Offer',
-      ['id', 'merchantId', 'productId', 'locationId', 'sku', 'condition', 'priceHalalas', 'compareAtHalalas', 'warrantyMonths', 'dispatchDaysMin', 'dispatchDaysMax', 'status', 'visibility', 'createdAt', 'updatedAt'],
-      ['text', 'text', 'text', 'text', 'text', '"Condition"', 'int', 'int', 'int', 'int', 'int', '"OfferStatus"', '"OfferVisibility"', 'timestamp', 'timestamp'],
+      ['id', 'merchantId', 'productId', 'locationId', 'sku', 'condition', 'priceHalalas', 'compareAtHalalas', 'warrantyMonths', 'dispatchDaysMin', 'dispatchDaysMax', 'status', 'visibility', 'createdAt', 'updatedAt', 'lastConfirmedAt'],
+      ['text', 'text', 'text', 'text', 'text', '"Condition"', 'int', 'int', 'int', 'int', 'int', '"OfferStatus"', '"OfferVisibility"', 'timestamp', 'timestamp', 'timestamp'],
       offers,
     );
     await insertRows('InventoryLevel', ['offerId', 'onHand', 'reserved', 'updatedAt'], ['text', 'int', 'int', 'timestamp'], inventory);

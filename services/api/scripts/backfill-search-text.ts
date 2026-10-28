@@ -7,6 +7,7 @@
  */
 import { prisma } from '../src/db.js';
 import { refreshSearchText } from '../src/services/catalog.js';
+import { refreshListings } from '../src/services/listings.js';
 
 const BATCH = 200;
 
@@ -17,7 +18,11 @@ async function main() {
   for (;;) {
     const rows = await prisma.product.findMany({ select: { id: true }, orderBy: { id: 'asc' }, take: BATCH, ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}) });
     if (!rows.length) break;
-    for (const r of rows) if (await refreshSearchText(prisma, r.id)) changed++;
+    const touched: string[] = [];
+    for (const r of rows) if (await refreshSearchText(prisma, r.id)) touched.push(r.id);
+    // ProductListing carries a copy of searchText (search scans the read model): keep it in step.
+    await refreshListings(prisma, touched);
+    changed += touched.length;
     scanned += rows.length;
     cursor = rows[rows.length - 1].id;
   }

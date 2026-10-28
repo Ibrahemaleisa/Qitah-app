@@ -1612,6 +1612,8 @@ model ProductListing {
   /// Next instant a public offer of this product turns stale or hidden by time alone (offer freshness policy,
   /// domain/freshness.ts); the worker re-derives listings once it has passed.
   nextChangeAt           DateTime?
+  /// Copy of Product.searchText so search scans this one table (no per-candidate join to Product).
+  searchText             String        @default("")
   /// Bumped only when a derived value actually changed (drives `/v1/catalog/changes`).
   updatedAt              DateTime      @default(now())
 
@@ -1623,5 +1625,6 @@ model ProductListing {
   @@index([merchantIds], type: Gin)
   @@index([catalogFitKeys], type: Gin)
   @@index([sellerFitKeys], type: Gin)
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "ProductListing_searchText_trgm_idx")
 }
 // ═════════════════════════════════════════════ END catalog read model (scale) ═══════════════════════════════════════════════

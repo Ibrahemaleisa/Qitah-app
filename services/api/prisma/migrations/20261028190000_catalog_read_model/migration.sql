@@ -30,31 +30,11 @@ CREATE TABLE "ProductListing" (
     "catalogFitKeys" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "sellerFitKeys" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "nextChangeAt" TIMESTAMP(3),
+    "searchText" TEXT NOT NULL DEFAULT '',
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "ProductListing_pkey" PRIMARY KEY ("productId")
 );
-
--- CreateIndex
-CREATE INDEX "ProductListing_listed_categoryId_offerCount_idx" ON "ProductListing"("listed", "categoryId", "offerCount" DESC);
-
--- CreateIndex
-CREATE INDEX "ProductListing_listed_universal_categoryId_offerCount_idx" ON "ProductListing"("listed", "universal", "categoryId", "offerCount" DESC);
-
--- CreateIndex
-CREATE INDEX "ProductListing_updatedAt_idx" ON "ProductListing"("updatedAt");
-
--- CreateIndex
-CREATE INDEX "ProductListing_nextChangeAt_idx" ON "ProductListing"("nextChangeAt");
-
--- CreateIndex
-CREATE INDEX "ProductListing_merchantIds_idx" ON "ProductListing" USING GIN ("merchantIds");
-
--- CreateIndex
-CREATE INDEX "ProductListing_catalogFitKeys_idx" ON "ProductListing" USING GIN ("catalogFitKeys");
-
--- CreateIndex
-CREATE INDEX "ProductListing_sellerFitKeys_idx" ON "ProductListing" USING GIN ("sellerFitKeys");
 
 -- Initial population so search keeps working the moment this migration lands. It mirrors publicOfferWhere as
 -- of this migration (PUBLIC + ACTIVE offer, APPROVED merchant, active location, confirmed within the default
@@ -65,7 +45,7 @@ INSERT INTO "ProductListing" (
     "productId", "status", "listed", "categoryId", "brand", "origin", "universal", "hasCatalogFitment",
     "offerCount", "inStockOfferCount", "totalAvailable", "minPriceHalalas", "minOfferPriceHalalas", "minInStockPriceHalalas",
     "minDispatchDays", "minInStockDispatchDays", "conditions", "inStockConditions", "merchantIds", "originCities", "offers", "offersHash",
-    "catalogFitKeys", "sellerFitKeys", "nextChangeAt", "updatedAt")
+    "catalogFitKeys", "sellerFitKeys", "nextChangeAt", "searchText", "updatedAt")
 SELECT
     p.id, p.status, p.status = 'ACTIVE' AND coalesce(o.n, 0) > 0, p."categoryId", p.brand, p.origin, p."universalNoteAr" IS NOT NULL,
     EXISTS (SELECT 1 FROM "ProductFitment" f WHERE f."productId" = p.id AND f.source = 'CATALOG'),
@@ -84,7 +64,7 @@ SELECT
         UNION SELECT 'y|' || f."modelId" || '|' || y FROM "ProductFitment" f, generate_series(f."yearFrom", f."yearTo") y WHERE f."productId" = p.id AND f.source = 'SELLER' AND cardinality(f.engines) = 0
         UNION SELECT 'e|' || f."modelId" || '|' || y || '|' || e FROM "ProductFitment" f, generate_series(f."yearFrom", f."yearTo") y, unnest(f.engines) e WHERE f."productId" = p.id AND f.source = 'SELLER'
     ) k), '{}'),
-    o.next_change, CURRENT_TIMESTAMP
+    o.next_change, p."searchText", CURRENT_TIMESTAMP
 FROM "Product" p
 LEFT JOIN LATERAL (
     SELECT count(*) AS n,
@@ -113,3 +93,28 @@ LEFT JOIN LATERAL (
     ) x
 ) o ON TRUE
 ON CONFLICT ("productId") DO NOTHING;
+
+-- Indexes after the initial population (one bulk build each instead of incremental GIN maintenance).
+-- CreateIndex
+CREATE INDEX "ProductListing_listed_categoryId_offerCount_idx" ON "ProductListing"("listed", "categoryId", "offerCount" DESC);
+
+-- CreateIndex
+CREATE INDEX "ProductListing_listed_universal_categoryId_offerCount_idx" ON "ProductListing"("listed", "universal", "categoryId", "offerCount" DESC);
+
+-- CreateIndex
+CREATE INDEX "ProductListing_updatedAt_idx" ON "ProductListing"("updatedAt");
+
+-- CreateIndex
+CREATE INDEX "ProductListing_nextChangeAt_idx" ON "ProductListing"("nextChangeAt");
+
+-- CreateIndex
+CREATE INDEX "ProductListing_merchantIds_idx" ON "ProductListing" USING GIN ("merchantIds");
+
+-- CreateIndex
+CREATE INDEX "ProductListing_catalogFitKeys_idx" ON "ProductListing" USING GIN ("catalogFitKeys");
+
+-- CreateIndex
+CREATE INDEX "ProductListing_sellerFitKeys_idx" ON "ProductListing" USING GIN ("sellerFitKeys");
+
+-- CreateIndex (pg_trgm exists since *_search_indexes)
+CREATE INDEX "ProductListing_searchText_trgm_idx" ON "ProductListing" USING GIN ("searchText" gin_trgm_ops);
