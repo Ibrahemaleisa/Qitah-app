@@ -31,6 +31,11 @@ export function presentCustomerOrder(o: OrderFull) {
     vehicle: o.vehicleSnapshot,
     totals: { itemsHalalas: o.itemsHalalas, shippingHalalas: o.shippingHalalas, discountHalalas: o.discountHalalas, totalHalalas: o.totalHalalas, vatHalalas: o.vatHalalas, refundedHalalas: o.refundedHalalas },
     cancelReason: o.cancelReason,
+    // Workshop orders only (null for retail).
+    buyerOrgId: o.buyerOrgId,
+    workOrderRef: o.workOrderRef,
+    workshopQuoteId: o.workshopQuoteId,
+    creditDueAt: o.creditDueAt?.toISOString() ?? null,
     merchantOrders: o.merchantOrders.map((m) => ({
       id: m.id,
       number: m.number,

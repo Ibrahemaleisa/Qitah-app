@@ -616,10 +616,22 @@ model Order {
   reservations   InventoryReservation[]
   ledgerEntries  LedgerEntry[]
 
+  // organizations (see "organizations (workshops / fleets)" at the end): set only for workshop/fleet orders.
+  /// Buying organisation; present = B2B channel (commission rules derive the channel from it).
+  buyerOrgId      String?
+  /// The workshop's own job / plate reference, printed on its statement.
+  workOrderRef    String?
+  /// Attribution: the workshop→customer quote this order was converted from.
+  workshopQuoteId String?       @unique
+  /// NET_TERMS only: when the receivable for this order falls due (paidAt + credit termsDays).
+  creditDueAt     DateTime?
+  buyerOrg        Organization? @relation(fields: [buyerOrgId], references: [id])
+
   @@unique([customerId, idempotencyKey])
   @@index([status, createdAt])
   @@index([status, paymentExpiresAt])
   @@index([customerId, createdAt])
+  @@index([buyerOrgId, createdAt])
 }
 
 model MerchantOrder {
@@ -949,6 +961,8 @@ enum LedgerAccount {
   SUSPENSE
   /// Platform-funded fit-guarantee cost (outbound shipping refunded + return shipping).
   GUARANTEE_EXPENSE
+  /// Owed by a buying organisation for NET_TERMS orders (debit = the workshop owes Qitah).
+  CUSTOMER_RECEIVABLE
 }
 
 enum SettlementStatus {
@@ -1297,4 +1311,169 @@ model PartQuote {
   @@unique([requestId, merchantId])
   @@index([merchantId, status])
   @@index([status, validUntil])
+}
+
+// ───────────────────────────────────────────── organizations (workshops / fleets)
+// "قطعة للورش": a workshop (or fleet) buys as an organisation. Members (OWNER > BUYER > TECHNICIAN) order on its
+// behalf; an approved org can get NET_TERMS credit from Qitah's INTERNAL SANDBOX credit ledger (no financing partner
+// is connected: `provider` says so). Merchants are always paid by Qitah regardless of how the workshop pays.
+// User ids are plain columns so this block adds no back-relations to models other agents edit in parallel.
+
+enum OrganizationType {
+  WORKSHOP
+  FLEET
+}
+
+enum OrganizationStatus {
+  APPLIED
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+/// Ordered OWNER > BUYER > TECHNICIAN. BUYER/OWNER may order; TECHNICIAN sees the org's orders only.
+enum OrganizationRole {
+  OWNER
+  BUYER
+  TECHNICIAN
+}
+
+enum OrganizationMemberStatus {
+  /// Invited by phone; linked to the user (userId set, ACTIVE) when that phone signs in with OTP.
+  INVITED
+  ACTIVE
+  REMOVED
+}
+
+enum OrganizationCreditStatus {
+  ACTIVE
+  FROZEN
+}
+
+enum WorkshopQuoteStatus {
+  SENT
+  APPROVED
+  DECLINED
+  EXPIRED
+  CONVERTED
+}
+
+model Organization {
+  id           String             @id @default(cuid())
+  type         OrganizationType   @default(WORKSHOP)
+  legalName    String
+  displayName  String
+  crNumber     String
+  vatNumber    String?
+  city         String
+  district     String
+  address      String
+  latitude     Float?
+  longitude    Float?
+  contactPhone String
+  status       OrganizationStatus @default(APPLIED)
+  statusReason String?
+  createdById  String
+  approvedAt   DateTime?
+  approvedById String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  members    OrganizationMember[]
+  credit     OrganizationCredit?
+  repayments OrganizationRepayment[]
+  quotes     WorkshopQuote[]
+  orders     Order[]
+
+  @@index([status, createdAt])
+  @@index([crNumber])
+}
+
+model OrganizationMember {
+  id           String                   @id @default(cuid())
+  orgId        String
+  /// Null while the invite is pending.
+  userId       String?
+  /// Phone the member was invited with (+9665XXXXXXXX); null for the founding OWNER.
+  invitedPhone String?
+  role         OrganizationRole
+  status       OrganizationMemberStatus @default(ACTIVE)
+  invitedById  String?
+  joinedAt     DateTime?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  org          Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@unique([orgId, invitedPhone])
+  @@index([userId, status])
+  @@index([invitedPhone, status])
+}
+
+/// Qitah's INTERNAL credit line for the sandbox (no external financing partner). Outstanding = the org's
+/// CUSTOMER_RECEIVABLE ledger balance; the row is locked FOR UPDATE by every NET_TERMS checkout.
+model OrganizationCredit {
+  id           String                   @id @default(cuid())
+  orgId        String                   @unique
+  limitHalalas Int
+  termsDays    Int                      @default(30)
+  status       OrganizationCreditStatus @default(ACTIVE)
+  provider     String                   @default("qitah-internal-sandbox")
+  approvedById String?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  org          Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+/// A repayment recorded by Qitah finance (bank transfer received outside Qitah). Allocated oldest-due first:
+/// [{orderId, amountHalalas}], one CREDIT_REPAYMENT ledger posting per allocated order.
+model OrganizationRepayment {
+  id             String       @id @default(cuid())
+  orgId          String
+  amountHalalas  Int
+  idempotencyKey String       @unique
+  reference      String?
+  note           String?
+  allocation     Json         @default("[]")
+  recordedById   String?
+  createdAt      DateTime     @default(now())
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+}
+
+/// "عرض سعر للعميل": a workshop's price proposal to its own customer, shared through an unguessable link
+/// (only the SHA-256 of the token is stored). Parts are priced at the Qitah price; labour and the workshop's
+/// margin (`markupHalalas`) are shown TRANSPARENTLY as their own lines ("أجرة اليد" / "رسوم الورشة").
+/// Approval converts it into a workshop order (Order.workshopQuoteId) bought at Qitah prices.
+model WorkshopQuote {
+  id              String              @id @default(cuid())
+  number          String              @unique
+  orgId           String
+  createdByUserId String
+  /// The workshop's delivery address (owned by createdByUserId), used when the quote is converted.
+  addressId       String
+  /// {plate?, vin?, model, year?} exactly as the workshop typed it.
+  vehicle         Json
+  /// [{offerId, productId, nameAr, nameEn, brand, partNumber, condition, quantity, unitPriceHalalas}]
+  lines           Json
+  partsHalalas    Int
+  laborHalalas    Int                 @default(0)
+  markupHalalas   Int                 @default(0)
+  totalHalalas    Int
+  note            String?
+  /// For sharing (WhatsApp) only; never shown on the public page.
+  customerPhone   String?
+  tokenHash       String              @unique
+  expiresAt       DateTime
+  status          WorkshopQuoteStatus @default(SENT)
+  respondedAt     DateTime?
+  orderId         String?             @unique
+  convertError    String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  org             Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+  @@index([status, expiresAt])
 }

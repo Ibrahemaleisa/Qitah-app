@@ -1,15 +1,21 @@
 import type { FastifyRequest } from 'fastify';
-import type { MerchantRole, PlatformRole } from '@prisma/client';
+import type { MerchantRole, OrganizationRole, OrganizationStatus, PlatformRole } from '@prisma/client';
 
 import { prisma } from '../db.js';
 import { forbidden, unauthorized } from '../lib/errors.js';
+import { linkPendingInvites, ORG_ROLE_RANK } from '../services/organizations.js';
 import type { TokenService } from './tokens.js';
+
+export type OrgMembership = { orgId: string; role: OrganizationRole; orgStatus: OrganizationStatus };
 
 export type Principal = {
   userId: string;
   platformRoles: PlatformRole[];
   memberships: { merchantId: string; role: MerchantRole }[];
+  /** ACTIVE workshop/fleet memberships (any org status; callers check APPROVED where it matters). */
+  orgMemberships: OrgMembership[];
 };
+
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -40,16 +46,20 @@ async function resolve(req: FastifyRequest, tokens: TokenService): Promise<Princ
     user = existing
       ? await prisma.user.update({ where: { id: existing.id }, data: { cognitoSub: verified.subject } })
       : await prisma.user.create({ data: { cognitoSub: verified.subject, email: verified.email, phone: verified.phone } });
+    // Cognito verified this phone: link workshop invites sent to it (same as the local OTP sign-in).
+    if (verified.phone) await linkPendingInvites(user.id, verified.phone);
   }
   if (!user || user.status !== 'ACTIVE') throw unauthorized('Account unavailable');
-  const [roles, memberships] = await Promise.all([
+  const [roles, memberships, orgMemberships] = await Promise.all([
     prisma.platformRoleAssignment.findMany({ where: { userId: user.id } }),
     prisma.merchantMember.findMany({ where: { userId: user.id, status: 'ACTIVE' } }),
+    prisma.organizationMember.findMany({ where: { userId: user.id, status: 'ACTIVE' }, include: { org: { select: { status: true } } } }),
   ]);
   return {
     userId: user.id,
     platformRoles: roles.map((r) => r.role),
     memberships: memberships.map((m) => ({ merchantId: m.merchantId, role: m.role })),
+    orgMemberships: orgMemberships.map((m) => ({ orgId: m.orgId, role: m.role, orgStatus: m.org.status })),
   };
 }
 
@@ -82,7 +92,18 @@ export function createGuards(tokens: TokenService) {
     return { principal: p, role: m.role };
   }
 
-  return { principal, requireUser, requirePlatform, requireMerchant };
+  /**
+   * Active member of exactly this workshop/fleet organisation with at least `minRole`.
+   * Same 403 for "not a member", "role too low" and "no such org" so org ids cannot be probed.
+   */
+  async function requireOrg(req: FastifyRequest, orgId: string, minRole: OrganizationRole = 'TECHNICIAN') {
+    const p = await requireUser(req);
+    const m = p.orgMemberships.find((x) => x.orgId === orgId);
+    if (!m || ORG_ROLE_RANK[m.role] < ORG_ROLE_RANK[minRole]) throw forbidden('No access to this organisation');
+    return { principal: p, role: m.role, orgStatus: m.orgStatus };
+  }
+
+  return { principal, requireUser, requirePlatform, requireMerchant, requireOrg };
 }
 
 export type Guards = ReturnType<typeof createGuards>;

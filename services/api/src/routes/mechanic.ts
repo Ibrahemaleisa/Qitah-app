@@ -13,7 +13,7 @@ import { findByToken, submitMechanicReview, type MechanicForm, type ReviewDecisi
  * (the token is in the URL) and shows no customer name, phone or address.
  */
 
-const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+export const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 const FIT: Record<string, { label: string; cls: string }> = {
   catalog: { label: 'متوافقة حسب الكتالوج', cls: 'ok' },
@@ -25,7 +25,7 @@ const FIT: Record<string, { label: string; cls: string }> = {
 const CONDITION: Record<string, string> = { NEW: 'جديد', USED: 'مستعمل', REFURBISHED: 'مجدد' };
 const ORIGIN: Record<string, string> = { oem: 'أصلي (وكالة)', aftermarket: 'بديل تجاري' };
 
-function page(title: string, body: string) {
+export function page(title: string, body: string) {
   return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>${esc(title)}</title>
 <style>
 *{box-sizing:border-box}body{font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;background:#F5F7FA;color:#0B1B33;margin:0;padding:16px;line-height:1.6}
@@ -40,7 +40,7 @@ button{width:100%;padding:14px;border:0;border-radius:12px;font-size:16px;font-w
 </style></head><body><main>${body}<p class="muted" style="text-align:center">قطعة — سوق قطع الغيار · لا نعرض أي بيانات شخصية للعميل في هذه الصفحة</p></main></body></html>`;
 }
 
-function send(reply: FastifyReply, status: number, html: string) {
+export function send(reply: FastifyReply, status: number, html: string) {
   return reply
     .code(status)
     .header('content-type', 'text/html; charset=utf-8')

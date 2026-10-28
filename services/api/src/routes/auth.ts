@@ -7,6 +7,7 @@ import { ACCESS_TOKEN_TTL_SECONDS, REFRESH_TOKEN_TTL_DAYS } from '../auth/tokens
 import { prisma } from '../db.js';
 import { AppError, badRequest, notFound, unauthorized } from '../lib/errors.js';
 import { parse, rateLimit, saudiPhone } from '../lib/http.js';
+import { linkPendingInvites } from '../services/organizations.js';
 import { randomInt } from 'node:crypto';
 
 const OTP_TTL_MS = 5 * 60_000;
@@ -56,6 +57,8 @@ export async function authRoutes(app: FastifyInstance, deps: Deps) {
     const user = await prisma.user.upsert({ where: { phone: body.phone }, update: {}, create: { phone: body.phone, name: body.name } });
     if (user.status !== 'ACTIVE') throw unauthorized('Account unavailable');
     if (body.name && !user.name) await prisma.user.update({ where: { id: user.id }, data: { name: body.name } });
+    // The phone is now proven: workshop invites sent to it become memberships.
+    await linkPendingInvites(user.id, user.phone);
     return { user: { id: user.id, phone: user.phone, name: user.name ?? body.name ?? null }, ...(await issueSession(deps, user.id, req.headers['user-agent'])) };
   });
 

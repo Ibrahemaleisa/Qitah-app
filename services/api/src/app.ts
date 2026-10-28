@@ -18,10 +18,12 @@ import { garageRoutes } from './routes/garage.js';
 import { mechanicPublicRoutes } from './routes/mechanic.js';
 import { merchantRoutes, merchantUploadRoutes } from './routes/merchant.js';
 import { opsRoutes } from './routes/ops.js';
+import { organizationOpsRoutes, organizationRoutes } from './routes/organizations.js';
 import { partRequestRoutes } from './routes/partRequests.js';
 import { sandboxRoutes } from './routes/sandbox.js';
 import { localUploadRoutes } from './routes/uploads.js';
 import { webhookRoutes } from './routes/webhooks.js';
+import { workshopQuotePublicRoutes } from './routes/workshopQuotePublic.js';
 
 export type Deps = { ctx: Ctx; tokens: TokenService; guards: Guards; app: FastifyInstance };
 
@@ -98,6 +100,9 @@ export async function buildApp(config: Config, overrides: Partial<Ctx> = {}) {
   await app.register(async (s) => eventRoutes(s, deps));
   await app.register(async (s) => garageRoutes(s, deps));
   await app.register(async (s) => mechanicPublicRoutes(s, deps));
+  await app.register(async (s) => organizationRoutes(s, deps));
+  await app.register(async (s) => organizationOpsRoutes(s, deps));
+  await app.register(async (s) => workshopQuotePublicRoutes(s, deps));
   if (config.sandbox) await app.register(async (s) => sandboxRoutes(s, deps));
   return app;
 }

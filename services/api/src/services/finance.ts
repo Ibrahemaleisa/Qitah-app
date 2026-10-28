@@ -3,6 +3,8 @@ import { prisma, withTx } from '../db.js';
 import { conflict, notFound } from '../lib/errors.js';
 import { audit, notify, type Actor } from './events.js';
 import { post } from './ledger.js';
+import { repaidForOrder } from './organizations.js';
+import { CREDIT_PROVIDER } from './payments.js';
 
 /**
  * Settlement eligibility: merchant order DELIVERED, return window elapsed, no open return case,
@@ -123,7 +125,23 @@ export async function reconcileOrder(orderId: string) {
   const ledgerTotal = ledger.reduce((s, l) => s + (l._sum.amountHalalas ?? 0), 0);
 
   if (refundedPayments !== refundsSucceeded) issues.push(`payments.refunded ${refundedPayments} ≠ succeeded refunds ${refundsSucceeded}`);
-  if (acct('CUSTOMER_CLEARING') !== captured - refundsSucceeded) issues.push(`ledger customer clearing ${acct('CUSTOMER_CLEARING')} ≠ captured − refunded ${captured - refundsSucceeded}`);
+  // NET_TERMS (credit) orders: the capture is owed by the workshop (receivable) until finance records repayments,
+  // which move it to clearing. Refunds reduce the receivable first; only after repayment do they become cash owed back.
+  const creditOrder = order.payments.some((p) => p.provider === CREDIT_PROVIDER);
+  const receivable = acct('CUSTOMER_RECEIVABLE');
+  const clearing = acct('CUSTOMER_CLEARING');
+  let repaid = 0;
+  if (creditOrder) {
+    if (!order.buyerOrgId) issues.push('credit payment without a buying organisation');
+    repaid = order.buyerOrgId ? await repaidForOrder(prisma, order.buyerOrgId, orderId) : 0;
+    if (clearing + receivable !== captured - refundsSucceeded) issues.push(`ledger receivable ${receivable} + clearing ${clearing} ≠ captured − refunded ${captured - refundsSucceeded}`);
+    if (receivable < 0) issues.push(`receivable is negative (${receivable})`);
+    if (clearing > repaid) issues.push(`clearing ${clearing} exceeds repayments allocated to this order ${repaid}`);
+    if (clearing < repaid && receivable !== 0) issues.push('cash refunded to the workshop while a receivable is still open');
+  } else {
+    if (clearing !== captured - refundsSucceeded) issues.push(`ledger customer clearing ${clearing} ≠ captured − refunded ${captured - refundsSucceeded}`);
+    if (receivable !== 0) issues.push(`receivable on a non-credit order (${receivable})`);
+  }
   if (ledgerTotal !== 0) issues.push(`ledger does not balance (${ledgerTotal})`);
   if (acct('SUSPENSE') !== 0) issues.push(`suspense not cleared (${acct('SUSPENSE')})`);
   const paidStatuses = ['PAID', 'IN_FULFILLMENT', 'PARTIALLY_SHIPPED', 'SHIPPED', 'PARTIALLY_DELIVERED', 'DELIVERED', 'COMPLETED'];
@@ -156,6 +174,9 @@ export async function reconcileOrder(orderId: string) {
     refundedHalalas: refundsSucceeded,
     netCollectedHalalas: captured - refundsSucceeded,
     guaranteeExpenseHalalas: acct('GUARANTEE_EXPENSE'),
+    creditOrder,
+    receivableHalalas: receivable,
+    repaidHalalas: repaid,
     ledger: Object.fromEntries(ledger.map((l) => [l.account, l._sum.amountHalalas ?? 0])),
     reconciled: issues.length === 0,
     issues,
