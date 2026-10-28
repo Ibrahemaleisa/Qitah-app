@@ -15,6 +15,8 @@ import type {
   PlanResponse,
   ReferenceResponse,
   RemotePaymentMethod,
+  SearchQuery,
+  SearchResponse,
   SnapshotResponse,
 } from './types';
 
@@ -32,6 +34,26 @@ export const catalogApi = {
   reference: () => api.get<ReferenceResponse>('/v1/catalog/reference'),
   snapshot: () => api.get<SnapshotResponse>('/v1/catalog/snapshot', { timeoutMs: 20_000 }),
   offers: (ids: string[]) => api.get<{ offers: ApiOffer[] }>('/v1/catalog/offers', { query: { ids: ids.slice(0, 50).join(',') } }),
+  /** Server-side ranked search. Pass `signal` to cancel a superseded request (typing). */
+  search: (q: SearchQuery, signal?: AbortSignal) =>
+    api.get<SearchResponse>('/v1/catalog/search', {
+      signal,
+      retries: 1,
+      query: {
+        q: q.q?.trim() || undefined,
+        modelId: q.modelId,
+        year: q.year,
+        engine: q.engine,
+        fitsOnly: q.fitsOnly === undefined ? undefined : String(q.fitsOnly),
+        categoryId: q.categoryId,
+        origin: q.origin?.length ? q.origin.join(',') : undefined,
+        condition: q.condition?.length ? q.condition.join(',') : undefined,
+        inStock: q.inStock === undefined ? undefined : String(q.inStock),
+        sort: q.sort,
+        cursor: q.cursor,
+        limit: q.limit,
+      },
+    }),
 };
 
 export type VehicleInput = { modelId: string; year: number; trim: string; engine: string; vin?: string };

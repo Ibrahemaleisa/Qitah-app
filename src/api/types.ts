@@ -76,6 +76,57 @@ export type ApiSeller = {
 
 export type SnapshotResponse = { generatedAt: string; products: ApiProduct[]; sellers: ApiSeller[] };
 
+// ── search (GET /v1/catalog/search)
+export type ApiSearchFit = 'catalogMatch' | 'sellerReported' | 'bySpecification' | 'noData' | 'noVehicle' | 'listedForModel' | 'listedForMake';
+export type ApiSearchItem = ApiProduct & { match?: { fit: ApiSearchFit | string; group: 'fits' | 'other' | string; partNumber: boolean } };
+export type ApiSearchVehicle = {
+  source: 'query' | 'garage';
+  makeId?: string;
+  modelId?: string;
+  year?: number;
+  engine?: string;
+  scope: 'vehicle' | 'model' | 'make';
+  yearOutOfRange?: boolean;
+  label?: L10n;
+};
+export type ApiSearchInterpretation = {
+  query: string;
+  partNumber: string | null;
+  partNumbers: string[];
+  concepts: { id: string; label: L10n; categoryId: string | null; carried: boolean; term: string }[];
+  conceptGroups: string[][];
+  freeTokens: string[];
+  year: number | null;
+  queryVehicle: { makeId: string; modelId: string | null; text: string } | null;
+  vehicle: ApiSearchVehicle | null;
+  withoutVehicle: string | null;
+  unsupported: { id: string; label: L10n }[];
+};
+export type SearchResponse = {
+  items: ApiSearchItem[];
+  nextCursor: string | null;
+  total: number;
+  counts: { fits: number; other: number; hidden?: number };
+  interpretation: ApiSearchInterpretation;
+  didYouMean: string | null;
+  fallback: { mode: 'corrected' | 'relaxed' | 'similar'; query?: string } | null;
+  suggestions?: { categoryIds: string[] };
+};
+export type SearchQuery = {
+  q?: string;
+  modelId?: string;
+  year?: number;
+  engine?: string;
+  fitsOnly?: boolean;
+  categoryId?: string;
+  origin?: string[];
+  condition?: string[];
+  inStock?: boolean;
+  sort?: 'relevance' | 'priceAsc' | 'priceDesc' | 'fastest';
+  cursor?: string;
+  limit?: number;
+};
+
 // ── customer
 export type ApiVehicle = { id: string; modelId: string; year: number; trim: string; engine: string; vin?: string; addedAt: number };
 export type ApiAddress = {

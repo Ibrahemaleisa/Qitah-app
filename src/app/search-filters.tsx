@@ -5,7 +5,8 @@ import { ScrollView, View } from 'react-native';
 import { allCategories } from '@/data/catalog';
 import type { Condition, PartOrigin } from '@/domain/types';
 import { useI18n } from '@/i18n';
-import { searchProducts, type SearchFilters } from '@/services/catalog';
+import { useSearchCount } from '@/features/search/useCatalogSearch';
+import type { SearchFilters } from '@/services/catalog';
 import { useSelectedVehicle } from '@/store/app-store';
 import { useSearchStore } from '@/store/search-store';
 import { colors, gutter, radius, space } from '@/theme/tokens';
@@ -23,7 +24,9 @@ export default function SearchFiltersSheet() {
   const vehicle = useSelectedVehicle();
   const store = useSearchStore();
   const [draft, setDraft] = useState<SearchFilters>(store.filters);
-  const count = useMemo(() => searchProducts({ query: store.query, filters: draft, sort: store.sort, vehicle }).length, [draft, store.query, store.sort, vehicle]);
+  const countInput = useMemo(() => ({ query: store.query, filters: draft, sort: store.sort, vehicle }), [draft, store.query, store.sort, vehicle]);
+  // Demo: counted locally. Remote: asked from the server (null while it answers).
+  const count = useSearchCount(countInput);
 
   const apply = () => {
     store.setFilters(draft);
@@ -59,7 +62,7 @@ export default function SearchFiltersSheet() {
         </View>
       </ScrollView>
       <View style={{ paddingHorizontal: gutter, paddingTop: space.md, paddingBottom: space.xxl, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.surface }}>
-        <Button label={s.search.showResults(count)} onPress={apply} disabled={count === 0} />
+        <Button label={count === null ? s.search2.showResultsPlain : s.search.showResults(count)} onPress={apply} disabled={count === 0} />
       </View>
     </View>
   );

@@ -11,6 +11,10 @@ import type { Offer } from '@/domain/types';
  * Hydrates the remote catalog from `GET /v1/catalog/reference` + `GET /v1/catalog/snapshot`.
  * The last good snapshot is cached on device so the app opens offline (flagged by the banner) and
  * refreshes in the background when it comes to the foreground or the data is older than 60s.
+ *
+ * Search no longer filters this snapshot: the search screen calls `GET /v1/catalog/search`
+ * (services/remote/search.ts). The snapshot stays, for now, to back product detail, offer comparison,
+ * sellers and the cart; replacing it with per-product fetches / deltas is a later step.
  */
 
 export const CATALOG_STALE_MS = 60_000;
