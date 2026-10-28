@@ -25,7 +25,9 @@ export async function refreshSearchText(db: Db, productId: string) {
   });
 }
 
+/** Public listing filter. PRIVATE offers (accepted part-request quotes) never appear in catalog, search, snapshot or seller pages. */
 export const publicOfferWhere: Prisma.OfferWhereInput = {
+  visibility: 'PUBLIC',
   status: 'ACTIVE',
   merchant: { status: 'APPROVED' },
   location: { active: true },
@@ -188,8 +190,9 @@ export async function catalogSnapshot() {
   return { generatedAt: new Date().toISOString(), products, sellers };
 }
 
+/** Public live price/stock lookup: private offers are excluded (the owner reads them via /v1/me/private-offers). */
 export async function offersByIds(ids: string[]) {
-  const rows = await prisma.offer.findMany({ where: { id: { in: ids } }, include: { ...offerInclude, merchant: true } });
+  const rows = await prisma.offer.findMany({ where: { id: { in: ids }, visibility: 'PUBLIC' }, include: { ...offerInclude, merchant: true } });
   return rows.map((o) => ({ ...presentOffer(o), purchasable: o.status === 'ACTIVE' && o.merchant.status === 'APPROVED' && o.location.active }));
 }
 

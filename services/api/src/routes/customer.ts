@@ -5,7 +5,7 @@ import type { Deps } from '../app.js';
 import { prisma } from '../db.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { cityId, parse, rateLimit } from '../lib/http.js';
-import { checkout, PAYMENT_METHODS, planCheckout } from '../services/checkout.js';
+import { checkout, PAYMENT_METHODS, planCheckout, visibleTo } from '../services/checkout.js';
 import { cancelOrderByCustomer } from '../services/fulfillment.js';
 import { loadOrder, orderInclude, presentCustomerOrder } from '../services/orderView.js';
 import { initiatePayment } from '../services/payments.js';
@@ -121,7 +121,7 @@ export async function customerRoutes(app: FastifyInstance, deps: Deps) {
   app.put('/v1/me/cart', async (req) => {
     const p = await requireUser(req);
     const { lines } = parse(z.object({ lines: z.array(z.object({ offerId: z.string(), qty: z.number().int().min(1).max(50) })).max(50) }), req.body);
-    const offers = await prisma.offer.findMany({ where: { id: { in: lines.map((l) => l.offerId) } }, select: { id: true } });
+    const offers = await prisma.offer.findMany({ where: { id: { in: lines.map((l) => l.offerId) }, ...visibleTo(p.userId) }, select: { id: true } });
     const valid = lines.filter((l) => offers.some((o) => o.id === l.offerId));
     await prisma.$transaction(async (tx) => {
       const cart = await tx.cart.upsert({ where: { userId: p.userId }, update: {}, create: { userId: p.userId } });

@@ -224,7 +224,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     const c = (s: MerchantOrderStatus) => counts.find((x) => x.status === s)?._count ?? 0;
     const lowStock = await prisma.$queryRaw<{ n: bigint }[]>`
       SELECT count(*)::bigint AS n FROM "Offer" o JOIN "InventoryLevel" i ON i."offerId" = o.id
-      WHERE o."merchantId" = ${merchantId} AND o.status = 'ACTIVE' AND i."onHand" - i."reserved" <= 2`;
+      WHERE o."merchantId" = ${merchantId} AND o.status = 'ACTIVE' AND o.visibility = 'PUBLIC' AND i."onHand" - i."reserved" <= 2`;
     const delivered = await prisma.merchantOrder.count({ where: { merchantId, status: 'DELIVERED' } });
     const breached = await prisma.merchantOrder.count({ where: { merchantId, slaBreached: true } });
     const decided = await prisma.merchantOrder.count({ where: { merchantId, status: { in: ['ACCEPTED', 'PACKING', 'READY_FOR_PICKUP', 'HANDED_OVER', 'DELIVERED', 'REJECTED'] } } });
@@ -233,7 +233,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
       queue: { new: c('NEW'), accepted: c('ACCEPTED'), packing: c('PACKING'), readyForPickup: c('READY_FOR_PICKUP'), handedOver: c('HANDED_OVER') },
       openReturns: await prisma.returnCase.count({ where: { merchantId, status: { in: ['REQUESTED', 'APPROVED', 'IN_TRANSIT', 'RECEIVED'] } } }),
       lowStockOffers: Number(lowStock[0]?.n ?? 0),
-      activeOffers: await prisma.offer.count({ where: { merchantId, status: 'ACTIVE' } }),
+      activeOffers: await prisma.offer.count({ where: { merchantId, status: 'ACTIVE', visibility: 'PUBLIC' } }),
       performance: {
         deliveredOrders: delivered,
         slaBreaches: breached,
@@ -321,7 +321,8 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     const q = parse(pageQuery.extend({ q: z.string().max(100).optional(), categoryId: z.string().optional() }), req.query);
     const term = q.q?.trim();
     const where: Prisma.ProductWhereInput = {
-      status: { not: 'ARCHIVED' },
+      // DRAFT products (e.g. created from part-request quotes) stay private to the merchant that created them.
+      AND: [{ OR: [{ status: 'ACTIVE' }, { status: 'DRAFT', createdByMerchantId: merchantId }] }],
       ...(q.categoryId ? { categoryId: q.categoryId } : {}),
       ...(term
         ? { OR: [{ searchText: { contains: normalizeText(term) } }, { identifiers: { some: { normalized: { contains: normalizePartNumber(term) } } } }] }
@@ -395,6 +396,8 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     const q = parse(pageQuery.extend({ status: z.enum(['ACTIVE', 'PAUSED', 'ARCHIVED']).optional(), q: z.string().max(100).optional() }), req.query);
     const where: Prisma.OfferWhereInput = {
       merchantId,
+      // Private offers belong to accepted part-request quotes and are managed there (see part-quotes).
+      visibility: 'PUBLIC',
       ...(q.status ? { status: q.status } : { status: { not: 'ARCHIVED' } }),
       ...(q.q ? { OR: [{ sku: { contains: q.q, mode: 'insensitive' } }, { product: { searchText: { contains: normalizeText(q.q) } } }] } : {}),
     };
@@ -433,7 +436,8 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
       offerBody.omit({ productId: true, sku: true, stock: true }).partial().extend({ status: z.enum(['ACTIVE', 'PAUSED', 'ARCHIVED']).optional() }),
       req.body,
     );
-    const existing = await prisma.offer.findFirst({ where: { id, merchantId } });
+    // A private offer's price/terms are what the customer accepted: it cannot be edited.
+    const existing = await prisma.offer.findFirst({ where: { id, merchantId, visibility: 'PUBLIC' } });
     if (!existing) throw notFound('Offer');
     if (body.status === 'ACTIVE') await requireApproved(merchantId);
     if (body.locationId && !(await prisma.pickupLocation.findFirst({ where: { id: body.locationId, merchantId, active: true } }))) {
@@ -452,7 +456,7 @@ export async function merchantRoutes(app: FastifyInstance, deps: Deps) {
     const { principal: p } = await requireMerchant(req, merchantId, 'STAFF');
     const { id } = parse(z.object({ id: z.string() }), req.params);
     const body = parse(z.object({ onHand: z.number().int().min(0).max(100_000), reason: z.enum(['RESTOCK', 'CORRECTION', 'DAMAGE']), note: z.string().max(300).optional() }), req.body);
-    const offer = await prisma.offer.findFirst({ where: { id, merchantId } });
+    const offer = await prisma.offer.findFirst({ where: { id, merchantId, visibility: 'PUBLIC' } });
     if (!offer) throw notFound('Offer');
     return withTx(async (tx) => {
       const r = await setOnHand(tx, { offerId: id, onHand: body.onHand, reason: body.reason, note: body.note, actor: actorOf(p.userId) });
@@ -663,8 +667,11 @@ export async function merchantUploadRoutes(app: FastifyInstance, deps: Deps) {
 
   app.post('/v1/merchants/:merchantId/uploads', async (req) => {
     const { merchantId } = parse(z.object({ merchantId: z.string().max(64) }), req.params);
-    await requireMerchant(req, merchantId, 'MANAGER');
-    const body = parse(z.object({ purpose: z.enum(['verification']), contentType: z.string(), sizeBytes: z.number().int(), fileName: z.string().min(1).max(200) }), req.body);
+    await requireMerchant(req, merchantId);
+    const body = parse(z.object({ purpose: z.enum(['verification', 'part-quote']), contentType: z.string(), sizeBytes: z.number().int(), fileName: z.string().min(1).max(200) }), req.body);
+    // Verification documents are owner/manager business; any staff member may photograph a part for a quote.
+    if (body.purpose === 'verification') await requireMerchant(req, merchantId, 'MANAGER');
+    if (body.purpose === 'part-quote' && !['image/jpeg', 'image/png'].includes(body.contentType)) throw badRequest('UNSUPPORTED_TYPE', 'Upload a JPEG or PNG photo');
     return uploads.createUpload({ prefix: `merchants/${merchantId}/${body.purpose}`, contentType: body.contentType, sizeBytes: body.sizeBytes, fileName: body.fileName });
   });
 
